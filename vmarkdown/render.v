@@ -63,6 +63,15 @@ pub fn render_json(markdown string) !string {
 	return parse(markdown)!.render_json()
 }
 
+@[inline]
+pub fn (doc Document) to_markdown() string {
+	return doc.render_markdown()
+}
+
+pub fn render_markdown(markdown string) !string {
+	return parse(markdown)!.render_markdown()
+}
+
 fn (doc Document) render_text() string {
 	mut lines := []string{}
 	for child in doc.children {
@@ -85,6 +94,17 @@ fn (doc Document) render_json() string {
 	}
 	sb.write_string(']}')
 	return sb.str()
+}
+
+fn (doc Document) render_markdown() string {
+	mut parts := []string{}
+	for child in doc.children {
+		rendered := child.render_markdown_block('', 0)
+		if rendered.len > 0 {
+			parts << rendered
+		}
+	}
+	return parts.join('\n\n')
 }
 
 fn (node BlockNode) render_text_block() string {
@@ -242,6 +262,111 @@ fn (node BlockNode) render_json_block() string {
 	}
 }
 
+fn (node BlockNode) render_markdown_block(prefix string, depth int) string {
+	match node {
+		HeadingNode {
+			hashes := '#'.repeat(node.level)
+			return '${hashes} ${render_inline_markdown(node.children)}'
+		}
+		ParagraphNode {
+			return prefix + render_inline_markdown(node.children)
+		}
+		BlockquoteNode {
+			mut parts := []string{}
+			for child in node.children {
+				rendered := child.render_markdown_block('', depth)
+				if rendered.len == 0 {
+					continue
+				}
+				for line in rendered.split_into_lines() {
+					parts << '> ' + line
+				}
+			}
+			return parts.join('\n')
+		}
+		ListNode {
+			mut lines := []string{}
+			for i, item in node.items {
+				marker := if node.is_ordered { '${node.start + i}.' } else { '-' }
+				item_prefix := '${prefix}${marker} '
+				body_prefix := prefix + '  '
+				item_lines := item.render_markdown_item(depth + 1)
+				if item_lines.len == 0 {
+					lines << item_prefix.trim_right(' ')
+					continue
+				}
+				if item.starts_with_nested_list() {
+					lines << item_prefix.trim_right(' ')
+					for line in item_lines {
+						if line.len == 0 {
+							lines << ''
+						} else {
+							lines << body_prefix + line
+						}
+					}
+					continue
+				}
+				for line_index, line in item_lines {
+					if line_index == 0 {
+						lines << item_prefix + line
+					} else if line.len == 0 {
+						lines << ''
+					} else {
+						lines << body_prefix + line
+					}
+				}
+			}
+			return lines.join('\n')
+		}
+		CodeBlockNode {
+			fence := markdown_fence(node.content)
+			lang := if node.lang.len > 0 { node.lang } else { '' }
+			content := normalize_code(node.content).trim_right('\n')
+			if lang.len > 0 {
+				return '${fence}${lang}\n${content}\n${fence}'
+			}
+			return '${fence}\n${content}\n${fence}'
+		}
+		HorizontalRuleNode {
+			return '---'
+		}
+		MetaNode {
+			mut keys := node.data.keys()
+			keys.sort()
+			mut lines := []string{}
+			for key in keys {
+				lines << '${key}: ${node.data[key]}'
+			}
+			return lines.join('\n')
+		}
+	}
+}
+
+fn (item ListItemNode) render_markdown_item(depth int) []string {
+	mut lines := []string{}
+	for child_index, child in item.children {
+		rendered := child.render_markdown_block('', depth)
+		if rendered.len == 0 {
+			continue
+		}
+		child_lines := rendered.split_into_lines()
+		if child_index > 0 && lines.len > 0 && child_lines.len > 0 {
+			lines << ''
+		}
+		for line in child_lines {
+			lines << line
+		}
+	}
+	return lines
+}
+
+fn (item ListItemNode) starts_with_nested_list() bool {
+	if item.children.len == 0 {
+		return false
+	}
+	return item.children[0] is ListNode
+}
+
 fn (item ListItemNode) render_json_item() string {
 	mut sb := strings.new_builder(128)
 	sb.write_string('{"level":${item.level},"number":${item.number},"children":[')
@@ -291,6 +416,39 @@ fn (node InlineNode) render_json_inline() string {
 	}
 }
 
+fn render_inline_markdown(nodes []InlineNode) string {
+	mut sb := strings.new_builder(64)
+	for node in nodes {
+		sb.write_string(node.render_markdown_inline())
+	}
+	return sb.str()
+}
+
+fn (node InlineNode) render_markdown_inline() string {
+	match node {
+		TextNode {
+			return escape_markdown_text(node.text)
+		}
+		EmphasisNode {
+			return '*' + render_inline_markdown(node.children) + '*'
+		}
+		StrongNode {
+			return '**' + render_inline_markdown(node.children) + '**'
+		}
+		CodeSpanNode {
+			return markdown_code_span(node.text)
+		}
+		LinkNode {
+			return '[' + render_inline_markdown(node.text) + '](' + markdown_link_destination(node.url) +
+				')'
+		}
+		ImageNode {
+			return '![' + render_inline_markdown(node.alt) + '](' + markdown_link_destination(node.url) +
+				')'
+		}
+	}
+}
+
 fn json_escape(input string) string {
 	mut out := strings.new_builder(input.len + 16)
 	for ch in input {
@@ -304,6 +462,69 @@ fn json_escape(input string) string {
 		}
 	}
 	return out.str()
+}
+
+fn escape_markdown_text(input string) string {
+	return input.replace('\\', '\\\\')
+		.replace('[', '\\[')
+		.replace(']', '\\]')
+		.replace('*', '\\*')
+		.replace('_', '\\_')
+		.replace('`', '\\`')
+}
+
+fn markdown_fence(content string) string {
+	mut longest := 2
+	mut current := 0
+	for ch in content {
+		if ch == u8(96) {
+			current++
+			if current > longest {
+				longest = current
+			}
+		} else {
+			current = 0
+		}
+	}
+	return '`'.repeat(longest + 1)
+}
+
+fn markdown_code_span(content string) string {
+	delimiter := '`'.repeat(longest_backtick_run(content) + 1)
+	needs_padding := content.starts_with('`') || content.ends_with('`') || content.starts_with(' ')
+		|| content.ends_with(' ')
+	if needs_padding {
+		return '${delimiter} ${content} ${delimiter}'
+	}
+	return '${delimiter}${content}${delimiter}'
+}
+
+fn markdown_link_destination(url string) string {
+	if needs_wrapped_destination(url) {
+		return '<' + url.replace('>', '\\>') + '>'
+	}
+	return url.replace(' ', '\\ ')
+}
+
+fn needs_wrapped_destination(url string) bool {
+	return url.contains(' ') || url.contains('(') || url.contains(')') || url.contains('\t')
+		|| url.contains('\n') || url.contains('<') || url.contains('>')
+}
+
+fn longest_backtick_run(input string) int {
+	mut longest := 0
+	mut current := 0
+	for ch in input {
+		if ch == u8(96) {
+			current++
+			if current > longest {
+				longest = current
+			}
+		} else {
+			current = 0
+		}
+	}
+	return longest
 }
 
 @[export: 'html_process_output']

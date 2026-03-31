@@ -42,6 +42,8 @@ Rendering helpers:
 html := vmarkdown.render_html(markdown)!
 text := vmarkdown.render_text(markdown)!
 json := vmarkdown.render_json(markdown)!
+normalized_markdown := vmarkdown.render_markdown(markdown)!
+markdown_from_html := vmarkdown.html_to_markdown(html)!
 ```
 
 AST pretty printing:
@@ -90,6 +92,23 @@ Notes on stability:
 - Code text keeps internal spacing but normalizes newlines to `\n`.
 - Structural changes change IDs.
 - If the binary protocol changes in the future, previously computed `stable_id()` values will also change.
+
+## Markdown Render
+
+`to_markdown()` / `render_markdown()` render the AST back into normalized Markdown.
+
+- This is semantic round-trip, not source-exact round-trip.
+- Output formatting is normalized.
+- Original trivia like exact blank lines, marker style, or emphasis delimiter choice is not preserved.
+- The renderer is covered for nested lists, blockquotes, mixed list-item blocks, complex link/image destinations, and code span/code fence delimiter safety.
+
+## HTML To Markdown
+
+`html_to_markdown()` parses HTML with V's `net.html` module and converts a supported HTML subset back into normalized Markdown.
+
+- Intended for clean HTML and especially the HTML produced by `render_html()`
+- Supports headings, paragraphs, blockquotes, lists, links, images, `pre/code`, `strong/em`, `hr`, and `br`
+- Unsupported tags are best-effort flattened to their children/text
 
 Incremental ingest is available through the in-memory store:
 

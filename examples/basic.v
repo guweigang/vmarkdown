@@ -13,4 +13,6 @@ fn main() {
 	println(vmarkdown.render_html(markdown) or { '' })
 	println(doc.to_text())
 	println(doc.to_json())
+	println(doc.to_markdown())
+	println(vmarkdown.html_to_markdown(vmarkdown.render_html(markdown) or { '' }) or { '' })
 }
