@@ -131,10 +131,15 @@ Notes on stability:
 - `3` html view
 - `4` AST view
 - `j`/`k` or arrow keys to scroll
+- `Ctrl+d` / `Ctrl+u` half-page down/up
 - `g` jump back to top
+- `G` jump to the bottom
 - `/` start search
 - `n` next match, `N` previous match
-- `q` or `Esc` to quit
+- `h` toggle the help window
+- `Esc` exits search input and clears search highlights
+- `q` quits the preview
+- Left gutter shows line numbers for easier scanning and jumping
 - Header shows the current source and active view
 - Footer shows shortcuts, search status, plus the current line range and scroll percentage
 

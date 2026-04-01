@@ -81,10 +81,15 @@ mut:
 	search_active bool
 	search_status string
 	current_match int = -1
+	show_help    bool
 }
 
 fn preview_event(e &tui.Event, x voidptr) {
 	mut app := unsafe { &PreviewApp(x) }
+	if e.typ == .key_down && app.show_help {
+		app.handle_help_input(e)
+		return
+	}
 	if e.typ == .key_down && app.search_active {
 		app.handle_search_input(e)
 		return
@@ -96,6 +101,9 @@ fn preview_event(e &tui.Event, x voidptr) {
 			}
 			.escape {
 				app.dismiss_search()
+			}
+			.h {
+				app.show_help = true
 			}
 			.slash {
 				app.start_search()
@@ -112,8 +120,22 @@ fn preview_event(e &tui.Event, x voidptr) {
 			.page_up {
 				app.scroll = max_int(app.scroll - max_int(app.viewport_height() - 1, 1), 0)
 			}
+			.d {
+				if e.modifiers.has(.ctrl) {
+					app.scroll += app.half_page_step()
+				}
+			}
 			.g {
-				app.scroll = 0
+				if e.modifiers.has(.shift) {
+					app.scroll = app.max_scroll()
+				} else {
+					app.scroll = 0
+				}
+			}
+			.u {
+				if e.modifiers.has(.ctrl) {
+					app.scroll = max_int(app.scroll - app.half_page_step(), 0)
+				}
 			}
 			.n {
 				if e.modifiers.has(.shift) {
@@ -148,9 +170,12 @@ fn preview_frame(x voidptr) {
 	app.ensure_lines()
 	app.clamp_scroll()
 	app.tui.clear()
-	app.draw_header()
 	app.draw_content()
+	app.draw_header()
 	app.draw_footer()
+	if app.show_help {
+		app.draw_help_overlay()
+	}
 	app.tui.reset()
 	app.tui.flush()
 }
@@ -169,7 +194,7 @@ fn (mut app PreviewApp) ensure_lines() {
 	if app.tui.window_width == app.last_width && app.tui.window_height == app.last_height && app.lines.len > 0 {
 		return
 	}
-	content_width := max_int(app.tui.window_width - 2, 20)
+	content_width := max_int(app.tui.window_width - app.line_number_gutter_width() - 2, 20)
 	app.lines = preview_lines_from_document(app.doc, app.markdown, app.mode, content_width) or {
 		['preview error: ${err}']
 	}
@@ -182,25 +207,38 @@ fn (app &PreviewApp) viewport_height() int {
 }
 
 fn (mut app PreviewApp) clamp_scroll() {
-	max_scroll := max_int(app.lines.len - app.viewport_height(), 0)
-	app.scroll = min_int(max_int(app.scroll, 0), max_scroll)
+	app.scroll = min_int(max_int(app.scroll, 0), app.max_scroll())
+}
+
+fn (app &PreviewApp) max_scroll() int {
+	return max_int(app.lines.len - app.viewport_height(), 0)
+}
+
+fn (app &PreviewApp) half_page_step() int {
+	return max_int(app.viewport_height() / 2, 1)
 }
 
 fn (mut app PreviewApp) draw_header() {
-	line := build_preview_header_line(app.source_label, app.mode, app.tui.window_width)
+	line := build_preview_header_line(app.source_label, app.mode, app.current_line_index() + 2,
+		app.tui.window_width)
 	app.tui.draw_text(0, 0, line)
 }
 
 fn (mut app PreviewApp) draw_content() {
 	height := app.viewport_height()
-	current_match_index := app.current_match_line_index()
+	current_line_index := min_int(app.current_line_index() + 1, app.lines.len - 1)
+	gutter_width := app.line_number_gutter_width()
 	for i in 0 .. height {
 		line_index := app.scroll + i
 		if line_index >= app.lines.len {
 			break
 		}
-		line := highlight_preview_line(app.lines[line_index], app.search_query, line_index == current_match_index)
-		app.tui.draw_text(0, i + 1, line)
+		is_current := line_index == current_line_index
+		line_no := format_preview_line_number(line_index + 1, gutter_width, is_current)
+		line := highlight_preview_line(app.lines[line_index], app.search_query, line_index == app.current_match_line_index())
+		app.tui.draw_text(0, i + 1, line_no)
+		app.tui.draw_text(gutter_width, i + 1, clip_preview_content_line(line,
+			max_int(app.tui.window_width - gutter_width - 1, 1)))
 	}
 }
 
@@ -215,6 +253,32 @@ fn (mut app PreviewApp) draw_footer() {
 	app.tui.draw_text(0, command_y, pad_preview_line(command, app.tui.window_width))
 }
 
+fn (mut app PreviewApp) draw_help_overlay() {
+	lines := preview_help_lines()
+	width := preview_help_width(lines)
+	height := lines.len + 2
+	x := max_int((app.tui.window_width - width) / 2, 0)
+	y := max_int((app.tui.window_height - height) / 2, 0)
+	app.tui.draw_text(x, y, term.bg_rgb(24, 30, 34, '╭' + '─'.repeat(max_int(width - 2, 0)) + '╮'))
+	for i, line in lines {
+		plain := fit_preview_plain(line, max_int(width - 4, 1))
+		padding := ' '.repeat(max_int(width - 2 - plain.runes().len, 0))
+		styled := if i == 0 {
+			term.bg_rgb(24, 30, 34, '│' + term.bold(term.hex(0xe6b450, plain)) + padding + '│')
+		} else {
+			term.bg_rgb(24, 30, 34, '│' + plain + padding + '│')
+		}
+		app.tui.draw_text(x, y + i + 1, styled)
+	}
+	app.tui.draw_text(x, y + height - 1, term.bg_rgb(24, 30, 34, '╰' + '─'.repeat(max_int(width - 2,
+		0)) + '╯'))
+}
+
+fn (app &PreviewApp) line_number_gutter_width() int {
+	digits := max_int('${max_int(app.lines.len, 1)}'.len, 2)
+	return digits + 4
+}
+
 fn preview_mode_label(mode PreviewMode) string {
 	return match mode {
 		.terminal { 'Terminal' }
@@ -224,42 +288,63 @@ fn preview_mode_label(mode PreviewMode) string {
 	}
 }
 
-fn build_preview_header_line(source_label string, mode PreviewMode, width int) string {
-	safe_width := max_int(width, 24)
-	left_plain := ' vmarkdown preview '
+fn build_preview_header_line(source_label string, mode PreviewMode, current_line int, width int) string {
+	safe_width := max_int(width - 2, 24)
+	left_plain := if safe_width >= 36 { ' vmarkdown preview ' } else { ' vmd ' }
 	mode_plain := ' ${preview_mode_label(mode)} '
-	source_plain := ' ${compact_preview_source_label(source_label)} '
-	filler_plain := ' '.repeat(max_int(safe_width - left_plain.len - mode_plain.len - source_plain.len, 1))
+	line_plain := ' Ln ${max_int(current_line, 1)} '
+	available := safe_width - left_plain.len - mode_plain.len - line_plain.len
+	source_plain := if available > 0 {
+		fit_preview_plain(' ${compact_preview_source_label(source_label)} ', available)
+	} else {
+		''
+	}
+	filler_plain := ' '.repeat(max_int(safe_width - left_plain.len - mode_plain.len - line_plain.len - source_plain.len,
+		0))
 	left := term.bold(term.hex(0xe6b450, left_plain))
 	filler := term.bg_rgb(18, 24, 28, filler_plain)
 	source := term.bg_rgb(18, 24, 28, term.bright_black(source_plain))
+	line_text := term.bg_rgb(18, 24, 28, term.hex(0xe6b450, term.bold(line_plain)))
 	mode_text := term.bg_rgb(32, 39, 45, term.bright_white(mode_plain))
-	return left + filler + source + mode_text
+	return left + filler + source + line_text + mode_text + term.bg_rgb(18, 24, 28, '')
 }
 
 fn build_preview_footer_line(mode PreviewMode, scroll int, viewport_height int, total_lines int, width int) string {
-	safe_width := max_int(width, 24)
-	left := build_preview_footer_left(mode)
+	safe_width := max_int(width - 2, 24)
 	position_plain := ' ${preview_position_label(scroll, viewport_height, total_lines)} '
-	left_plain := term.strip_ansi(left)
-	filler_plain := ' '.repeat(max_int(safe_width - left_plain.len - position_plain.len, 1))
+	left_plain := build_preview_footer_left_plain(mode)
+	left_budget := max_int(safe_width - position_plain.len, 1)
+	left := style_preview_footer_left(fit_preview_plain(left_plain, left_budget), mode)
+	left_visible := term.strip_ansi(left).len
+	filler_plain := ' '.repeat(max_int(safe_width - left_visible - position_plain.len, 0))
 	filler := term.bg_rgb(18, 24, 28, filler_plain)
 	position := term.bg_rgb(32, 39, 45, term.bright_black(position_plain))
 	return left + filler + position
 }
 
-fn build_preview_footer_left(mode PreviewMode) string {
+fn build_preview_footer_left_plain(mode PreviewMode) string {
 	mut parts := []string{}
 	for item in preview_mode_items() {
-		marker := '[${item.key}] ${item.label}'
-		if item.mode == mode {
-			parts << term.bg_rgb(32, 39, 45, term.bright_white(' ${marker} '))
-		} else {
-			parts << term.dim(marker)
-		}
+		parts << '[${item.key}] ${item.label}'
 	}
-	parts << term.dim('[j/k] scroll  [g] top  [/] search  [n/N] next/prev  [q] quit')
+	parts << '[j/k] scroll  [Ctrl+d/u] half-page  [g/G] top/bottom  [/] search  [h] help  [q] quit'
 	return parts.join('  ')
+}
+
+fn style_preview_footer_left(input string, mode PreviewMode) string {
+	mut out := input
+	for item in preview_mode_items() {
+		marker := '[${item.key}] ${item.label}'
+		replacement := if item.mode == mode {
+			term.bg_rgb(32, 39, 45, term.bright_white(marker))
+		} else {
+			term.dim(marker)
+		}
+		out = out.replace_once(marker, replacement)
+	}
+	out = out.replace_once('[j/k] scroll  [g] top  [/] search  [n/N] next/prev  [q] quit',
+		term.dim('[j/k] scroll  [Ctrl+d/u] half-page  [g/G] top/bottom  [/] search  [h] help  [q] quit'))
+	return out
 }
 
 fn preview_position_label(scroll int, viewport_height int, total_lines int) string {
@@ -321,12 +406,34 @@ fn build_preview_command_line(search_query string, search_active bool, search_st
 }
 
 fn pad_preview_line(line string, width int) string {
-	safe_width := max_int(width, 1)
+	safe_width := max_int(width - 2, 1)
+	plain := fit_preview_plain(term.strip_ansi(line), safe_width)
+	styled := term.bg_rgb(32, 39, 45, term.bright_cyan(plain))
+	visible := term.strip_ansi(styled).len
+	if visible >= safe_width {
+		return styled
+	}
+	return styled + term.bg_rgb(32, 39, 45, ' '.repeat(safe_width - visible))
+}
+
+fn clip_preview_content_line(line string, width int) string {
+	safe_width := max_int(width - 2, 1)
 	plain := term.strip_ansi(line)
-	if plain.len >= safe_width {
+	if plain.runes().len <= safe_width {
 		return line
 	}
-	return line + term.bg_rgb(32, 39, 45, ' '.repeat(safe_width - plain.len))
+	return fit_preview_plain(plain, safe_width)
+}
+
+fn format_preview_line_number(line_number int, width int, is_current bool) string {
+	text := '${line_number}'
+	padding := ' '.repeat(max_int(width - text.len - 2, 0))
+	plain := padding + text + '  '
+	return if is_current {
+		term.hex(0xe6b450, term.bold(plain))
+	} else {
+		term.bright_black(plain)
+	}
 }
 
 fn compact_preview_source_label(path string) string {
@@ -339,8 +446,29 @@ fn compact_preview_source_label(path string) string {
 	return '...' + path[path.len - 25..]
 }
 
+fn fit_preview_plain(input string, width int) string {
+	safe_width := max_int(width, 1)
+	if input.len <= safe_width {
+		return input
+	}
+	if safe_width <= 1 {
+		return input[..1]
+	}
+	return input[..safe_width - 1] + '…'
+}
+
 fn (app &PreviewApp) current_match_line_index() int {
 	return app.current_match
+}
+
+fn (app &PreviewApp) current_line_index() int {
+	if app.current_match >= 0 {
+		return app.current_match
+	}
+	if app.scroll >= 0 && app.scroll < app.lines.len {
+		return app.scroll
+	}
+	return -1
 }
 
 fn (mut app PreviewApp) start_search() {
@@ -358,6 +486,15 @@ fn (mut app PreviewApp) dismiss_search() {
 		app.search_query = ''
 		app.search_status = ''
 		app.current_match = -1
+	}
+}
+
+fn (mut app PreviewApp) handle_help_input(e &tui.Event) {
+	match e.code {
+		.h, .escape, .enter, .q {
+			app.show_help = false
+		}
+		else {}
 	}
 }
 
@@ -505,6 +642,28 @@ fn style_preview_match(text string, is_current bool) string {
 		return term.bg_rgb(255, 214, 102, term.rgb(20, 26, 30, term.bold(text)))
 	}
 	return term.bg_rgb(103, 232, 249, term.rgb(18, 24, 28, term.bold(text)))
+}
+
+fn preview_help_lines() []string {
+	return [
+		' vmarkdown preview help ',
+		'1/2/3/4 switch Terminal, Markdown, HTML, AST views',
+		'j/k or arrows scroll by one line',
+		'Ctrl+d / Ctrl+u scroll half a page down or up',
+		'g goes to the top, G goes to the bottom',
+		'/ starts search, Enter confirms, n/N jump matches',
+		'Esc leaves search input and clears search on the next press',
+		'h toggles this help window',
+		'q quits the preview',
+	]
+}
+
+fn preview_help_width(lines []string) int {
+	mut width := 24
+	for line in lines {
+		width = max_int(width, line.runes().len + 2)
+	}
+	return width
 }
 
 fn count_preview_matches(lines []string, query string) int {
