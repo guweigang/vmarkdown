@@ -46,6 +46,7 @@ text := vmarkdown.render_text(markdown)!
 json := vmarkdown.render_json(markdown)!
 normalized_markdown := vmarkdown.render_markdown(markdown)!
 markdown_from_html := vmarkdown.html_to_markdown(html)!
+terminal_view := vmarkdown.render_terminal(markdown)!
 ```
 
 AST pretty printing:
@@ -111,6 +112,39 @@ Notes on stability:
 - Intended for clean HTML and especially the HTML produced by `render_html()`
 - Supports headings, paragraphs, blockquotes, lists, links, images, `pre/code`, `strong/em`, `hr`, and `br`
 - Unsupported tags are best-effort flattened to their children/text
+
+## Terminal Render
+
+`render_terminal()` and `doc.to_terminal()` provide a lightweight ANSI-colored terminal preview built on V's `term` module.
+
+- Heading, list, blockquote, code block, link, and image placeholder styling
+- Width-aware wrapping
+- No heavy external renderer dependency
+- Pairs with the interactive `preview()` viewer below
+
+## Interactive Preview
+
+`preview(markdown)!` and `preview_file(path)!` open a lightweight full-screen `term.ui` viewer.
+
+- `1` terminal view
+- `2` markdown view
+- `3` html view
+- `4` AST view
+- `j`/`k` or arrow keys to scroll
+- `g` jump back to top
+- `/` start search
+- `n` next match, `N` previous match
+- `q` or `Esc` to quit
+- Header shows the current source and active view
+- Footer shows shortcuts, search status, plus the current line range and scroll percentage
+
+CLI examples:
+
+```sh
+v run cmd/vmarkdown preview README.md
+v run cmd/vmarkdown terminal README.md
+v run cmd/vmarkdown ast README.md
+```
 
 Incremental ingest is available through the in-memory store:
 

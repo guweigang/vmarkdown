@@ -1,5 +1,7 @@
 module vmarkdown
 
+import os
+
 fn test_parse_heading_list_and_code_block() {
 	input := '# Title
 
@@ -51,4 +53,26 @@ fn test_binary_encoding_uses_protocol_type_tags() {
 	}
 	assert BlockNode(paragraph).binary_encode()[0] == u8(0x02)
 	assert BlockNode(paragraph).stable_id() != BlockNode(paragraph).semantic_stable_id()
+}
+
+fn test_parse_list_item_starting_with_code_span() {
+	input := '- `Document` owns `[]BlockNode`\n'
+	doc := parse(input) or { panic(err) }
+	assert doc.children.len == 1
+	assert doc.children[0] is ListNode
+	list := doc.children[0] as ListNode
+	assert list.items.len == 1
+	assert list.items[0].children.len == 1
+	assert list.items[0].children[0] is ParagraphNode
+	paragraph := list.items[0].children[0] as ParagraphNode
+	assert paragraph.children.len == 3
+	assert paragraph.children[0] is CodeSpanNode
+	assert paragraph.children[1] is TextNode
+	assert paragraph.children[2] is CodeSpanNode
+}
+
+fn test_parse_readme_smoke() {
+	readme := os.read_file('/Users/guweigang/Source/vmarkdown/README.md') or { panic(err) }
+	doc := parse(readme) or { panic(err) }
+	assert doc.children.len > 0
 }

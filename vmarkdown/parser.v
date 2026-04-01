@@ -359,6 +359,7 @@ fn (mut b Builder) leave_block(typ int, _detail voidptr) ! {
 }
 
 fn (mut b Builder) enter_span(typ int, detail voidptr) ! {
+	b.ensure_inline_container()!
 	match typ {
 		int(C.MD_SPAN_EM) {
 			b.push_frame(.emphasis)
