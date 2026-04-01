@@ -117,6 +117,8 @@ Notes on stability:
 
 `render_terminal()` and `doc.to_terminal()` provide a lightweight ANSI-colored terminal preview built on V's `term` module.
 
+![terminal preview](assets/terminal_preview.png)
+
 - Heading, list, blockquote, code block, link, and image placeholder styling
 - Width-aware wrapping
 - No heavy external renderer dependency
