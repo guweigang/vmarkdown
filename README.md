@@ -1,5 +1,7 @@
 # vmarkdown
 
+![vmarkdown brand](assets/vmarkdown_brand.png)
+
 `vmarkdown` is a V wrapper around [md4c](https://github.com/mity/md4c) that builds a typed Markdown AST instead of only streaming HTML.
 
 ## Why this shape
