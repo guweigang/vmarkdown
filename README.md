@@ -142,9 +142,31 @@ Notes on stability:
 
 - Heading, list, blockquote, code block, link, and image placeholder styling
 - Mermaid `flowchart` / `graph` code blocks can render as ASCII/Unicode diagrams in terminal
+- Internal schema diagrams can also render from fenced JSON blocks using info strings like ````json diagram````
 - Width-aware wrapping
 - No heavy external renderer dependency
 - Pairs with the interactive `preview()` viewer below
+
+Example:
+
+```md
+```json diagram
+{
+  "version": 1,
+  "kind": "timeline",
+  "entries": [
+    { "point": "2024", "text": "Parser" },
+    { "point": "2025", "text": "Preview" }
+  ]
+}
+```
+```
+
+Try it with:
+
+```sh
+v run examples/json_diagram.v
+```
 
 ## Mermaid In Terminal
 

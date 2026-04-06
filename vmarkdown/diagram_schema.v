@@ -40,6 +40,11 @@ pub:
 	transitions []DiagramStateTransition
 }
 
+struct DiagramDocumentHeader {
+pub:
+	kind string
+}
+
 pub fn render_diagram_json(kind string, path string, width int) !string {
 	payload := load_diagram_json(kind, path)!
 	return render_diagram_payload(payload, width)
@@ -110,6 +115,15 @@ pub fn validate_diagram_json_raw(kind string, raw string) !string {
 	}
 }
 
+pub fn validate_diagram_document_raw(raw string) !string {
+	header := json.decode(DiagramDocumentHeader, raw)!
+	kind := header.kind.trim_space()
+	if kind.len == 0 {
+		return error('diagram.kind cannot be empty')
+	}
+	return validate_diagram_json_raw(kind, raw)
+}
+
 pub fn load_diagram_json(kind string, path string) !DiagramPayload {
 	raw := os.read_file(path)!
 	return decode_diagram_json(kind, raw)
@@ -167,6 +181,15 @@ pub fn decode_diagram_json(kind string, raw string) !DiagramPayload {
 			return error('unknown diagram kind: ${kind}')
 		}
 	}
+}
+
+pub fn decode_diagram_document(raw string) !DiagramPayload {
+	header := json.decode(DiagramDocumentHeader, raw)!
+	kind := header.kind.trim_space()
+	if kind.len == 0 {
+		return error('diagram.kind cannot be empty')
+	}
+	return decode_diagram_json(kind, raw)
 }
 
 pub fn diagram_schema(kind string) string {

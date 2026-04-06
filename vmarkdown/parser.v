@@ -298,7 +298,8 @@ fn (mut b Builder) enter_block(typ int, detail voidptr) ! {
 			b.push_frame(.code_block)
 			mut top := b.top()!
 			code := unsafe { &C.MD_BLOCK_CODE_DETAIL(detail) }
-			top.lang = attribute_to_string(code.lang)
+			info := attribute_to_string(code.info).trim_space()
+			top.lang = if info.len > 0 { info } else { attribute_to_string(code.lang) }
 		}
 		int(C.MD_BLOCK_P) {
 			b.push_frame(.paragraph)

@@ -35,6 +35,15 @@ println("ok")
 	assert code.content.contains('println("ok")')
 }
 
+fn test_parse_code_block_preserves_full_info_string() {
+	input := '```json diagram\n{"version":1,"kind":"timeline","entries":[]}\n```\n'
+	doc := parse(input) or { panic(err) }
+	assert doc.children.len == 1
+	assert doc.children[0] is CodeBlockNode
+	code := doc.children[0] as CodeBlockNode
+	assert code.lang == 'json diagram'
+}
+
 fn test_binary_encoding_uses_protocol_type_tags() {
 	heading := HeadingNode{
 		level: 2

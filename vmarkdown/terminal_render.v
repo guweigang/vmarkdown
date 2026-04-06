@@ -110,8 +110,13 @@ fn (r TerminalRenderer) render_block(node BlockNode, prefix string, depth int) s
 			return lines.join('\n')
 		}
 		CodeBlockNode {
-			if node.lang.to_lower() == 'mermaid' {
+			if code_block_primary_lang(node.lang) == 'mermaid' {
 				if rendered := r.render_mermaid_block(node) {
+					return rendered
+				}
+			}
+			if is_json_diagram_info(node.lang) {
+				if rendered := r.render_json_diagram_block(node) {
 					return rendered
 				}
 			}
@@ -211,6 +216,37 @@ fn (r TerminalRenderer) render_mermaid_block(node CodeBlockNode) ?string {
 		lines << r.style_line(line, TerminalStyle{'mermaid'})
 	}
 	return lines.join('\n')
+}
+
+fn (r TerminalRenderer) render_json_diagram_block(node CodeBlockNode) ?string {
+	payload := decode_diagram_document(node.content) or { return none }
+	body := render_diagram_payload(payload, max_int(r.width - 4, 24))
+	mut lines := []string{}
+	lines << r.style_line('◈ json diagram', TerminalStyle{'mermaid_title'})
+	for line in body.split_into_lines() {
+		lines << r.style_line(line, TerminalStyle{'mermaid'})
+	}
+	return lines.join('\n')
+}
+
+fn is_json_diagram_info(info string) bool {
+	tokens := code_block_info_tokens(info)
+	if tokens.len < 2 {
+		return false
+	}
+	return tokens[0].to_lower() == 'json' && tokens[1..].map(it.to_lower()).contains('diagram')
+}
+
+fn code_block_info_tokens(info string) []string {
+	return info.split(' ').map(it.trim_space()).filter(it.len > 0)
+}
+
+fn code_block_primary_lang(info string) string {
+	tokens := code_block_info_tokens(info)
+	if tokens.len == 0 {
+		return ''
+	}
+	return tokens[0].to_lower()
 }
 
 fn (r TerminalRenderer) render_wrapped_inline(nodes []InlineNode, prefix string) string {

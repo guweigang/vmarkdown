@@ -111,3 +111,18 @@ fn test_render_terminal_mermaid_additional_diagrams() {
 	assert out.contains('◈ mermaid gantt')
 	assert out.contains('Release Plan')
 }
+
+fn test_render_terminal_json_diagram_code_block() {
+	doc := parse('```json diagram\n{\n  \"version\": 1,\n  \"kind\": \"timeline\",\n  \"entries\": [\n    { \"point\": \"2024\", \"text\": \"Parser\" },\n    { \"point\": \"2025\", \"text\": \"Preview\" }\n  ]\n}\n```\n') or {
+		panic(err)
+	}
+	out := doc.to_terminal_with_options(TerminalRenderOptions{
+		width: 48
+		color: false
+	})
+	assert out.contains('◈ json diagram')
+	assert out.contains('2024')
+	assert out.contains('Parser')
+	assert out.contains('2025')
+	assert out.contains('Preview')
+}
