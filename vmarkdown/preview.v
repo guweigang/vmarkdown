@@ -12,12 +12,36 @@ pub enum PreviewMode {
 }
 
 pub fn preview(markdown string) ! {
+	preview_with_mode(markdown, .terminal, 'buffer')!
+}
+
+pub fn preview_with_mode(markdown string, mode PreviewMode, source_label string) ! {
 	doc := parse(markdown)!
 	mut app := &PreviewApp{
 		markdown: markdown
 		doc: doc
+		mode: mode
+		source_label: if source_label.len > 0 { source_label } else { 'buffer' }
+	}
+	app.tui = tui.init(
+		user_data: app
+		event_fn: preview_event
+		frame_fn: preview_frame
+		hide_cursor: true
+		capture_events: true
+		window_title: 'vmarkdown preview'
+	)
+	app.tui.run()!
+}
+
+pub fn preview_terminal_buffer(rendered string, source_label string) ! {
+	doc := parse('# Preview\n')!
+	mut app := &PreviewApp{
+		markdown: '# Preview\n'
+		doc: doc
 		mode: .terminal
-		source_label: 'buffer'
+		source_label: if source_label.len > 0 { source_label } else { 'buffer' }
+		raw_terminal: rendered
 	}
 	app.tui = tui.init(
 		user_data: app
@@ -31,23 +55,31 @@ pub fn preview(markdown string) ! {
 }
 
 pub fn preview_file(path string) ! {
+	preview_file_with_mode(path, .terminal)!
+}
+
+pub fn preview_file_with_mode(path string, mode PreviewMode) ! {
 	markdown := os.read_file(path)!
-	doc := parse(markdown)!
-	mut app := &PreviewApp{
-		markdown: markdown
-		doc: doc
-		mode: .terminal
-		source_label: path
-	}
-	app.tui = tui.init(
-		user_data: app
-		event_fn: preview_event
-		frame_fn: preview_frame
-		hide_cursor: true
-		capture_events: true
-		window_title: 'vmarkdown preview'
-	)
-	app.tui.run()!
+	preview_with_mode(markdown, mode, path)!
+}
+
+pub fn preview_mermaid(input string) ! {
+	preview_with_mode(build_mermaid_preview_markdown(input), .terminal, 'mermaid buffer')!
+}
+
+pub fn preview_mermaid_file(path string) ! {
+	input := os.read_file(path)!
+	preview_with_mode(build_mermaid_preview_markdown(input), .terminal, path)!
+}
+
+pub fn preview_diagram_rendered(title string, rendered string) ! {
+	preview_with_mode(build_diagram_preview_markdown(title, rendered), .terminal,
+		if title.len > 0 { title } else { 'diagram buffer' })!
+}
+
+pub fn preview_diagram_payload(title string, payload DiagramPayload, width int) ! {
+	rendered := render_diagram_payload(payload, width)
+	preview_diagram_rendered(title, rendered)!
 }
 
 pub fn preview_lines(markdown string, mode PreviewMode, width int) ![]string {
@@ -66,6 +98,67 @@ pub fn preview_lines_from_document(doc Document, markdown string, mode PreviewMo
 	return wrap_preview_text(text, safe_width, mode == .terminal)
 }
 
+pub fn build_mermaid_preview_markdown(input string) string {
+	return [
+		'# Mermaid Preview',
+		'',
+		'```mermaid',
+		input.trim_space(),
+		'```',
+	].join('\n')
+}
+
+pub fn build_diagram_preview_markdown(title string, rendered string) string {
+	heading := if title.len > 0 { title } else { 'Diagram Preview' }
+	return [
+		'# ${heading}',
+		'',
+		'```text',
+		rendered.trim_right('\n'),
+		'```',
+	].join('\n')
+}
+
+pub fn build_diff_preview_markdown(title string, lines []string) string {
+	heading := if title.len > 0 { title } else { 'Diagram Diff Preview' }
+	body := if lines.len > 0 { lines.join('\n') } else { 'no changes' }
+	return [
+		'# ${heading}',
+		'',
+		'```text',
+		body,
+		'```',
+	].join('\n')
+}
+
+pub fn preview_diff_lines(title string, lines []string) ! {
+	preview_terminal_buffer(render_diff_preview_terminal(lines),
+		if title.len > 0 { title } else { 'diff buffer' })!
+}
+
+fn render_diff_preview_terminal(lines []string) string {
+	if lines.len == 0 {
+		return style_diff_preview_line('no changes')
+	}
+	return lines.map(style_diff_preview_line(it)).join('\n')
+}
+
+fn style_diff_preview_line(line string) string {
+	if line.starts_with('added ') {
+		return term.hex(0x7fd962, line)
+	}
+	if line.starts_with('removed ') {
+		return term.hex(0xf07178, line)
+	}
+	if line.starts_with('changed ') {
+		return term.hex(0xe6b450, term.bold(line))
+	}
+	if line.starts_with('reused ') || line == 'no changes' {
+		return term.bright_black(line)
+	}
+	return line
+}
+
 struct PreviewApp {
 	markdown string
 	doc      Document
@@ -82,6 +175,7 @@ mut:
 	search_status string
 	current_match int = -1
 	show_help    bool
+	raw_terminal string
 }
 
 fn preview_event(e &tui.Event, x voidptr) {
@@ -195,8 +289,12 @@ fn (mut app PreviewApp) ensure_lines() {
 		return
 	}
 	content_width := max_int(app.tui.window_width - app.line_number_gutter_width() - 2, 20)
-	app.lines = preview_lines_from_document(app.doc, app.markdown, app.mode, content_width) or {
-		['preview error: ${err}']
+	if app.mode == .terminal && app.raw_terminal.len > 0 {
+		app.lines = wrap_preview_text(app.raw_terminal, content_width, true)
+	} else {
+		app.lines = preview_lines_from_document(app.doc, app.markdown, app.mode, content_width) or {
+			['preview error: ${err}']
+		}
 	}
 	app.last_width = app.tui.window_width
 	app.last_height = app.tui.window_height

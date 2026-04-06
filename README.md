@@ -20,8 +20,29 @@ One deliberate adjustment was made for production parsing: `ListItemNode.childre
 - `vmarkdown/parser.v`: md4c-backed parser and event builder
 - `vmarkdown/serialize.v`: normalized stable IDs, chunk collection, and in-memory incremental ingest
 - `vmarkdown/render.v`: HTML, plain-text, and JSON renderers
+- `vmarkdown/ascii_layout.v`: reusable terminal layout primitives
+- `vmarkdown/ascii_diagrams.v`: flow / graph ASCII renderers built on `ascii_layout`
+- `vmarkdown/ascii_diagrams_tree_org.v`: tree and org-chart ASCII renderers
+- `vmarkdown/ascii_diagrams_misc.v`: timeline, pipeline, state, journey, and git ASCII renderers
+- `vmarkdown/diagram_ast.v`: shared lower-level diagram AST / IR
+- `vmarkdown/diagram_schema.v`: internal JSON schema, validation, and decoding
+- `vmarkdown/diagram_bridge.v`: Mermaid AST -> shared diagram AST bridge
 - `vmarkdown/c/md4c_bridge.c`: thin callback adapter
 - `thirdparty/md4c`: vendored upstream parser
+
+## Diagram Architecture
+
+Terminal diagrams are now split into three explicit layers:
+
+1. Mermaid syntax layer
+   - `Mermaid source -> Mermaid AST`
+2. Shared diagram IR layer
+   - `Mermaid AST -> Diagram AST`
+   - `vmarkdown` internal JSON schema -> `Diagram AST`
+3. Terminal layout/render layer
+   - `Diagram AST -> ascii_layout -> terminal ASCII/Unicode output`
+
+This keeps Mermaid-specific parsing separate from the reusable lower-level diagram model and makes grouped flow, timeline, state, org, and other terminal renderers easier to share.
 
 ## Quick Start
 
@@ -120,9 +141,148 @@ Notes on stability:
 ![terminal preview](assets/terminal_preview.png)
 
 - Heading, list, blockquote, code block, link, and image placeholder styling
+- Mermaid `flowchart` / `graph` code blocks can render as ASCII/Unicode diagrams in terminal
 - Width-aware wrapping
 - No heavy external renderer dependency
 - Pairs with the interactive `preview()` viewer below
+
+## Mermaid In Terminal
+
+Mermaid support is implemented in pure V and rendered directly into terminal-friendly ASCII/Unicode layouts.
+
+Current support is intentionally limited but extensible:
+
+- `flowchart` / `graph`
+- `sequenceDiagram`
+- `stateDiagram-v2`
+- `classDiagram`
+- `erDiagram`
+- `gantt`
+- `mindmap`
+- `journey`
+- `gitGraph`
+- `timeline`
+- `TD` / `TB` / `LR`
+- Nodes like `A`, `A[Label]`, `A(Label)`, `A{Decision}`
+- Edges `-->`, `---`, and `-->|label|`
+- Chained paths like `A --> B --> C`
+- Simple branches like `A --> B & C`
+- Basic `subgraph ... end` grouping
+- Sequence messages like `Alice->>Bob: hello`
+- Sequence notes like `Note left/right of Bob: ...`
+- Sequence activation markers with `activate` / `deactivate`
+- Sequence control blocks like `alt`, `opt`, and `loop`
+- Sequence `else` / `par` branches and self messages like `Bob->>Bob: cache`
+- State transitions like `[*] --> Idle` and `Idle --> Running: start`
+- Class boxes with member lists plus common relations like `<|--`, `-->`, and `--`
+- ER entity boxes with attribute lists plus cardinality relations like `||--o{`
+- Gantt sections and tasks with status markers like `done` and `active`
+- Mindmap trees rendered as indented branch layouts
+- Journey sections and scored steps with compact progress dots
+- GitGraph commits, branches, checkouts, and merges
+- Timeline titles, dated milestones, and continued events
+
+Unsupported Mermaid syntax currently falls back to a normal fenced code block instead of failing preview.
+
+Try the dedicated Mermaid example with:
+
+```sh
+v run examples/mermaid.v
+```
+
+## Generic ASCII Diagrams
+
+`ascii_layout` is now also reused outside Mermaid for small terminal-native diagrams.
+
+- `render_ascii_tree(root, width)`
+- `render_ascii_dependency_graph(edges, width)`
+- `render_ascii_call_graph(edges, width)`
+- `render_ascii_org_chart(root, width)`
+- `render_ascii_timeline(entries, width)`
+- `render_ascii_pipeline(stages, width)`
+- `render_ascii_state_machine(transitions, width)`
+
+Try the standalone diagram example with:
+
+```sh
+v run examples/ascii_diagrams.v
+v run cmd/vmarkdown diagrams-demo
+v run cmd/vmarkdown diagram dependency
+v run cmd/vmarkdown diagram org
+```
+
+You can also pass a JSON file to `diagram`.
+
+These JSON payloads are a `vmarkdown`-internal diagram schema for the generic ASCII diagram CLI. They are not Mermaid JSON, Graphviz DOT, Vega, or another industry-standard chart schema.
+
+`diagram validate` checks decoded payloads for required fields and reports path-like errors such as `root.reports[0].name cannot be empty`.
+`diagram schema <kind>` now prints required fields, optional fields, and an example payload shape for each supported kind.
+Validation is intentionally a little stricter than plain JSON decoding: duplicate graph edges, self loops, empty timeline labels, and invalid pipeline statuses are rejected early.
+The generic diagram schema is now versioned. `version: 1` is accepted when present, and omitted `version` currently defaults to the v1 shape.
+
+The schema is intentionally a `vmarkdown` internal protocol, not a Mermaid, DOT, or Vega-compatible interchange format. The stable contract here is:
+
+- `diagram_schema.v` defines decode/validate rules
+- `diagram_ast.v` defines the shared in-memory IR
+- `ascii_diagrams.v` renders that IR
+- `diagram_bridge.v` lets Mermaid reuse the same lower-level IR where the mapping is clean
+
+The Mermaid bridge now routes these diagram kinds through the shared `Diagram AST` and generic ASCII renderers:
+
+- `flowchart` / `graph` (safe shared subset)
+- `sequenceDiagram`
+- `stateDiagram-v2`
+- `classDiagram`
+- `erDiagram`
+- `gantt`
+- `mindmap`
+- `journey`
+- `gitGraph`
+- `timeline`
+
+```sh
+v run cmd/vmarkdown diagram timeline examples/diagrams/timeline.json
+v run cmd/vmarkdown diagram org examples/diagrams/org.json
+v run cmd/vmarkdown diagram dependency examples/diagrams/dependency.json
+v run cmd/vmarkdown diagram dependency examples/diagrams/dependency.json --width 56
+v run cmd/vmarkdown diagram validate org examples/diagrams/org.json
+v run cmd/vmarkdown diagram diff timeline before.json after.json
+v run cmd/vmarkdown diagram diff-preview timeline before.json after.json
+v run cmd/vmarkdown diagram schema all
+v run cmd/vmarkdown diagram schema org
+```
+
+`diagram diff` compares two payloads after decode/validation and reports path-level semantic changes such as:
+
+```text
+reused timeline_entry at entries[0]
+added timeline_entry at entries[1]
+```
+
+When an item changes in place at the same path, the summary now collapses the `removed + added` pair into a single `changed ... at ...` line, and now includes field-level hints when the shared `Diagram AST` can identify them. For example:
+
+```text
+changed graph_node label at nodes[1]
+changed graph_edge label at edges[0]
+changed pipeline_stage name, status at stages[0]
+```
+
+`mermaid diff` does the same after parsing both `.mmd` files and lowering them through the shared `Diagram AST`.
+`diagram diff-preview` and `mermaid diff-preview` wrap those summary lines into the interactive preview UI so you can scroll larger diffs in the same terminal reader. In terminal preview mode, diff lines are also color-coded by status:
+- `added` lines are green
+- `removed` lines are red
+- `changed` lines are gold
+- `reused` lines are dimmed
+
+Available example payloads for the `vmarkdown` diagram schema:
+
+- [tree.json](/Users/guweigang/Source/vmarkdown/examples/diagrams/tree.json)
+- [dependency.json](/Users/guweigang/Source/vmarkdown/examples/diagrams/dependency.json)
+- [call.json](/Users/guweigang/Source/vmarkdown/examples/diagrams/call.json)
+- [org.json](/Users/guweigang/Source/vmarkdown/examples/diagrams/org.json)
+- [timeline.json](/Users/guweigang/Source/vmarkdown/examples/diagrams/timeline.json)
+- [pipeline.json](/Users/guweigang/Source/vmarkdown/examples/diagrams/pipeline.json)
+- [state.json](/Users/guweigang/Source/vmarkdown/examples/diagrams/state.json)
 
 ## Interactive Preview
 
@@ -151,7 +311,15 @@ CLI examples:
 v run cmd/vmarkdown preview README.md
 v run cmd/vmarkdown terminal README.md
 v run cmd/vmarkdown ast README.md
+v run cmd/vmarkdown mermaid examples/sample.mmd
+v run cmd/vmarkdown mermaid diff before.mmd after.mmd
+v run cmd/vmarkdown mermaid diff-preview before.mmd after.mmd
+v run cmd/vmarkdown mermaid-preview examples/sample.mmd
+v run cmd/vmarkdown diagram preview dependency examples/diagrams/dependency.json --width 72
+v run cmd/vmarkdown diagram diff-preview dependency before.json after.json
 ```
+
+`mermaid-preview` wraps a `.mmd` file into a temporary Mermaid markdown buffer and opens the same full-screen preview UI. `diagram preview` does the same for the internal diagram schema after rendering it to ASCII, so Mermaid source files and JSON diagram payloads can both enter the same preview workflow.
 
 Incremental ingest is available through the in-memory store:
 
@@ -162,6 +330,19 @@ println(result.root_id)
 println(result.added.len)
 println(result.reused.len)
 ```
+
+## Verification
+
+Useful checks while iterating on render/layout behavior:
+
+```sh
+v test .
+v test vmarkdown/mermaid_test.v
+v run examples/mermaid.v
+v run examples/ascii_diagrams.v
+```
+
+The Mermaid tests now include stricter grouped-flow alignment assertions for `TD` cross-subgraph cases, so axis regressions are more likely to be caught immediately.
 
 If you want PollyDB to own the final write path, you can split ingest into planning and commit:
 

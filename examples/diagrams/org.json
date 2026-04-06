@@ -1,0 +1,24 @@
+{
+  "root": {
+    "name": "Guwei",
+    "title": "Founder",
+    "reports": [
+      {
+        "name": "Parser Team",
+        "title": "Core",
+        "reports": [
+          {
+            "name": "Lexer Squad",
+            "title": "Infra",
+            "reports": []
+          }
+        ]
+      },
+      {
+        "name": "Preview Team",
+        "title": "UI",
+        "reports": []
+      }
+    ]
+  }
+}

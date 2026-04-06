@@ -72,3 +72,42 @@ fn test_render_terminal_link_and_image_placeholders() {
 	assert out.contains('docs ↗ https://example.com')
 	assert out.contains('▣ image: diagram')
 }
+
+fn test_render_terminal_mermaid_code_block() {
+	doc := parse('```mermaid\nflowchart TD\nA[Start] --> B[Parse]\n```\n') or { panic(err) }
+	out := doc.to_terminal_with_options(TerminalRenderOptions{
+		width: 48
+		color: false
+	})
+	assert out.contains('◈ mermaid flowchart TD')
+	assert out.contains('Start')
+	assert out.contains('▼')
+	assert out.contains('Parse')
+}
+
+fn test_render_terminal_mermaid_sequence_diagram() {
+	doc := parse('```mermaid\nsequenceDiagram\nAlice->>Bob: hi\n```\n') or { panic(err) }
+	out := doc.to_terminal_with_options(TerminalRenderOptions{
+		width: 48
+		color: false
+	})
+	assert out.contains('◈ mermaid sequenceDiagram')
+	assert out.contains('Alice')
+	assert out.contains('Bob')
+	assert out.contains('hi')
+}
+
+fn test_render_terminal_mermaid_additional_diagrams() {
+	doc := parse('```mermaid\nstateDiagram-v2\n[*] --> Idle\nIdle --> Running: start\n```\n\n```mermaid\nclassDiagram\nclass Animal {\n+name string\n}\nAnimal <|-- Dog : inherits\n```\n\n```mermaid\nerDiagram\nUSER {\nstring id\n}\nORDER {\nstring id\n}\nUSER ||--o{ ORDER : places\n```\n\n```mermaid\ngantt\ntitle Release Plan\nsection Build\nCompile :done, a1, 2026-04-01, 1d\n```\n') or {
+		panic(err)
+	}
+	out := doc.to_terminal_with_options(TerminalRenderOptions{
+		width: 72
+		color: false
+	})
+	assert out.contains('◈ mermaid stateDiagram-v2')
+	assert out.contains('◈ mermaid classDiagram')
+	assert out.contains('◈ mermaid erDiagram')
+	assert out.contains('◈ mermaid gantt')
+	assert out.contains('Release Plan')
+}

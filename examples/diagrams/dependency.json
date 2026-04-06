@@ -1,0 +1,9 @@
+{
+  "edges": [
+    { "from": "root", "to": "preview" },
+    { "from": "root", "to": "lexer" },
+    { "from": "preview", "to": "parser" },
+    { "from": "lexer", "to": "parser" },
+    { "from": "parser", "to": "renderer" }
+  ]
+}

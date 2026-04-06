@@ -2,6 +2,7 @@ module vmarkdown
 
 import term
 import strings
+import encoding.utf8.east_asian
 
 pub struct TerminalRenderOptions {
 pub:
@@ -109,6 +110,11 @@ fn (r TerminalRenderer) render_block(node BlockNode, prefix string, depth int) s
 			return lines.join('\n')
 		}
 		CodeBlockNode {
+			if node.lang.to_lower() == 'mermaid' {
+				if rendered := r.render_mermaid_block(node) {
+					return rendered
+				}
+			}
 			return r.render_code_block(node)
 		}
 		HorizontalRuleNode {
@@ -186,6 +192,24 @@ fn (r TerminalRenderer) render_code_block(node CodeBlockNode) string {
 			TerminalStyle{'code_border'})
 	}
 	lines << r.style_line('╰' + '─'.repeat(frame_width) + '╯', TerminalStyle{'code_border'})
+	return lines.join('\n')
+}
+
+fn (r TerminalRenderer) render_mermaid_block(node CodeBlockNode) ?string {
+	diagram := parse_mermaid(node.content) or { return none }
+	content_width := max_int(r.width - 4, 24)
+	body := diagram.render_ascii(content_width)
+	mut lines := []string{}
+	title_text := if diagram.kind == .flowchart {
+		'◈ mermaid ${diagram.kind.str()} ${diagram.direction.str()}'
+	} else {
+		'◈ mermaid ${diagram.kind.str()}'
+	}
+	title := r.style_line(title_text, TerminalStyle{'mermaid_title'})
+	lines << title
+	for line in body.split_into_lines() {
+		lines << r.style_line(line, TerminalStyle{'mermaid'})
+	}
 	return lines.join('\n')
 }
 
@@ -381,7 +405,7 @@ fn chunk_string(input string, width int) []string {
 }
 
 fn display_width(input string) int {
-	return input.runes().len
+	return east_asian.display_width(input, 1)
 }
 
 fn truncate_display_width(input string, width int) string {
@@ -389,11 +413,14 @@ fn truncate_display_width(input string, width int) string {
 		return ''
 	}
 	mut out := []rune{}
+	mut used := 0
 	for r in input.runes() {
-		if out.len >= width {
+		rw := east_asian.display_width(r.str(), 1)
+		if used + rw > width {
 			break
 		}
 		out << r
+		used += rw
 	}
 	return out.string()
 }
@@ -431,6 +458,8 @@ fn (r TerminalRenderer) style_line(input string, style TerminalStyle) string {
 		'image' { term.dim(term.hex(0xf4a261, input)) }
 		'rule' { term.bright_black(input) }
 		'meta_key' { term.bold(term.bright_cyan(input)) }
+		'mermaid_title' { term.bold(term.hex(0xf5a97f, input)) }
+		'mermaid' { term.hex(0x91d7e3, input) }
 		else { input }
 	}
 }

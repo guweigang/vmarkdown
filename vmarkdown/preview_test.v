@@ -19,6 +19,65 @@ fn test_preview_lines_for_modes() {
 	assert ast.join('\n').contains('Heading(level=1)')
 }
 
+fn test_build_mermaid_preview_markdown() {
+	wrapped := build_mermaid_preview_markdown('flowchart TD\nA[Start] --> B[Done]\n')
+	assert wrapped.contains('# Mermaid Preview')
+	assert wrapped.contains('```mermaid')
+	assert wrapped.contains('flowchart TD')
+	assert wrapped.ends_with('```')
+}
+
+fn test_build_diagram_preview_markdown() {
+	wrapped := build_diagram_preview_markdown('Dependency Diagram',
+		'[root] ─┬─▶ [preview] ┐\n        └─▶ [lexer]   ┴ ─▶ [parser]')
+	assert wrapped.contains('# Dependency Diagram')
+	assert wrapped.contains('```text')
+	assert wrapped.contains('[root]')
+	assert wrapped.ends_with('```')
+}
+
+fn test_build_diff_preview_markdown() {
+	wrapped := build_diff_preview_markdown('Mermaid Diff', [
+		'reused graph_node at nodes[0]',
+		'changed graph_node label at nodes[1]',
+	])
+	assert wrapped.contains('# Mermaid Diff')
+	assert wrapped.contains('```text')
+	assert wrapped.contains('changed graph_node label at nodes[1]')
+	assert wrapped.ends_with('```')
+}
+
+fn test_build_diff_preview_markdown_empty() {
+	wrapped := build_diff_preview_markdown('', [])
+	assert wrapped.contains('# Diagram Diff Preview')
+	assert wrapped.contains('no changes')
+}
+
+fn test_render_diff_preview_terminal_styles_status_lines() {
+	rendered := render_diff_preview_terminal([
+		'added timeline_entry at entries[1]',
+		'removed timeline_entry at entries[0]',
+		'changed graph_node label at nodes[1]',
+		'reused graph_node at nodes[0]',
+	])
+	lines := rendered.split_into_lines()
+	assert lines.len == 4
+	assert term.strip_ansi(lines[0]) == 'added timeline_entry at entries[1]'
+	assert term.strip_ansi(lines[1]) == 'removed timeline_entry at entries[0]'
+	assert term.strip_ansi(lines[2]) == 'changed graph_node label at nodes[1]'
+	assert term.strip_ansi(lines[3]) == 'reused graph_node at nodes[0]'
+	assert lines[0] != term.strip_ansi(lines[0])
+	assert lines[1] != term.strip_ansi(lines[1])
+	assert lines[2] != term.strip_ansi(lines[2])
+	assert lines[3] != term.strip_ansi(lines[3])
+}
+
+fn test_render_diff_preview_terminal_empty() {
+	rendered := render_diff_preview_terminal([])
+	assert term.strip_ansi(rendered) == 'no changes'
+	assert rendered != 'no changes'
+}
+
 fn test_preview_header_and_footer_labels() {
 	header := term.strip_ansi(build_preview_header_line('/Users/guweigang/Source/vmarkdown/README.md',
 		.terminal, 42, 72))

@@ -1,0 +1,7 @@
+{
+  "stages": [
+    { "name": "Parse", "status": "done" },
+    { "name": "Render", "status": "active" },
+    { "name": "Ship", "status": "pending" }
+  ]
+}

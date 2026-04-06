@@ -1,0 +1,14 @@
+{
+  "root": {
+    "label": "vmarkdown",
+    "children": [
+      { "label": "parser" },
+      {
+        "label": "preview",
+        "children": [
+          { "label": "search" }
+        ]
+      }
+    ]
+  }
+}

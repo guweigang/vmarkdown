@@ -1,0 +1,6 @@
+{
+  "edges": [
+    { "from": "main", "to": "parse" },
+    { "from": "main", "to": "render" }
+  ]
+}

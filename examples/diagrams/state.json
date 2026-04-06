@@ -1,0 +1,6 @@
+{
+  "transitions": [
+    { "from": "Idle", "to": "Running", "label": "start" },
+    { "from": "Running", "to": "Done", "label": "finish" }
+  ]
+}
