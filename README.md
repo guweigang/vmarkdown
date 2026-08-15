@@ -16,18 +16,18 @@ One deliberate adjustment was made for production parsing: `ListItemNode.childre
 
 ## Layout
 
-- `vmarkdown/ast.v`: AST types
-- `vmarkdown/parser.v`: md4c-backed parser and event builder
-- `vmarkdown/serialize.v`: normalized stable IDs, chunk collection, and in-memory incremental ingest
-- `vmarkdown/render.v`: HTML, plain-text, and JSON renderers
-- `vmarkdown/ascii_layout.v`: reusable terminal layout primitives
-- `vmarkdown/ascii_diagrams.v`: flow / graph ASCII renderers built on `ascii_layout`
-- `vmarkdown/ascii_diagrams_tree_org.v`: tree and org-chart ASCII renderers
-- `vmarkdown/ascii_diagrams_misc.v`: timeline, pipeline, state, journey, and git ASCII renderers
-- `vmarkdown/diagram_ast.v`: shared lower-level diagram AST / IR
-- `vmarkdown/diagram_schema.v`: internal JSON schema, validation, and decoding
-- `vmarkdown/diagram_bridge.v`: Mermaid AST -> shared diagram AST bridge
-- `vmarkdown/c/md4c_bridge.c`: thin callback adapter
+- `src/ast.v`: AST types
+- `src/parser.v`: md4c-backed parser and event builder
+- `src/serialize.v`: normalized stable IDs, chunk collection, and in-memory incremental ingest
+- `src/render.v`: HTML, plain-text, and JSON renderers
+- `src/ascii_layout.v`: reusable terminal layout primitives
+- `src/ascii_diagrams.v`: flow / graph ASCII renderers built on `ascii_layout`
+- `src/ascii_diagrams_tree_org.v`: tree and org-chart ASCII renderers
+- `src/ascii_diagrams_misc.v`: timeline, pipeline, state, journey, and git ASCII renderers
+- `src/diagram_ast.v`: shared lower-level diagram AST / IR
+- `src/diagram_schema.v`: internal JSON schema, validation, and decoding
+- `src/diagram_bridge.v`: Mermaid AST -> shared diagram AST bridge
+- `src/c/md4c_bridge.c`: thin callback adapter
 - `thirdparty/md4c`: vendored upstream parser
 
 ## Diagram Architecture
@@ -228,9 +228,9 @@ Try the standalone diagram example with:
 
 ```sh
 v run examples/ascii_diagrams.v
-v run cmd/vmarkdown diagrams-demo
-v run cmd/vmarkdown diagram dependency
-v run cmd/vmarkdown diagram org
+v run cmd/cli diagrams-demo
+v run cmd/cli diagram dependency
+v run cmd/cli diagram org
 ```
 
 You can also pass a JSON file to `diagram`.
@@ -263,15 +263,15 @@ The Mermaid bridge now routes these diagram kinds through the shared `Diagram AS
 - `timeline`
 
 ```sh
-v run cmd/vmarkdown diagram timeline examples/diagrams/timeline.json
-v run cmd/vmarkdown diagram org examples/diagrams/org.json
-v run cmd/vmarkdown diagram dependency examples/diagrams/dependency.json
-v run cmd/vmarkdown diagram dependency examples/diagrams/dependency.json --width 56
-v run cmd/vmarkdown diagram validate org examples/diagrams/org.json
-v run cmd/vmarkdown diagram diff timeline before.json after.json
-v run cmd/vmarkdown diagram diff-preview timeline before.json after.json
-v run cmd/vmarkdown diagram schema all
-v run cmd/vmarkdown diagram schema org
+v run cmd/cli diagram timeline examples/diagrams/timeline.json
+v run cmd/cli diagram org examples/diagrams/org.json
+v run cmd/cli diagram dependency examples/diagrams/dependency.json
+v run cmd/cli diagram dependency examples/diagrams/dependency.json --width 56
+v run cmd/cli diagram validate org examples/diagrams/org.json
+v run cmd/cli diagram diff timeline before.json after.json
+v run cmd/cli diagram diff-preview timeline before.json after.json
+v run cmd/cli diagram schema all
+v run cmd/cli diagram schema org
 ```
 
 `diagram diff` compares two payloads after decode/validation and reports path-level semantic changes such as:
@@ -330,15 +330,15 @@ Available example payloads for the `vmarkdown` diagram schema:
 CLI examples:
 
 ```sh
-v run cmd/vmarkdown preview README.md
-v run cmd/vmarkdown terminal README.md
-v run cmd/vmarkdown ast README.md
-v run cmd/vmarkdown mermaid examples/sample.mmd
-v run cmd/vmarkdown mermaid diff before.mmd after.mmd
-v run cmd/vmarkdown mermaid diff-preview before.mmd after.mmd
-v run cmd/vmarkdown mermaid-preview examples/sample.mmd
-v run cmd/vmarkdown diagram preview dependency examples/diagrams/dependency.json --width 72
-v run cmd/vmarkdown diagram diff-preview dependency before.json after.json
+v run cmd/cli preview README.md
+v run cmd/cli terminal README.md
+v run cmd/cli ast README.md
+v run cmd/cli mermaid examples/sample.mmd
+v run cmd/cli mermaid diff before.mmd after.mmd
+v run cmd/cli mermaid diff-preview before.mmd after.mmd
+v run cmd/cli mermaid-preview examples/sample.mmd
+v run cmd/cli diagram preview dependency examples/diagrams/dependency.json --width 72
+v run cmd/cli diagram diff-preview dependency before.json after.json
 ```
 
 `mermaid-preview` wraps a `.mmd` file into a temporary Mermaid markdown buffer and opens the same full-screen preview UI. `diagram preview` does the same for the internal diagram schema after rendering it to ASCII, so Mermaid source files and JSON diagram payloads can both enter the same preview workflow.
@@ -359,7 +359,7 @@ Useful checks while iterating on render/layout behavior:
 
 ```sh
 v test .
-v test vmarkdown/mermaid_test.v
+v test src/mermaid_test.v
 v run examples/mermaid.v
 v run examples/ascii_diagrams.v
 ```

@@ -1,0 +1,183 @@
+name: Release Binaries
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish_release:
+        description: Publish GitHub release
+        type: boolean
+        default: false
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  metadata:
+    name: Read release metadata
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.vmod.outputs.version }}
+      tag: ${{ steps.vmod.outputs.tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read version from v.mod
+        id: vmod
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(sed -nE "s/^[[:space:]]*version:[[:space:]]*'([^']+)'.*/\1/p" v.mod | head -n 1)"
+          if [ -z "$version" ]; then
+            echo "failed to read version from v.mod" >&2
+            exit 1
+          fi
+          tag="v${version}"
+          if [[ "${GITHUB_REF}" == refs/tags/* && "${GITHUB_REF_NAME}" != "$tag" ]]; then
+            echo "tag ${GITHUB_REF_NAME} does not match v.mod version ${tag}" >&2
+            exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build ${{ matrix.artifact }}
+    needs: metadata
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-26
+            artifact: vmarkdown-darwin-arm64
+            binary: vmarkdown
+            archive: vmarkdown-darwin-arm64.tar.gz
+            shell: bash
+            v_cc: clang
+          - os: macos-26-intel
+            artifact: vmarkdown-darwin-x64
+            binary: vmarkdown
+            archive: vmarkdown-darwin-x64.tar.gz
+            shell: bash
+            v_cc: clang
+          - os: windows-latest
+            artifact: vmarkdown-windows-x64
+            binary: vmarkdown.exe
+            archive: vmarkdown-windows-x64.zip
+            shell: powershell
+            v_cc: gcc
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup V
+        uses: vlang/setup-v@v1.4
+        with:
+          check-latest: true
+
+      - name: Prepare Windows x64
+        if: matrix.os == 'windows-latest'
+        shell: powershell
+        run: |
+          "C:\msys64\mingw64\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Verify format
+        shell: bash
+        run: |
+          v fmt -diff src cmd/cli examples
+          v fmt -verify src cmd/cli examples
+
+      - name: Test Unix
+        if: matrix.shell == 'bash'
+        shell: bash
+        run: v -cc ${{ matrix.v_cc }} test .
+
+      - name: Test Windows
+        if: matrix.shell == 'powershell'
+        shell: powershell
+        run: v -cc ${{ matrix.v_cc }} test .
+
+      - name: Build Unix binary
+        if: matrix.shell == 'bash'
+        shell: bash
+        run: |
+          mkdir -p dist
+          v -prod -cc ${{ matrix.v_cc }} -o "dist/${{ matrix.binary }}" cmd/cli
+
+      - name: Build Windows binary
+        if: matrix.shell == 'powershell'
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          v -prod -cc ${{ matrix.v_cc }} -o "dist\${{ matrix.binary }}" cmd/cli
+
+      - name: Smoke Unix binary
+        if: matrix.shell == 'bash'
+        shell: bash
+        run: |
+          ./dist/${{ matrix.binary }} diagram validate org examples/diagrams/org.json
+          ./dist/${{ matrix.binary }} ast README.md > /tmp/vmarkdown-ast.txt
+
+      - name: Smoke Windows binary
+        if: matrix.shell == 'powershell'
+        shell: powershell
+        run: |
+          .\dist\${{ matrix.binary }} diagram validate org examples\diagrams\org.json
+          .\dist\${{ matrix.binary }} ast README.md | Out-File -FilePath "$env:RUNNER_TEMP\vmarkdown-ast.txt" -Encoding utf8
+
+      - name: Package Unix archive
+        if: matrix.shell == 'bash'
+        shell: bash
+        run: |
+          mkdir -p "release/${{ matrix.artifact }}"
+          cp "dist/${{ matrix.binary }}" "release/${{ matrix.artifact }}/"
+          cp README.md "release/${{ matrix.artifact }}/"
+          tar -C release -czf "${{ matrix.archive }}" "${{ matrix.artifact }}"
+
+      - name: Package Windows archive
+        if: matrix.shell == 'powershell'
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force -Path "release\${{ matrix.artifact }}" | Out-Null
+          Copy-Item "dist\${{ matrix.binary }}" "release\${{ matrix.artifact }}\"
+          Copy-Item README.md "release\${{ matrix.artifact }}\"
+          Compress-Archive -Path "release\${{ matrix.artifact }}" -DestinationPath "${{ matrix.archive }}" -Force
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.archive }}
+          if-no-files-found: error
+
+  publish:
+    name: Publish ${{ needs.metadata.outputs.tag }}
+    needs:
+      - metadata
+      - build
+    if: github.event_name == 'push' || inputs.publish_release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.metadata.outputs.tag }}
+          name: ${{ needs.metadata.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          body: |
+            vmarkdown ${{ needs.metadata.outputs.version }}
+
+            Built from GitHub Actions run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          files: |
+            release-artifacts/**/*.tar.gz
+            release-artifacts/**/*.zip
+          fail_on_unmatched_files: true
