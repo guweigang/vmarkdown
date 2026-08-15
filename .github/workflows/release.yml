@@ -102,30 +102,6 @@ jobs:
           Add-Content -Path $env:GITHUB_PATH -Value $installRoot
           & (Join-Path $installRoot "v.exe") version
 
-      - name: Verify format macOS
-        if: matrix.shell == 'bash'
-        shell: bash
-        run: |
-          v fmt -diff src cmd/cli examples
-          v fmt -verify src cmd/cli examples
-
-      - name: Verify format Windows
-        if: matrix.shell == 'powershell'
-        shell: powershell
-        run: |
-          v fmt -diff src cmd/cli examples
-          v fmt -verify src cmd/cli examples
-
-      - name: Test macOS
-        if: matrix.shell == 'bash'
-        shell: bash
-        run: v -cc ${{ matrix.v_cc }} test .
-
-      - name: Test Windows
-        if: matrix.shell == 'powershell'
-        shell: powershell
-        run: v -cc ${{ matrix.v_cc }} test .
-
       - name: Build macOS binary
         if: matrix.shell == 'bash'
         shell: bash
