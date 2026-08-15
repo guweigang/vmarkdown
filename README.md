@@ -228,9 +228,9 @@ Try the standalone diagram example with:
 
 ```sh
 v run examples/ascii_diagrams.v
-v run cmd/cli diagrams-demo
-v run cmd/cli diagram dependency
-v run cmd/cli diagram org
+vmarkdown diagrams-demo
+vmarkdown diagram dependency
+vmarkdown diagram org
 ```
 
 You can also pass a JSON file to `diagram`.
@@ -263,15 +263,15 @@ The Mermaid bridge now routes these diagram kinds through the shared `Diagram AS
 - `timeline`
 
 ```sh
-v run cmd/cli diagram timeline examples/diagrams/timeline.json
-v run cmd/cli diagram org examples/diagrams/org.json
-v run cmd/cli diagram dependency examples/diagrams/dependency.json
-v run cmd/cli diagram dependency examples/diagrams/dependency.json --width 56
-v run cmd/cli diagram validate org examples/diagrams/org.json
-v run cmd/cli diagram diff timeline before.json after.json
-v run cmd/cli diagram diff-preview timeline before.json after.json
-v run cmd/cli diagram schema all
-v run cmd/cli diagram schema org
+vmarkdown diagram timeline examples/diagrams/timeline.json
+vmarkdown diagram org examples/diagrams/org.json
+vmarkdown diagram dependency examples/diagrams/dependency.json
+vmarkdown diagram dependency examples/diagrams/dependency.json --width 56
+vmarkdown diagram validate org examples/diagrams/org.json
+vmarkdown diagram diff timeline before.json after.json
+vmarkdown diagram diff-preview timeline before.json after.json
+vmarkdown diagram schema all
+vmarkdown diagram schema org
 ```
 
 `diagram diff` compares two payloads after decode/validation and reports path-level semantic changes such as:
@@ -330,15 +330,15 @@ Available example payloads for the `vmarkdown` diagram schema:
 CLI examples:
 
 ```sh
-v run cmd/cli preview README.md
-v run cmd/cli terminal README.md
-v run cmd/cli ast README.md
-v run cmd/cli mermaid examples/sample.mmd
-v run cmd/cli mermaid diff before.mmd after.mmd
-v run cmd/cli mermaid diff-preview before.mmd after.mmd
-v run cmd/cli mermaid-preview examples/sample.mmd
-v run cmd/cli diagram preview dependency examples/diagrams/dependency.json --width 72
-v run cmd/cli diagram diff-preview dependency before.json after.json
+vmarkdown preview README.md
+vmarkdown terminal README.md
+vmarkdown ast README.md
+vmarkdown mermaid examples/sample.mmd
+vmarkdown mermaid diff before.mmd after.mmd
+vmarkdown mermaid diff-preview before.mmd after.mmd
+vmarkdown mermaid-preview examples/sample.mmd
+vmarkdown diagram preview dependency examples/diagrams/dependency.json --width 72
+vmarkdown diagram diff-preview dependency before.json after.json
 ```
 
 `mermaid-preview` wraps a `.mmd` file into a temporary Mermaid markdown buffer and opens the same full-screen preview UI. `diagram preview` does the same for the internal diagram schema after rendering it to ASCII, so Mermaid source files and JSON diagram payloads can both enter the same preview workflow.

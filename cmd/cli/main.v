@@ -243,23 +243,23 @@ fn main() {
 
 fn usage() string {
 	return 'vmarkdown commands:
-  v run cmd/cli preview <file.md>
-  v run cmd/cli terminal <file.md>
-  v run cmd/cli markdown <file.md>
-  v run cmd/cli html <file.md>
-  v run cmd/cli ast <file.md>
-  v run cmd/cli mermaid <file.mmd> [--width N]
-  v run cmd/cli mermaid diff <before.mmd> <after.mmd>
-  v run cmd/cli mermaid diff-preview <before.mmd> <after.mmd>
-  v run cmd/cli mermaid-preview <file.mmd>
-  v run cmd/cli mermaid-diff <before.mmd> <after.mmd>
-  v run cmd/cli diagrams-demo
-  v run cmd/cli diagram <tree|dependency|call|org|timeline|pipeline|state> [input.json] [--width N]
-  v run cmd/cli diagram preview <tree|dependency|call|org|timeline|pipeline|state> [input.json] [--width N]
-  v run cmd/cli diagram diff <tree|dependency|call|org|timeline|pipeline|state> <before.json> <after.json>
-  v run cmd/cli diagram diff-preview <tree|dependency|call|org|timeline|pipeline|state> <before.json> <after.json>
-  v run cmd/cli diagram schema <all|tree|dependency|call|org|timeline|pipeline|state>
-  v run cmd/cli diagram validate <tree|dependency|call|org|timeline|pipeline|state> <input.json>'
+  vmarkdown preview <file.md>
+  vmarkdown terminal <file.md>
+  vmarkdown markdown <file.md>
+  vmarkdown html <file.md>
+  vmarkdown ast <file.md>
+  vmarkdown mermaid <file.mmd> [--width N]
+  vmarkdown mermaid diff <before.mmd> <after.mmd>
+  vmarkdown mermaid diff-preview <before.mmd> <after.mmd>
+  vmarkdown mermaid-preview <file.mmd>
+  vmarkdown mermaid-diff <before.mmd> <after.mmd>
+  vmarkdown diagrams-demo
+  vmarkdown diagram <tree|dependency|call|org|timeline|pipeline|state> [input.json] [--width N]
+  vmarkdown diagram preview <tree|dependency|call|org|timeline|pipeline|state> [input.json] [--width N]
+  vmarkdown diagram diff <tree|dependency|call|org|timeline|pipeline|state> <before.json> <after.json>
+  vmarkdown diagram diff-preview <tree|dependency|call|org|timeline|pipeline|state> <before.json> <after.json>
+  vmarkdown diagram schema <all|tree|dependency|call|org|timeline|pipeline|state>
+  vmarkdown diagram validate <tree|dependency|call|org|timeline|pipeline|state> <input.json>'
 }
 
 fn build_diagrams_demo() string {
