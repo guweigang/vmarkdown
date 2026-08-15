@@ -81,7 +81,7 @@ fn test_parse_list_item_starting_with_code_span() {
 }
 
 fn test_parse_readme_smoke() {
-	readme := os.read_file('/Users/guweigang/Source/vmarkdown/README.md') or { panic(err) }
+	readme := os.read_file(os.join_path(@VMODROOT, 'README.md')) or { panic(err) }
 	doc := parse(readme) or { panic(err) }
 	assert doc.children.len > 0
 }
