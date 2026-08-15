@@ -102,7 +102,7 @@ jobs:
           Add-Content -Path $env:GITHUB_PATH -Value $installRoot
           & (Join-Path $installRoot "v.exe") version
 
-      - name: Verify format Unix
+      - name: Verify format macOS
         if: matrix.shell == 'bash'
         shell: bash
         run: |
@@ -116,7 +116,7 @@ jobs:
           v fmt -diff src cmd/cli examples
           v fmt -verify src cmd/cli examples
 
-      - name: Test Unix
+      - name: Test macOS
         if: matrix.shell == 'bash'
         shell: bash
         run: v -cc ${{ matrix.v_cc }} test .
@@ -126,7 +126,7 @@ jobs:
         shell: powershell
         run: v -cc ${{ matrix.v_cc }} test .
 
-      - name: Build Unix binary
+      - name: Build macOS binary
         if: matrix.shell == 'bash'
         shell: bash
         run: |
@@ -140,7 +140,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           v -prod -cc ${{ matrix.v_cc }} -o "dist\${{ matrix.binary }}" cmd/cli
 
-      - name: Smoke Unix binary
+      - name: Smoke macOS binary
         if: matrix.shell == 'bash'
         shell: bash
         run: |
@@ -154,7 +154,7 @@ jobs:
           .\dist\${{ matrix.binary }} diagram validate org examples\diagrams\org.json
           .\dist\${{ matrix.binary }} ast README.md | Out-File -FilePath "$env:RUNNER_TEMP\vmarkdown-ast.txt" -Encoding utf8
 
-      - name: Package Unix archive
+      - name: Package macOS archive
         if: matrix.shell == 'bash'
         shell: bash
         run: |
