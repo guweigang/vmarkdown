@@ -71,6 +71,11 @@ jobs:
             v_cc: msvc
 
     steps:
+      - name: Disable Windows line ending conversion
+        if: matrix.os == 'windows-latest'
+        shell: powershell
+        run: git config --global core.autocrlf false
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -86,7 +91,7 @@ jobs:
         with:
           check-latest: true
 
-      - name: Build V with MSVC
+      - name: Install V compiler (MSVC)
         if: matrix.shell == 'powershell'
         shell: powershell
         run: |
@@ -101,6 +106,12 @@ jobs:
           if ($vBuildExitCode -ne 0) { exit $vBuildExitCode }
           Add-Content -Path $env:GITHUB_PATH -Value $installRoot
           & (Join-Path $installRoot "v.exe") version
+
+      - name: Verify vmarkdown format
+        run: v fmt -verify .
+
+      - name: Test vmarkdown
+        run: v test .
 
       - name: Build macOS binary
         if: matrix.shell == 'bash'

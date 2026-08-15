@@ -489,7 +489,7 @@ fn attribute_to_string(attr C.MD_ATTRIBUTE) string {
 }
 
 @[export: 'vmarkdown_enter_block']
-fn vmarkdown_enter_block(typ int, detail voidptr, userdata voidptr) int {
+pub fn vmarkdown_enter_block(typ int, detail voidptr, userdata voidptr) int {
 	mut b := unsafe { &Builder(userdata) }
 	b.enter_block(typ, detail) or {
 		b.last_debug = err.msg()
@@ -499,7 +499,7 @@ fn vmarkdown_enter_block(typ int, detail voidptr, userdata voidptr) int {
 }
 
 @[export: 'vmarkdown_leave_block']
-fn vmarkdown_leave_block(typ int, detail voidptr, userdata voidptr) int {
+pub fn vmarkdown_leave_block(typ int, detail voidptr, userdata voidptr) int {
 	mut b := unsafe { &Builder(userdata) }
 	b.leave_block(typ, detail) or {
 		b.last_debug = err.msg()
@@ -509,7 +509,7 @@ fn vmarkdown_leave_block(typ int, detail voidptr, userdata voidptr) int {
 }
 
 @[export: 'vmarkdown_enter_span']
-fn vmarkdown_enter_span(typ int, detail voidptr, userdata voidptr) int {
+pub fn vmarkdown_enter_span(typ int, detail voidptr, userdata voidptr) int {
 	mut b := unsafe { &Builder(userdata) }
 	b.enter_span(typ, detail) or {
 		b.last_debug = err.msg()
@@ -519,7 +519,7 @@ fn vmarkdown_enter_span(typ int, detail voidptr, userdata voidptr) int {
 }
 
 @[export: 'vmarkdown_leave_span']
-fn vmarkdown_leave_span(typ int, detail voidptr, userdata voidptr) int {
+pub fn vmarkdown_leave_span(typ int, detail voidptr, userdata voidptr) int {
 	mut b := unsafe { &Builder(userdata) }
 	b.leave_span(typ, detail) or {
 		b.last_debug = err.msg()
@@ -529,7 +529,7 @@ fn vmarkdown_leave_span(typ int, detail voidptr, userdata voidptr) int {
 }
 
 @[export: 'vmarkdown_text']
-fn vmarkdown_text(typ int, text &char, size u32, userdata voidptr) int {
+pub fn vmarkdown_text(typ int, text &char, size u32, userdata voidptr) int {
 	mut b := unsafe { &Builder(userdata) }
 	b.on_text(typ, text, size) or {
 		b.last_debug = err.msg()
@@ -539,7 +539,7 @@ fn vmarkdown_text(typ int, text &char, size u32, userdata voidptr) int {
 }
 
 @[export: 'vmarkdown_debug_log']
-fn vmarkdown_debug_log(msg &char, userdata voidptr) {
+pub fn vmarkdown_debug_log(msg &char, userdata voidptr) {
 	mut b := unsafe { &Builder(userdata) }
 	b.last_debug = unsafe { cstring_to_vstring(msg).clone() }
 }
