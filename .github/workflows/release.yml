@@ -68,22 +68,39 @@ jobs:
             binary: vmarkdown.exe
             archive: vmarkdown-windows-x64.zip
             shell: powershell
-            v_cc: gcc
+            v_cc: msvc
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup MSVC
+        if: matrix.os == 'windows-latest'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: amd64
+
       - name: Setup V
+        if: matrix.shell == 'bash'
         uses: vlang/setup-v@v1.4
         with:
           check-latest: true
 
-      - name: Prepare Windows x64
-        if: matrix.os == 'windows-latest'
+      - name: Build V with MSVC
+        if: matrix.shell == 'powershell'
         shell: powershell
         run: |
-          "C:\msys64\mingw64\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          $ErrorActionPreference = "Stop"
+          $installRoot = Join-Path $env:RUNNER_TEMP "vlang"
+          git clone --depth 1 https://github.com/vlang/v.git $installRoot
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Push-Location $installRoot
+          cmd /c makev.bat -msvc
+          $vBuildExitCode = $LASTEXITCODE
+          Pop-Location
+          if ($vBuildExitCode -ne 0) { exit $vBuildExitCode }
+          Add-Content -Path $env:GITHUB_PATH -Value $installRoot
+          & (Join-Path $installRoot "v.exe") version
 
       - name: Verify format
         shell: bash
