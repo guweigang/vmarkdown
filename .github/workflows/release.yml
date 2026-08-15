@@ -108,10 +108,10 @@ jobs:
           & (Join-Path $installRoot "v.exe") version
 
       - name: Verify vmarkdown format
-        run: v fmt -verify .
+        run: v fmt -verify src cmd examples
 
       - name: Test vmarkdown
-        run: v test .
+        run: v test src
 
       - name: Build macOS binary
         if: matrix.shell == 'bash'
