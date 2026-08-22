@@ -51,6 +51,30 @@ fn write_block_pretty(mut sb strings.Builder, node BlockNode, prefix string, is_
 				write_list_item_pretty(mut sb, item, next_prefix, i == node.items.len - 1)
 			}
 		}
+		TableNode {
+			sb.write_string(prefix + branch + 'Table(columns=${node.columns})\n')
+			mut rows := node.head.clone()
+			rows << node.body
+			for row_index, row in rows {
+				row_branch := if row_index == rows.len - 1 { '└─ ' } else { '├─ ' }
+				row_prefix := if row_index == rows.len - 1 {
+					next_prefix + '   '
+				} else {
+					next_prefix + '│  '
+				}
+				kind := if row_index < node.head.len { 'HeaderRow' } else { 'Row' }
+				sb.write_string(next_prefix + row_branch + kind + '\n')
+				for cell_index, cell in row.cells {
+					cell_branch := if cell_index == row.cells.len - 1 {
+						'└─ '
+					} else {
+						'├─ '
+					}
+					sb.write_string(row_prefix + cell_branch + 'Cell(align=${cell.alignment}) "' +
+						inline_preview(cell.children) + '"\n')
+				}
+			}
+		}
 	}
 }
 

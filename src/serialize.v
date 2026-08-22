@@ -271,6 +271,9 @@ pub fn (node BlockNode) stable_id() string {
 		MetaNode {
 			return 'meta:' + hash_bytes(encoded)
 		}
+		TableNode {
+			return 'table:' + hash_bytes(encoded)
+		}
 	}
 }
 
@@ -310,6 +313,9 @@ pub fn (node BlockNode) semantic_stable_id() string {
 		}
 		MetaNode {
 			return 'meta:' + hash_bytes(normalized)
+		}
+		TableNode {
+			return 'table:' + hash_bytes(normalized)
 		}
 	}
 }
@@ -396,7 +402,7 @@ fn (mut c ChunkCollector) collect_block(node BlockNode, path string, index int) 
 		index: index
 	}
 	match node {
-		HeadingNode, ParagraphNode, CodeBlockNode, HorizontalRuleNode, MetaNode {}
+		HeadingNode, ParagraphNode, CodeBlockNode, HorizontalRuleNode, MetaNode, TableNode {}
 		BlockquoteNode {
 			for child_index, child in node.children {
 				c.collect_block(child, '${path}.children[${child_index}]', child_index)
@@ -429,6 +435,7 @@ const meta_type_tag = u8(0x04)
 const blockquote_type_tag = u8(0x05)
 const code_block_type_tag = u8(0x06)
 const horizontal_rule_type_tag = u8(0x07)
+const table_type_tag = u8(0x08)
 const list_item_type_tag = u8(0x10)
 const text_type_tag = u8(0x20)
 const emphasis_type_tag = u8(0x21)
@@ -513,7 +520,32 @@ pub fn (node BlockNode) binary_encode() []u8 {
 		HorizontalRuleNode {
 			return [horizontal_rule_type_tag]
 		}
+		TableNode {
+			mut out := [table_type_tag]
+			out << encode_u16(u16(node.columns))
+			out << encode_u16(u16(node.head.len))
+			out << encode_u16(u16(node.body.len))
+			mut rows := node.head.clone()
+			rows << node.body
+			for row in rows {
+				row_bytes := row.binary_encode()
+				out << encode_varint(row_bytes.len)
+				out << row_bytes
+			}
+			return out
+		}
 	}
+}
+
+fn (row TableRowNode) binary_encode() []u8 {
+	mut out := encode_u16(u16(row.cells.len))
+	for cell in row.cells {
+		content := encode_inline_sequence(cell.children)
+		out << u8(cell.alignment)
+		out << encode_varint(content.len)
+		out << content
+	}
+	return out
 }
 
 pub fn (item ListItemNode) binary_encode() []u8 {
@@ -687,7 +719,35 @@ fn (node BlockNode) normalized_bytes() []u8 {
 			}
 			return out
 		}
+		TableNode {
+			mut out := 'table:'.bytes()
+			out << node.columns.str().bytes()
+			out << [u8(`:`)]
+			for row in node.head {
+				out << row.normalized_bytes()
+				out << [u8(`;`)]
+			}
+			out << [u8(`|`)]
+			for row in node.body {
+				out << row.normalized_bytes()
+				out << [u8(`;`)]
+			}
+			return out
+		}
 	}
+}
+
+fn (row TableRowNode) normalized_bytes() []u8 {
+	mut out := 'row:'.bytes()
+	for cell in row.cells {
+		out << cell.alignment.str().bytes()
+		out << [u8(`:`)]
+		for child in cell.children {
+			out << child.normalized_bytes()
+		}
+		out << [u8(`,`)]
+	}
+	return out
 }
 
 fn (item ListItemNode) normalized_bytes() []u8 {
@@ -759,6 +819,7 @@ fn (node BlockNode) kind_name() string {
 		CodeBlockNode { return 'code_block' }
 		HorizontalRuleNode { return 'horizontal_rule' }
 		MetaNode { return 'meta' }
+		TableNode { return 'table' }
 	}
 }
 

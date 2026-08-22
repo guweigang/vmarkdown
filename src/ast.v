@@ -12,6 +12,7 @@ pub type BlockNode = BlockquoteNode
 	| ListNode
 	| MetaNode
 	| ParagraphNode
+	| TableNode
 
 pub struct MetaNode {
 pub:
@@ -55,6 +56,31 @@ pub:
 }
 
 pub struct HorizontalRuleNode {}
+
+pub enum TableAlignment {
+	default_
+	left
+	center
+	right
+}
+
+pub struct TableNode {
+pub:
+	columns int
+	head    []TableRowNode
+	body    []TableRowNode
+}
+
+pub struct TableRowNode {
+pub:
+	cells []TableCellNode
+}
+
+pub struct TableCellNode {
+pub:
+	alignment TableAlignment
+	children  []InlineNode
+}
 
 pub type InlineNode = CodeSpanNode | EmphasisNode | ImageNode | LinkNode | StrongNode | TextNode
 

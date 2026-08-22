@@ -134,7 +134,43 @@ fn (r TerminalRenderer) render_block(node BlockNode, prefix string, depth int) s
 			}
 			return lines.join('\n')
 		}
+		TableNode {
+			return r.render_table(node)
+		}
 	}
+}
+
+fn (r TerminalRenderer) render_table(node TableNode) string {
+	mut rows := [][]string{}
+	mut table_rows := node.head.clone()
+	table_rows << node.body
+	for row in table_rows {
+		rows << row.cells.map(r.render_inline_plain(it.children))
+	}
+	if rows.len == 0 {
+		return ''
+	}
+	mut widths := []int{len: node.columns, init: 3}
+	for row in rows {
+		for i, cell in row {
+			if i < widths.len {
+				widths[i] = min_int(max_int(widths[i], display_width(cell)), 32)
+			}
+		}
+	}
+	mut lines := []string{}
+	for row_index, row in rows {
+		mut cells := []string{}
+		for i in 0 .. widths.len {
+			value := if i < row.len { truncate_display_width(row[i], widths[i]) } else { '' }
+			cells << value + ' '.repeat(max_int(widths[i] - display_width(value), 0))
+		}
+		lines << '│ ' + cells.join(' │ ') + ' │'
+		if row_index + 1 == node.head.len {
+			lines << '├─' + widths.map('─'.repeat(it)).join('─┼─') + '─┤'
+		}
+	}
+	return lines.join('\n')
 }
 
 fn (r TerminalRenderer) render_heading(text string, level int) string {

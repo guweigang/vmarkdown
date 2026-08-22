@@ -86,22 +86,33 @@ enum FrameKind {
 	image
 	code_span
 	code_block
+	table
+	table_head
+	table_body
+	table_row
+	table_cell
 }
 
 struct Frame {
 	kind FrameKind
 mut:
-	blocks   []BlockNode
-	inlines  []InlineNode
-	items    []ListItemNode
-	level    int
-	ordered  bool
-	start    int
-	number   int
-	url      string
-	lang     string
-	implicit bool
-	text     strings.Builder
+	blocks    []BlockNode
+	inlines   []InlineNode
+	items     []ListItemNode
+	level     int
+	ordered   bool
+	start     int
+	number    int
+	url       string
+	lang      string
+	implicit  bool
+	columns   int
+	rows      []TableRowNode
+	head_rows []TableRowNode
+	body_rows []TableRowNode
+	cells     []TableCellNode
+	alignment TableAlignment
+	text      strings.Builder
 }
 
 struct Builder {
@@ -189,7 +200,7 @@ fn (mut b Builder) append_list_item(item ListItemNode) ! {
 fn (mut b Builder) append_inline(node InlineNode) ! {
 	for i := b.frames.len - 1; i >= 0; i-- {
 		match b.frames[i].kind {
-			.heading, .paragraph, .emphasis, .strong, .link, .image {
+			.heading, .paragraph, .emphasis, .strong, .link, .image, .table_cell {
 				b.frames[i].inlines << node
 				return
 			}
@@ -205,7 +216,7 @@ fn (mut b Builder) append_inline(node InlineNode) ! {
 fn (b &Builder) has_inline_parent() bool {
 	for i := b.frames.len - 1; i >= 0; i-- {
 		match b.frames[i].kind {
-			.heading, .paragraph, .emphasis, .strong, .link, .image {
+			.heading, .paragraph, .emphasis, .strong, .link, .image, .table_cell {
 				return true
 			}
 			else {}
@@ -304,6 +315,27 @@ fn (mut b Builder) enter_block(typ int, detail voidptr) ! {
 		int(C.MD_BLOCK_P) {
 			b.push_frame(.paragraph)
 		}
+		int(C.MD_BLOCK_TABLE) {
+			b.push_frame(.table)
+			mut top := b.top()!
+			table := unsafe { &C.MD_BLOCK_TABLE_DETAIL(detail) }
+			top.columns = int(table.col_count)
+		}
+		int(C.MD_BLOCK_THEAD) {
+			b.push_frame(.table_head)
+		}
+		int(C.MD_BLOCK_TBODY) {
+			b.push_frame(.table_body)
+		}
+		int(C.MD_BLOCK_TR) {
+			b.push_frame(.table_row)
+		}
+		int(C.MD_BLOCK_TH), int(C.MD_BLOCK_TD) {
+			b.push_frame(.table_cell)
+			mut top := b.top()!
+			cell := unsafe { &C.MD_BLOCK_TD_DETAIL(detail) }
+			top.alignment = table_alignment_from_md4c(cell.align)
+		}
 		else {}
 	}
 }
@@ -354,6 +386,39 @@ fn (mut b Builder) leave_block(typ int, _detail voidptr) ! {
 			b.append_block(ParagraphNode{
 				children: frame.inlines.clone()
 			})!
+		}
+		int(C.MD_BLOCK_TABLE) {
+			frame := b.pop_frame(.table)!
+			b.append_block(TableNode{
+				columns: frame.columns
+				head:    frame.head_rows.clone()
+				body:    frame.body_rows.clone()
+			})!
+		}
+		int(C.MD_BLOCK_THEAD) {
+			frame := b.pop_frame(.table_head)!
+			mut top := b.top()!
+			top.head_rows << frame.rows
+		}
+		int(C.MD_BLOCK_TBODY) {
+			frame := b.pop_frame(.table_body)!
+			mut top := b.top()!
+			top.body_rows << frame.rows
+		}
+		int(C.MD_BLOCK_TR) {
+			frame := b.pop_frame(.table_row)!
+			mut top := b.top()!
+			top.rows << TableRowNode{
+				cells: frame.cells.clone()
+			}
+		}
+		int(C.MD_BLOCK_TH), int(C.MD_BLOCK_TD) {
+			frame := b.pop_frame(.table_cell)!
+			mut top := b.top()!
+			top.cells << TableCellNode{
+				alignment: frame.alignment
+				children:  frame.inlines.clone()
+			}
 		}
 		else {}
 	}
@@ -486,6 +551,15 @@ fn attribute_to_string(attr C.MD_ATTRIBUTE) string {
 		return ''
 	}
 	return unsafe { tos(&u8(attr.text), int(attr.size)).clone() }
+}
+
+fn table_alignment_from_md4c(alignment int) TableAlignment {
+	return match alignment {
+		int(C.MD_ALIGN_LEFT) { .left }
+		int(C.MD_ALIGN_CENTER) { .center }
+		int(C.MD_ALIGN_RIGHT) { .right }
+		else { .default_ }
+	}
 }
 
 @[export: 'vmarkdown_enter_block']

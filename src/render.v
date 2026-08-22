@@ -160,6 +160,15 @@ fn (node BlockNode) render_text_block() string {
 			}
 			return parts.join('\n')
 		}
+		TableNode {
+			mut lines := []string{}
+			mut rows := node.head.clone()
+			rows << node.body
+			for row in rows {
+				lines << row.cells.map(render_inline_text(it.children)).join('\t')
+			}
+			return lines.join('\n')
+		}
 	}
 }
 
@@ -259,6 +268,15 @@ fn (node BlockNode) render_json_block() string {
 			sb.write_string('}}')
 			return sb.str()
 		}
+		TableNode {
+			mut sb := strings.new_builder(256)
+			sb.write_string('{"type":"table","columns":${node.columns},"head":')
+			sb.write_string(render_table_rows_json(node.head))
+			sb.write_string(',"body":')
+			sb.write_string(render_table_rows_json(node.body))
+			sb.write_string('}')
+			return sb.str()
+		}
 	}
 }
 
@@ -339,7 +357,61 @@ fn (node BlockNode) render_markdown_block(prefix string, depth int) string {
 			}
 			return lines.join('\n')
 		}
+		TableNode {
+			return render_table_markdown(node)
+		}
 	}
+}
+
+fn render_table_rows_json(rows []TableRowNode) string {
+	mut sb := strings.new_builder(128)
+	sb.write_string('[')
+	for row_index, row in rows {
+		if row_index > 0 {
+			sb.write_string(',')
+		}
+		sb.write_string('{"cells":[')
+		for cell_index, cell in row.cells {
+			if cell_index > 0 {
+				sb.write_string(',')
+			}
+			sb.write_string('{"alignment":"${cell.alignment}","children":${render_inline_json(cell.children)}}')
+		}
+		sb.write_string(']}')
+	}
+	sb.write_string(']')
+	return sb.str()
+}
+
+fn render_table_markdown(node TableNode) string {
+	if node.head.len == 0 {
+		return ''
+	}
+	mut lines := []string{}
+	lines << render_table_markdown_row(node.head[0])
+	mut separators := []string{}
+	for cell in node.head[0].cells {
+		separators << match cell.alignment {
+			.left { ':---' }
+			.center { ':---:' }
+			.right { '---:' }
+			.default_ { '---' }
+		}
+	}
+	lines << '| ' + separators.join(' | ') + ' |'
+	for row in node.body {
+		lines << render_table_markdown_row(row)
+	}
+	return lines.join('\n')
+}
+
+fn render_table_markdown_row(row TableRowNode) string {
+	return '| ' +
+		row.cells.map(escape_table_cell(render_inline_markdown(it.children))).join(' | ') + ' |'
+}
+
+fn escape_table_cell(input string) string {
+	return input.replace('|', '\\|').replace('\n', '<br>')
 }
 
 fn (item ListItemNode) render_markdown_item(depth int) []string {

@@ -109,6 +109,7 @@ The binary protocol follows the type-tagged layout direction from your DSL notes
 - `BlockquoteNode`: `0x05` + `content_len (varint)` + encoded child blocks
 - `CodeBlockNode`: `0x06` + `lang_len (varint)` + `lang` + `content_len (varint)` + `content`
 - `HorizontalRuleNode`: `0x07`
+- `TableNode`: `0x08` + column/header/body counts + length-prefixed rows and cells
 
 Notes on stability:
 
@@ -124,7 +125,8 @@ Notes on stability:
 - This is semantic round-trip, not source-exact round-trip.
 - Output formatting is normalized.
 - Original trivia like exact blank lines, marker style, or emphasis delimiter choice is not preserved.
-- The renderer is covered for nested lists, blockquotes, mixed list-item blocks, complex link/image destinations, and code span/code fence delimiter safety.
+- The renderer is covered for nested lists, blockquotes, GFM tables, mixed list-item blocks,
+  complex link/image destinations, and code span/code fence delimiter safety.
 
 ## HTML To Markdown
 
@@ -403,4 +405,6 @@ When a nested structure changes, both the changed descendant and any affected an
 
 - The parser currently targets the core node types from your DSL sketch.
 - `MetaNode` is kept in the AST for your PollyDB layer, but it is not emitted by `md4c` directly.
-- Raw HTML, tables, and some extended spans are not yet projected into dedicated V nodes.
+- GFM tables are projected into `TableNode` / `TableRowNode` / `TableCellNode`, including
+  header/body sections, per-cell alignment, and inline children.
+- Raw HTML and some extended spans are not yet projected into dedicated V nodes.

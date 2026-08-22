@@ -25,6 +25,20 @@ fn test_render_json() {
 	assert json.contains('"text":"Title"')
 }
 
+fn test_render_table_text_json_and_markdown() {
+	input := '| Name | Value |\n| :--- | ---: |\n| **alpha** | 10 |\n'
+	doc := parse(input) or { panic(err) }
+	assert doc.to_text() == 'Name\tValue\nalpha\t10'
+	json := doc.to_json()
+	assert json.contains('"type":"table"')
+	assert json.contains('"alignment":"left"')
+	assert json.contains('"alignment":"right"')
+	markdown := doc.to_markdown()
+	assert markdown.contains('| Name | Value |')
+	assert markdown.contains('| :--- | ---: |')
+	assert markdown.contains('| **alpha** | 10 |')
+}
+
 fn test_render_markdown() {
 	markdown := render_markdown('# Title\nParagraph with **strong** text.\n\n- alpha\n- beta\n\n```v\nprintln("ok")\n```\n') or {
 		panic(err)

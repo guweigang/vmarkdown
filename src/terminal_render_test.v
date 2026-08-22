@@ -17,6 +17,18 @@ fn test_render_terminal_basic_blocks() {
 	assert out.contains('• beta')
 }
 
+fn test_render_terminal_table() {
+	doc := parse('| Name | Value |\n| --- | ---: |\n| alpha | 10 |\n') or { panic(err) }
+	out := doc.to_terminal_with_options(TerminalRenderOptions{
+		width: 40
+		color: false
+	})
+	assert out.contains('│ Name')
+	assert out.contains('Value │')
+	assert out.contains('├─')
+	assert out.contains('│ alpha')
+}
+
 fn test_render_terminal_code_and_quote() {
 	doc := parse('> quoted line\n\n```v\nprintln("hi")\n```\n') or { panic(err) }
 	out := doc.to_terminal_with_options(TerminalRenderOptions{

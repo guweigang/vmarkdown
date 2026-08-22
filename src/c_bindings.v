@@ -39,6 +39,18 @@ struct C.MD_BLOCK_CODE_DETAIL {
 }
 
 @[typedef]
+struct C.MD_BLOCK_TABLE_DETAIL {
+	col_count      u32
+	head_row_count u32
+	body_row_count u32
+}
+
+@[typedef]
+struct C.MD_BLOCK_TD_DETAIL {
+	align int
+}
+
+@[typedef]
 struct C.MD_SPAN_A_DETAIL {
 	href        C.MD_ATTRIBUTE
 	title       C.MD_ATTRIBUTE

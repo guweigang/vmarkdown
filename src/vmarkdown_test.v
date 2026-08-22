@@ -44,6 +44,31 @@ fn test_parse_code_block_preserves_full_info_string() {
 	assert code.lang == 'json diagram'
 }
 
+fn test_parse_table_ast_with_alignment_and_inline_children() {
+	input := '| Name | Score | Note |\n| :--- | ---: | :---: |\n| **Ada** | 10 | [ok](https://example.com) |\n'
+	doc := parse(input) or { panic(err) }
+	assert doc.children.len == 1
+	assert doc.children[0] is TableNode
+	table := doc.children[0] as TableNode
+	assert table.columns == 3
+	assert table.head.len == 1
+	assert table.body.len == 1
+	assert table.head[0].cells.map(it.alignment) == [.left, .right, .center]
+	assert table.head[0].cells[0].children[0] is TextNode
+	assert table.body[0].cells[0].children[0] is StrongNode
+	assert table.body[0].cells[2].children[0] is LinkNode
+	assert BlockNode(table).binary_encode()[0] == u8(0x08)
+	assert BlockNode(table).stable_id().starts_with('table:')
+}
+
+fn test_parse_with_tables_disabled_keeps_pipe_text_as_paragraph() {
+	doc := parse_with_options('| A | B |\n| --- | --- |\n| x | y |\n', ParseOptions{
+		tables: false
+	}) or { panic(err) }
+	assert doc.children.len == 1
+	assert doc.children[0] is ParagraphNode
+}
+
 fn test_binary_encoding_uses_protocol_type_tags() {
 	heading := HeadingNode{
 		level:    2
