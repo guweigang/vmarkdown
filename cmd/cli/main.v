@@ -3,10 +3,16 @@ module main
 import os
 import vmarkdown
 
+const cli_version = vmarkdown.version
+
 fn main() {
 	args := os.args
 	if args.len < 2 {
 		println(usage())
+		return
+	}
+	if args[1] in ['--version', '-v', 'version'] {
+		print(version_text())
 		return
 	}
 	match args[1] {
@@ -242,7 +248,9 @@ fn main() {
 }
 
 fn usage() string {
-	return 'vmarkdown commands:
+	return 'vmarkdown ${cli_version}
+
+vmarkdown commands:
   vmarkdown preview <file.md>
   vmarkdown terminal <file.md>
   vmarkdown markdown <file.md>
@@ -259,7 +267,15 @@ fn usage() string {
   vmarkdown diagram diff <tree|dependency|call|org|timeline|pipeline|state> <before.json> <after.json>
   vmarkdown diagram diff-preview <tree|dependency|call|org|timeline|pipeline|state> <before.json> <after.json>
   vmarkdown diagram schema <all|tree|dependency|call|org|timeline|pipeline|state>
-  vmarkdown diagram validate <tree|dependency|call|org|timeline|pipeline|state> <input.json>'
+  vmarkdown diagram validate <tree|dependency|call|org|timeline|pipeline|state> <input.json>
+
+options:
+  -h, --help     show this help text
+  -v, --version  show the vmarkdown version'
+}
+
+fn version_text() string {
+	return 'vmarkdown ${cli_version}\n'
 }
 
 fn build_diagrams_demo() string {

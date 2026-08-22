@@ -1,6 +1,12 @@
 module vmarkdown
 
 import os
+import v.vmod
+
+fn test_version_matches_vmod() {
+	vm := vmod.decode(@VMOD_FILE) or { panic(err) }
+	assert version == vm.version
+}
 
 fn test_parse_heading_list_and_code_block() {
 	input := '# Title
