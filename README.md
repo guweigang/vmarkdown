@@ -316,18 +316,26 @@ Available example payloads for the `vmarkdown` diagram schema:
 - `2` markdown view
 - `3` html view
 - `4` AST view
-- `j`/`k` or arrow keys to scroll
+- `h`/`j`/`k`/`l` or arrow keys move left/down/up/right
+- `w` / `b` move forward/backward by word
+- `x` deletes a character; `dd` deletes the current source line
+- `u` / `Ctrl+r` undo/redo source edits
 - `Ctrl+d` / `Ctrl+u` half-page down/up
 - `g` jump back to top
 - `G` jump to the bottom
 - `/` start search
 - `n` next match, `N` previous match
-- `h` toggle the help window
+- `?` toggle the help window
+- `i` enters Insert mode for the original Markdown source
 - `Esc` exits search input and clears search highlights
-- `q` quits the preview
+- `q` quits immediately when clean; an unsaved buffer prompts to save, force quit, or cancel
 - Left gutter shows line numbers for easier scanning and jumping
 - Header shows the current source and active view
 - Footer shows shortcuts, search status, plus the current line range and scroll percentage
+
+Press `i` from any rendered Normal view to edit the original Markdown directly in Insert mode. `Esc` returns to editor Normal mode with a visible block cursor on the last inserted character; press `i` again to resume inserting. `u` and `Ctrl+r` undo and redo. The `1/2/3/4` menu remains visible in Normal mode and opens Terminal, Markdown, HTML, or AST views. Use `Ctrl+s` or `:w` to save. When changes are unsaved, `q` opens a confirmation dialog for save-and-quit, force quit, or cancel. Only previews opened from a real Markdown file can be written.
+
+View switching uses a block-level source map rather than reusing display line numbers. Headings, paragraphs, lists, quotes, tables, and fenced code blocks are anchored to their Markdown source ranges; switching between Terminal, Markdown, HTML, and AST locates the same source block and keeps its cursor at the same relative screen row when terminal space allows.
 
 CLI examples:
 
