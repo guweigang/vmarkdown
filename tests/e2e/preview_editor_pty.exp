@@ -1,0 +1,109 @@
+#!/usr/bin/expect -f
+
+proc fail {message} {
+    puts stderr "PTY regression failed: $message"
+    catch {close}
+    catch {wait}
+    exit 1
+}
+
+if {$argc != 2} {
+    puts stderr "usage: preview_editor_pty.exp <vmarkdown-binary> <fixture.md>"
+    exit 2
+}
+
+set binary [lindex $argv 0]
+set fixture [lindex $argv 1]
+set timeout 15
+if {[info exists env(VMARKDOWN_PTY_LOG)]} {
+    log_user 1
+} else {
+    log_user 0
+}
+
+spawn -noecho $binary preview $fixture
+stty rows 30 columns 100 < $spawn_out(slave,name)
+expect {
+    -re {Terminal} {}
+    eof { fail "preview exited before drawing its first frame" }
+    timeout { fail "preview did not draw its first frame" }
+}
+
+# Once the first frame has settled, an idle preview must not continuously redraw.
+set timeout 1
+expect {
+    -re {.} { exp_continue -continue_timer }
+    timeout {}
+    eof { fail "preview exited while checking idle rendering" }
+}
+set timeout 1
+expect {
+    -re {.} { fail "preview emitted terminal output while idle" }
+    timeout {}
+    eof { fail "preview exited while checking idle rendering" }
+}
+
+set timeout 10
+send -- "?"
+expect {
+    -re {vmarkdown preview help} {}
+    eof { fail "preview exited while opening help" }
+    timeout { fail "help overlay was not rendered" }
+}
+send -- "?"
+expect {
+    -re {ready} {}
+    eof { fail "preview exited while closing help" }
+    timeout { fail "help overlay did not close" }
+}
+
+send -- "3"
+expect {
+    -re {<h1>PTY fixture</h1>} {}
+    eof { fail "preview exited while switching to HTML" }
+    timeout { fail "HTML view was not rendered" }
+}
+
+# Editing from a rendered view must enter Insert directly. One i...Esc session is
+# a single undo unit; a clean q after u proves the whole insertion was undone.
+send -- "i"
+expect {
+    -re {INSERT} {}
+    eof { fail "preview exited while entering Insert mode" }
+    timeout { fail "i did not enter Insert mode" }
+}
+send -- "pty"
+after 100
+send -- "\033"
+expect {
+    -re {NORMAL} {}
+    eof { fail "preview exited while returning to Normal mode" }
+    timeout { fail "Esc did not return to Normal mode" }
+}
+
+send -- "q"
+expect {
+    -re {Unsaved changes} {}
+    eof { fail "dirty preview quit without confirmation" }
+    timeout { fail "dirty quit confirmation was not rendered" }
+}
+send -- "\033"
+expect {
+    -re {NORMAL} {}
+    eof { fail "preview exited while canceling dirty quit" }
+    timeout { fail "dirty quit confirmation did not close" }
+}
+send -- "u"
+expect {
+    -re {undo} {}
+    eof { fail "preview exited while undoing insertion" }
+    timeout { fail "undo did not redraw Normal mode" }
+}
+send -- "q"
+expect {
+    eof {}
+    -re {Unsaved changes} { fail "undo did not restore the clean buffer" }
+    timeout { fail "clean preview did not quit" }
+}
+
+exit 0

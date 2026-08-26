@@ -152,6 +152,49 @@ fn test_preview_search_helpers() {
 		true)).contains('stable_id() / encode()')
 }
 
+fn test_preview_search_backspace_removes_complete_unicode_rune() {
+	mut app := PreviewApp{
+		search_active: true
+		search_query:  '中文a'
+	}
+	backspace := &tui.Event{
+		typ:  .key_down
+		code: .backspace
+	}
+	app.handle_search_input(backspace)
+	assert app.search_query == '中文'
+	app.handle_search_input(backspace)
+	assert app.search_query == '中'
+}
+
+fn test_preview_normal_non_d_key_clears_pending_delete() {
+	mut app := PreviewApp{
+		editor: new_markdown_editor('word')
+	}
+	app.editor.pending_key = 'd'
+	preview_event(&tui.Event{
+		typ:  .key_down
+		code: .question_mark
+	}, voidptr(&app))
+	assert app.editor.pending_key == ''
+	assert app.show_help
+}
+
+fn test_editor_normal_nonmatching_key_clears_pending_operator() {
+	mut app := PreviewApp{
+		editing: true
+		editor:  new_markdown_editor('one two')
+	}
+	app.editor.mode = .normal
+	app.editor.pending_key = 'd'
+	app.handle_editor_normal_input(&tui.Event{
+		typ:  .key_down
+		code: .w
+	})
+	assert app.editor.pending_key == ''
+	assert app.editor.cursor_x == 4
+}
+
 fn test_preview_dismiss_search() {
 	mut app := PreviewApp{
 		search_active: true
@@ -208,6 +251,28 @@ fn test_escape_returns_to_editor_normal_without_moving_cursor() {
 	assert app.editing
 	assert app.editor.mode == .normal
 	assert app.editor.cursor_x == 4
+}
+
+fn test_one_preview_insert_session_undoes_as_one_change() {
+	mut app := PreviewApp{
+		editor: new_markdown_editor('before')
+	}
+	app.start_editing()
+	for text in ['a', 'b', 'c'] {
+		app.handle_editor_insert_input(&tui.Event{
+			typ:  .key_down
+			utf8: text
+		})
+	}
+	app.handle_editor_insert_input(&tui.Event{
+		typ:  .key_down
+		code: .escape
+	})
+	app.handle_editor_normal_input(&tui.Event{
+		typ:  .key_down
+		code: .u
+	})
+	assert app.editor.text() == 'before'
 }
 
 fn test_editor_normal_undo_still_works() {
@@ -305,6 +370,44 @@ fn test_preview_editor_save_and_return_to_rendered_view() {
 	assert app.mode == .terminal
 }
 
+fn test_preview_save_detects_external_change_and_force_overwrites() {
+	path := os.join_path(os.temp_dir(), 'vmarkdown-preview-conflict-${os.getpid()}.md')
+	os.write_file(path, '# Original\n') or { panic(err) }
+	defer {
+		os.rm(path) or {}
+	}
+	mut app := PreviewApp{
+		markdown:    '# Original\n'
+		doc:         parse('# Original\n') or { panic(err) }
+		source_path: path
+		editor:      new_markdown_editor('# Original\n')
+	}
+	app.editor.cursor_x = app.editor.current_line().runes().len
+	app.editor.insert_text(' local')
+	os.write_file(path, '# External\n') or { panic(err) }
+	assert !app.save_editor()
+	assert app.editor.status.contains('changed on disk')
+	assert os.read_file(path) or { panic(err) } == '# External\n'
+	assert app.save_editor_force()
+	assert os.read_file(path) or { panic(err) } == '# Original local\n'
+}
+
+fn test_atomic_preview_save_preserves_permissions_and_cleans_temp_file() {
+	path := os.join_path(os.temp_dir(), 'vmarkdown-preview-atomic-${os.getpid()}.md')
+	temporary := os.join_path(os.dir(path), '.${os.file_name(path)}.vmarkdown-${os.getpid()}.tmp')
+	os.write_file(path, 'before') or { panic(err) }
+	os.chmod(path, 0o640) or { panic(err) }
+	defer {
+		os.rm(path) or {}
+		os.rm(temporary) or {}
+	}
+	atomic_write_preview_file(path, 'after') or { panic(err) }
+	assert os.read_file(path) or { panic(err) } == 'after'
+	attributes := os.stat(path) or { panic(err) }
+	assert int(attributes.mode & 0o777) == 0o640
+	assert !os.exists(temporary)
+}
+
 fn test_preview_editor_refuses_quit_with_unsaved_changes() {
 	mut app := PreviewApp{
 		editor: new_markdown_editor('before')
@@ -342,6 +445,31 @@ fn test_preview_quit_confirmation_offers_save_for_file_preview() {
 	assert lines.contains('[s] Save and quit')
 	assert lines.contains('[q] Quit without saving')
 	assert lines.contains('[Esc] Cancel')
+}
+
+fn test_preview_overlay_has_explicit_foreground_colors() {
+	border := style_preview_overlay_border('╭──╮')
+	body := style_preview_overlay_row('Visible text', '  ', false)
+	title := style_preview_overlay_row('Title', '  ', true)
+	assert term.strip_ansi(border) == '╭──╮'
+	assert term.strip_ansi(body) == '│Visible text  │'
+	assert term.strip_ansi(title) == '│Title  │'
+	assert border != '╭──╮'
+	assert body != '│Visible text  │'
+}
+
+fn test_preview_redraw_starts_dirty_and_can_be_consumed() {
+	mut app := PreviewApp{}
+	assert app.needs_redraw
+	app.needs_redraw = false
+	assert !app.needs_redraw
+	event := &tui.Event{
+		typ:  .key_down
+		code: .question_mark
+	}
+	preview_event(event, voidptr(&app))
+	assert app.needs_redraw
+	assert app.show_help
 }
 
 fn test_preview_scroll_helpers() {
@@ -472,9 +600,72 @@ fn test_preview_normal_word_and_delete_commands_edit_source() {
 	assert app.source_cursor_x == 4
 	app.delete_normal_source_char()
 	assert app.editor.text() == 'one wo\nthree'
-	app.ensure_lines()
-	app.view_cursor = find_preview_line_for_source(app.line_sources, 1)
+	app.lines = app.editor.lines.clone()
+	app.line_sources = [
+		PreviewLineSource{
+			start_line:  0
+			end_line:    0
+			source_line: 0
+		},
+		PreviewLineSource{
+			start_line:  1
+			end_line:    1
+			source_line: 1
+		},
+	]
+	app.view_cursor = 1
 	app.view_cursor_x = 0
 	app.delete_normal_source_line()
 	assert app.editor.text() == 'one wo'
+}
+
+fn test_preview_delete_uses_exact_rendered_source_column() {
+	markdown := '# Hello'
+	columns, exact := build_preview_source_columns(markdown, '<h1>Hello</h1>', .html)
+	mut app := PreviewApp{
+		markdown:      markdown
+		doc:           parse(markdown) or { panic(err) }
+		editor:        new_markdown_editor(markdown)
+		mode:          .html
+		lines:         ['<h1>Hello</h1>']
+		line_sources:  [
+			PreviewLineSource{
+				start_line:     0
+				end_line:       0
+				source_line:    0
+				source_columns: columns
+				exact_columns:  exact
+			},
+		]
+		view_cursor:   0
+		view_cursor_x: 4
+	}
+	app.delete_normal_source_char()
+	assert app.editor.text() == '# ello'
+}
+
+fn test_preview_delete_refuses_render_only_column() {
+	markdown := '# Hello'
+	columns, exact := build_preview_source_columns(markdown, '<h1>Hello</h1>', .html)
+	mut app := PreviewApp{
+		markdown:      markdown
+		doc:           parse(markdown) or { panic(err) }
+		editor:        new_markdown_editor(markdown)
+		mode:          .html
+		lines:         ['<h1>Hello</h1>']
+		line_sources:  [
+			PreviewLineSource{
+				start_line:     0
+				end_line:       0
+				source_line:    0
+				source_columns: columns
+				exact_columns:  exact
+			},
+		]
+		view_cursor:   0
+		view_cursor_x: 0
+	}
+	app.delete_normal_source_char()
+	assert app.editor.text() == markdown
+	assert app.search_status.contains('no source character')
 }

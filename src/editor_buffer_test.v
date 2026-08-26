@@ -47,3 +47,27 @@ fn test_markdown_editor_word_movements() {
 	assert ed.cursor_y == 0
 	assert ed.cursor_x == 5
 }
+
+fn test_markdown_editor_groups_one_insert_session_into_one_undo() {
+	mut ed := new_markdown_editor('before')
+	ed.cursor_x = ed.current_line().runes().len
+	ed.begin_insert_session()
+	for text in [' ', 'a', 'f', 't', 'e', 'r'] {
+		ed.insert_text(text)
+	}
+	ed.end_insert_session()
+	assert ed.text() == 'before after'
+	assert ed.undo_stack.len == 1
+	ed.undo()
+	assert ed.text() == 'before'
+	ed.redo()
+	assert ed.text() == 'before after'
+}
+
+fn test_markdown_editor_empty_insert_session_adds_no_undo_entry() {
+	mut ed := new_markdown_editor('unchanged')
+	ed.begin_insert_session()
+	ed.end_insert_session()
+	assert ed.undo_stack.len == 0
+	assert !ed.dirty
+}

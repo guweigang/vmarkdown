@@ -134,6 +134,11 @@ jobs:
           ./dist/${{ matrix.binary }} diagram validate org examples/diagrams/org.json
           ./dist/${{ matrix.binary }} ast README.md > /tmp/vmarkdown-ast.txt
 
+      - name: Test preview editor in a real PTY
+        if: matrix.shell == 'bash'
+        shell: bash
+        run: tests/e2e/preview_editor_pty_test.sh "./dist/${{ matrix.binary }}"
+
       - name: Smoke Windows binary
         if: matrix.shell == 'powershell'
         shell: powershell

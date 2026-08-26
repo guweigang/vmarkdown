@@ -20,17 +20,19 @@ struct EditorSnapshot {
 // examples/term.ui/text_editor.v into a source-preserving, testable model.
 struct MarkdownEditor {
 mut:
-	lines       []string
-	saved_text  string
-	cursor_x    int
-	cursor_y    int
-	mode        EditorMode
-	command     string
-	dirty       bool
-	status      string
-	pending_key string
-	undo_stack  []EditorSnapshot
-	redo_stack  []EditorSnapshot
+	lines                  []string
+	saved_text             string
+	cursor_x               int
+	cursor_y               int
+	mode                   EditorMode
+	command                string
+	dirty                  bool
+	status                 string
+	pending_key            string
+	undo_stack             []EditorSnapshot
+	redo_stack             []EditorSnapshot
+	insert_session_active  bool
+	insert_session_changed bool
 }
 
 fn new_markdown_editor(text string) MarkdownEditor {
@@ -64,13 +66,31 @@ fn (ed &MarkdownEditor) snapshot() EditorSnapshot {
 }
 
 fn (mut ed MarkdownEditor) remember_change() {
-	ed.undo_stack << ed.snapshot()
-	if ed.undo_stack.len > editor_undo_limit {
-		ed.undo_stack.delete(0)
+	if !ed.insert_session_active || !ed.insert_session_changed {
+		ed.undo_stack << ed.snapshot()
+		if ed.undo_stack.len > editor_undo_limit {
+			ed.undo_stack.delete(0)
+		}
+		ed.redo_stack.clear()
 	}
-	ed.redo_stack.clear()
+	if ed.insert_session_active {
+		ed.insert_session_changed = true
+	}
 	ed.dirty = true
 	ed.status = ''
+}
+
+fn (mut ed MarkdownEditor) begin_insert_session() {
+	if ed.insert_session_active {
+		return
+	}
+	ed.insert_session_active = true
+	ed.insert_session_changed = false
+}
+
+fn (mut ed MarkdownEditor) end_insert_session() {
+	ed.insert_session_active = false
+	ed.insert_session_changed = false
 }
 
 fn (mut ed MarkdownEditor) restore(snapshot EditorSnapshot) {
@@ -84,6 +104,7 @@ fn (mut ed MarkdownEditor) restore(snapshot EditorSnapshot) {
 }
 
 fn (mut ed MarkdownEditor) undo() {
+	ed.end_insert_session()
 	if ed.undo_stack.len == 0 {
 		ed.status = 'already at oldest change'
 		return
@@ -96,6 +117,7 @@ fn (mut ed MarkdownEditor) undo() {
 }
 
 fn (mut ed MarkdownEditor) redo() {
+	ed.end_insert_session()
 	if ed.redo_stack.len == 0 {
 		ed.status = 'already at newest change'
 		return

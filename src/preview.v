@@ -213,10 +213,14 @@ mut:
 	source_cursor_x            int
 	pending_source_reposition  bool
 	desired_cursor_row         int
+	needs_redraw               bool = true
 }
 
 fn preview_event(e &tui.Event, x voidptr) {
 	mut app := unsafe { &PreviewApp(x) }
+	if e.typ == .key_down || e.typ == .resized {
+		app.needs_redraw = true
+	}
 	if e.typ == .key_down && app.show_quit_confirm {
 		app.handle_quit_confirm_input(e)
 		return
@@ -234,6 +238,9 @@ fn preview_event(e &tui.Event, x voidptr) {
 		return
 	}
 	if e.typ == .key_down {
+		if app.editor.pending_key == 'd' && (e.code != .d || e.modifiers.has(.ctrl)) {
+			app.editor.pending_key = ''
+		}
 		match e.code {
 			.q {
 				app.request_quit()
@@ -346,6 +353,9 @@ fn preview_event(e &tui.Event, x voidptr) {
 
 fn preview_frame(x voidptr) {
 	mut app := unsafe { &PreviewApp(x) }
+	if !app.needs_redraw {
+		return
+	}
 	app.ensure_lines()
 	app.clamp_scroll()
 	if !app.editing {
@@ -365,6 +375,7 @@ fn preview_frame(x voidptr) {
 	app.position_editor_cursor()
 	app.tui.reset()
 	app.tui.flush()
+	app.needs_redraw = false
 }
 
 fn (mut app PreviewApp) set_mode(mode PreviewMode) {
@@ -382,10 +393,14 @@ fn (mut app PreviewApp) ensure_lines() {
 		app.lines = app.editor.lines.clone()
 		app.line_sources = []PreviewLineSource{cap: app.editor.lines.len}
 		for index in 0 .. app.editor.lines.len {
+			columns, exact := build_preview_source_columns(app.editor.lines[index],
+				app.editor.lines[index], .markdown)
 			app.line_sources << PreviewLineSource{
-				start_line:  index
-				end_line:    index
-				source_line: index
+				start_line:     index
+				end_line:       index
+				source_line:    index
+				source_columns: columns
+				exact_columns:  exact
 			}
 		}
 		app.last_width = app.tui.window_width
@@ -441,7 +456,11 @@ fn (mut app PreviewApp) move_normal_cursor_horizontal(delta int) {
 		0
 	}
 	app.view_cursor_x = min_int(max_int(app.view_cursor_x + delta, 0), line_width)
-	app.source_cursor_x = app.view_cursor_x
+	if app.view_cursor >= 0 && app.view_cursor < app.line_sources.len {
+		app.sync_source_cursor_from_view()
+	} else {
+		app.source_cursor_x = app.view_cursor_x
+	}
 	app.editor.pending_key = ''
 }
 
@@ -469,6 +488,12 @@ fn (mut app PreviewApp) move_normal_source_word(forward bool) {
 }
 
 fn (mut app PreviewApp) delete_normal_source_char() {
+	if app.view_cursor >= 0 && app.view_cursor < app.line_sources.len
+		&& !source_column_is_exact(app.line_sources[app.view_cursor], app.view_cursor_x) {
+		app.search_status = 'no source character here; press i to edit the Markdown source'
+		app.editor.pending_key = ''
+		return
+	}
 	app.sync_source_cursor_from_view()
 	app.sync_editor_cursor_from_source()
 	app.editor.delete_forward()
@@ -485,8 +510,9 @@ fn (mut app PreviewApp) delete_normal_source_line() {
 
 fn (mut app PreviewApp) sync_source_cursor_from_view() {
 	if app.view_cursor >= 0 && app.view_cursor < app.line_sources.len {
-		app.source_cursor_line = app.line_sources[app.view_cursor].source_line
-		app.source_cursor_x = app.view_cursor_x
+		source := app.line_sources[app.view_cursor]
+		app.source_cursor_line = source.source_line
+		app.source_cursor_x = source_column_at(source, app.view_cursor_x)
 	}
 }
 
@@ -498,7 +524,12 @@ fn (mut app PreviewApp) prepare_source_reposition() {
 
 fn (mut app PreviewApp) reposition_from_source() {
 	app.view_cursor = find_preview_line_for_source(app.line_sources, app.source_cursor_line)
-	app.view_cursor_x = app.source_cursor_x
+	if app.view_cursor >= 0 && app.view_cursor < app.line_sources.len {
+		app.view_cursor_x = preview_column_for_source(app.line_sources[app.view_cursor],
+			app.source_cursor_x)
+	} else {
+		app.view_cursor_x = app.source_cursor_x
+	}
 	app.scroll = max_int(app.view_cursor - app.desired_cursor_row, 0)
 	app.pending_source_reposition = false
 	app.clamp_normal_cursor()
@@ -587,19 +618,15 @@ fn (mut app PreviewApp) draw_help_overlay() {
 	height := lines.len + 2
 	x := max_int((app.tui.window_width - width) / 2, 0)
 	y := max_int((app.tui.window_height - height) / 2, 0)
-	app.tui.draw_text(x, y, term.bg_rgb(24, 30, 34, '╭' + '─'.repeat(max_int(width - 2, 0)) +
-		'╮'))
+	app.tui.draw_text(x, y, style_preview_overlay_border('╭' + '─'.repeat(max_int(width -
+		2, 0)) + '╮'))
 	for i, line in lines {
 		plain := fit_preview_plain(line, max_int(width - 2, 1))
 		padding := ' '.repeat(max_int(width - 2 - plain.runes().len, 0))
-		styled := if i == 0 {
-			term.bg_rgb(24, 30, 34, '│' + term.bold(term.hex(0xe6b450, plain)) + padding + '│')
-		} else {
-			term.bg_rgb(24, 30, 34, '│' + plain + padding + '│')
-		}
+		styled := style_preview_overlay_row(plain, padding, i == 0)
 		app.tui.draw_text(x, y + i + 1, styled)
 	}
-	app.tui.draw_text(x, y + height - 1, term.bg_rgb(24, 30, 34, '╰' +
+	app.tui.draw_text(x, y + height - 1, style_preview_overlay_border('╰' +
 		'─'.repeat(max_int(width - 2, 0)) + '╯'))
 }
 
@@ -609,20 +636,30 @@ fn (mut app PreviewApp) draw_quit_confirm_overlay() {
 	height := lines.len + 2
 	x := max_int((app.tui.window_width - width) / 2, 0)
 	y := max_int((app.tui.window_height - height) / 2, 0)
-	app.tui.draw_text(x, y, term.bg_rgb(24, 30, 34, '╭' + '─'.repeat(max_int(width - 2, 0)) +
-		'╮'))
+	app.tui.draw_text(x, y, style_preview_overlay_border('╭' + '─'.repeat(max_int(width -
+		2, 0)) + '╮'))
 	for i, line in lines {
 		plain := fit_preview_plain(line, max_int(width - 2, 1))
 		padding := ' '.repeat(max_int(width - 2 - plain.runes().len, 0))
-		styled := if i == 0 {
-			term.bg_rgb(24, 30, 34, '│' + term.bold(term.hex(0xe6b450, plain)) + padding + '│')
-		} else {
-			term.bg_rgb(24, 30, 34, '│' + plain + padding + '│')
-		}
+		styled := style_preview_overlay_row(plain, padding, i == 0)
 		app.tui.draw_text(x, y + i + 1, styled)
 	}
-	app.tui.draw_text(x, y + height - 1, term.bg_rgb(24, 30, 34, '╰' +
+	app.tui.draw_text(x, y + height - 1, style_preview_overlay_border('╰' +
 		'─'.repeat(max_int(width - 2, 0)) + '╯'))
+}
+
+fn style_preview_overlay_border(text string) string {
+	return term.bg_rgb(24, 30, 34, term.hex(0x7f8c93, text))
+}
+
+fn style_preview_overlay_row(plain string, padding string, is_title bool) string {
+	border := term.hex(0x7f8c93, '│')
+	content := if is_title {
+		term.bold(term.hex(0xe6b450, plain)) + term.hex(0xe8edf2, padding)
+	} else {
+		term.hex(0xe8edf2, plain + padding)
+	}
+	return term.bg_rgb(24, 30, 34, border + content + border)
 }
 
 fn (app &PreviewApp) quit_confirm_lines() []string {
@@ -630,6 +667,9 @@ fn (app &PreviewApp) quit_confirm_lines() []string {
 		' Unsaved changes ',
 		'The Markdown buffer has changes that have not been saved.',
 	]
+	if app.editor.status.contains('changed on disk') {
+		lines << 'The file changed on disk; use :w! to overwrite it.'
+	}
 	if app.source_path.len == 0 {
 		lines << 'This preview has no writable file.'
 		lines << '[q] Quit without saving    [Esc] Cancel'
@@ -670,6 +710,7 @@ fn (mut app PreviewApp) start_editing() {
 	app.editing = true
 	app.mode = .markdown
 	app.editor.mode = .insert
+	app.editor.begin_insert_session()
 	app.editor.cursor_y = min_int(app.source_cursor_line, max_int(app.editor.lines.len - 1, 0))
 	app.editor.cursor_x = min_int(app.source_cursor_x, app.editor.current_line().runes().len)
 	app.editor.clamp_cursor()
@@ -699,6 +740,7 @@ fn (mut app PreviewApp) handle_editor_insert_input(e &tui.Event) {
 	}
 	match e.code {
 		.escape {
+			app.editor.end_insert_session()
 			app.editor.pending_key = ''
 			app.editor.mode = .normal
 		}
@@ -739,6 +781,14 @@ fn (mut app PreviewApp) handle_editor_insert_input(e &tui.Event) {
 }
 
 fn (mut app PreviewApp) handle_editor_normal_input(e &tui.Event) {
+	if app.editor.pending_key.len > 0 {
+		continues_delete := app.editor.pending_key == 'd' && e.code == .d
+		continues_goto := app.editor.pending_key == 'g' && e.code == .g && !e.modifiers.has(.shift)
+		continues_pending := !e.modifiers.has(.ctrl) && (continues_delete || continues_goto)
+		if !continues_pending {
+			app.editor.pending_key = ''
+		}
+	}
 	if e.modifiers.has(.ctrl) {
 		match e.code {
 			.r {
@@ -802,13 +852,16 @@ fn (mut app PreviewApp) handle_editor_normal_input(e &tui.Event) {
 			app.editor.cursor_x = app.editor.current_line().runes().len
 		}
 		.i {
+			app.editor.begin_insert_session()
 			app.editor.mode = .insert
 		}
 		.a {
 			app.editor.move_right()
+			app.editor.begin_insert_session()
 			app.editor.mode = .insert
 		}
 		.o {
+			app.editor.begin_insert_session()
 			if e.modifiers.has(.shift) {
 				app.editor.open_line_above()
 			} else {
@@ -884,6 +937,9 @@ fn (mut app PreviewApp) execute_editor_command(command string) {
 		'w' {
 			app.save_editor()
 		}
+		'w!' {
+			app.save_editor_force()
+		}
 		'q' {
 			if app.editor.dirty {
 				app.editor.status = 'E37: no write since last change (use :q!)'
@@ -896,6 +952,11 @@ fn (mut app PreviewApp) execute_editor_command(command string) {
 		}
 		'wq', 'x' {
 			if app.save_editor() {
+				exit(0)
+			}
+		}
+		'wq!' {
+			if app.save_editor_force() {
 				exit(0)
 			}
 		}
@@ -946,12 +1007,24 @@ fn (mut app PreviewApp) refresh_normal_view() {
 }
 
 fn (mut app PreviewApp) save_editor() bool {
+	return app.save_editor_with_force(false)
+}
+
+fn (mut app PreviewApp) save_editor_force() bool {
+	return app.save_editor_with_force(true)
+}
+
+fn (mut app PreviewApp) save_editor_with_force(force bool) bool {
 	if app.source_path.len == 0 {
 		app.editor.status = 'no file name'
 		return false
 	}
+	if !force && source_file_changed_on_disk(app.source_path, app.editor.saved_text) {
+		app.editor.status = 'file changed on disk; use :w! to overwrite'
+		return false
+	}
 	text := app.editor.text()
-	os.write_file(app.source_path, text) or {
+	atomic_write_preview_file(app.source_path, text) or {
 		app.editor.status = 'write failed: ${err}'
 		return false
 	}
@@ -965,6 +1038,29 @@ fn (mut app PreviewApp) save_editor() bool {
 	app.editor.mark_saved()
 	app.last_width = 0
 	return true
+}
+
+fn source_file_changed_on_disk(path string, expected string) bool {
+	if path.len == 0 || !os.exists(path) {
+		return true
+	}
+	current := os.read_file(path) or { return true }
+	return current != expected
+}
+
+fn atomic_write_preview_file(path string, text string) ! {
+	directory := os.dir(path)
+	base := os.file_name(path)
+	temporary := os.join_path(directory, '.${base}.vmarkdown-${os.getpid()}.tmp')
+	defer {
+		if os.exists(temporary) {
+			os.rm(temporary) or {}
+		}
+	}
+	mode := if attributes := os.stat(path) { int(attributes.mode & 0o777) } else { 0o666 }
+	os.write_file(temporary, text)!
+	os.chmod(temporary, mode)!
+	os.mv(temporary, path)!
 }
 
 fn (mut app PreviewApp) sync_editor_viewport() {
@@ -1289,13 +1385,14 @@ fn compact_preview_source_label(path string) string {
 
 fn fit_preview_plain(input string, width int) string {
 	safe_width := max_int(width, 1)
-	if input.len <= safe_width {
+	runes := input.runes()
+	if runes.len <= safe_width {
 		return input
 	}
 	if safe_width <= 1 {
-		return input[..1]
+		return runes[..1].string()
 	}
-	return input[..safe_width - 1] + '…'
+	return runes[..safe_width - 1].string() + '…'
 }
 
 fn (app &PreviewApp) current_match_line_index() int {
@@ -1349,8 +1446,9 @@ fn (mut app PreviewApp) handle_search_input(e &tui.Event) {
 			app.jump_to_next_match()
 		}
 		.backspace {
-			if app.search_query.len > 0 {
-				app.search_query = app.search_query[..app.search_query.len - 1]
+			runes := app.search_query.runes()
+			if runes.len > 0 {
+				app.search_query = runes[..runes.len - 1].string()
 			}
 		}
 		else {
