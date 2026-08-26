@@ -396,15 +396,19 @@ fn test_atomic_preview_save_preserves_permissions_and_cleans_temp_file() {
 	path := os.join_path(os.temp_dir(), 'vmarkdown-preview-atomic-${os.getpid()}.md')
 	temporary := os.join_path(os.dir(path), '.${os.file_name(path)}.vmarkdown-${os.getpid()}.tmp')
 	os.write_file(path, 'before') or { panic(err) }
-	os.chmod(path, 0o640) or { panic(err) }
+	$if !windows {
+		os.chmod(path, 0o640) or { panic(err) }
+	}
 	defer {
 		os.rm(path) or {}
 		os.rm(temporary) or {}
 	}
 	atomic_write_preview_file(path, 'after') or { panic(err) }
 	assert os.read_file(path) or { panic(err) } == 'after'
-	attributes := os.stat(path) or { panic(err) }
-	assert int(attributes.mode & 0o777) == 0o640
+	$if !windows {
+		attributes := os.stat(path) or { panic(err) }
+		assert int(attributes.mode & 0o777) == 0o640
+	}
 	assert !os.exists(temporary)
 }
 
