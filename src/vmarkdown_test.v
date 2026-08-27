@@ -75,6 +75,17 @@ fn test_parse_with_tables_disabled_keeps_pipe_text_as_paragraph() {
 	assert doc.children[0] is ParagraphNode
 }
 
+fn test_parse_block_html_preserves_verbatim_content() {
+	input := '<p align="center">\n  <img src="brand.jpg" alt="Brand" />\n</p>\n'
+	doc := parse(input) or { panic(err) }
+	assert doc.children.len == 1
+	assert doc.children[0] is ParagraphNode
+	paragraph := doc.children[0] as ParagraphNode
+	assert paragraph.children.len == 1
+	assert paragraph.children[0] is TextNode
+	assert (paragraph.children[0] as TextNode).text == input
+}
+
 fn test_binary_encoding_uses_protocol_type_tags() {
 	heading := HeadingNode{
 		level:    2

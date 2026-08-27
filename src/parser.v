@@ -86,6 +86,7 @@ enum FrameKind {
 	image
 	code_span
 	code_block
+	html_block
 	table
 	table_head
 	table_body
@@ -118,8 +119,9 @@ mut:
 struct Builder {
 	markdown string
 mut:
-	frames     []Frame
-	last_debug string
+	frames         []Frame
+	callback_error string
+	last_debug     string
 }
 
 fn new_builder(markdown string) Builder {
@@ -143,7 +145,13 @@ fn (mut b Builder) finish() !Document {
 
 fn (b &Builder) error_message(code int) string {
 	if b.last_debug.len > 0 {
+		if b.callback_error.len > 0 {
+			return 'md4c parse failed with code ${code}: ${b.callback_error} (${b.last_debug})'
+		}
 		return 'md4c parse failed with code ${code}: ${b.last_debug}'
+	}
+	if b.callback_error.len > 0 {
+		return 'md4c parse failed with code ${code}: ${b.callback_error}'
 	}
 	return 'md4c parse failed with code ${code}'
 }
@@ -312,6 +320,9 @@ fn (mut b Builder) enter_block(typ int, detail voidptr) ! {
 			info := attribute_to_string(code.info).trim_space()
 			top.lang = if info.len > 0 { info } else { attribute_to_string(code.lang) }
 		}
+		int(C.MD_BLOCK_HTML) {
+			b.push_frame(.html_block)
+		}
 		int(C.MD_BLOCK_P) {
 			b.push_frame(.paragraph)
 		}
@@ -379,6 +390,14 @@ fn (mut b Builder) leave_block(typ int, _detail voidptr) ! {
 			b.append_block(CodeBlockNode{
 				lang:    frame.lang
 				content: frame.text.str()
+			})!
+		}
+		int(C.MD_BLOCK_HTML) {
+			mut frame := b.pop_frame(.html_block)!
+			b.append_block(ParagraphNode{
+				children: [InlineNode(TextNode{
+					text: frame.text.str()
+				})]
 			})!
 		}
 		int(C.MD_BLOCK_P) {
@@ -529,7 +548,7 @@ fn (b &Builder) in_code_context() bool {
 		return false
 	}
 	last := b.frames[b.frames.len - 1]
-	return last.kind == .code_block || last.kind == .code_span
+	return last.kind == .code_block || last.kind == .code_span || last.kind == .html_block
 }
 
 fn (mut b Builder) next_list_item_number() !int {
@@ -566,7 +585,7 @@ fn table_alignment_from_md4c(alignment int) TableAlignment {
 pub fn vmarkdown_enter_block(typ int, detail voidptr, userdata voidptr) int {
 	mut b := unsafe { &Builder(userdata) }
 	b.enter_block(typ, detail) or {
-		b.last_debug = err.msg()
+		b.callback_error = err.msg()
 		return -1
 	}
 	return 0
@@ -576,7 +595,7 @@ pub fn vmarkdown_enter_block(typ int, detail voidptr, userdata voidptr) int {
 pub fn vmarkdown_leave_block(typ int, detail voidptr, userdata voidptr) int {
 	mut b := unsafe { &Builder(userdata) }
 	b.leave_block(typ, detail) or {
-		b.last_debug = err.msg()
+		b.callback_error = err.msg()
 		return -1
 	}
 	return 0
@@ -586,7 +605,7 @@ pub fn vmarkdown_leave_block(typ int, detail voidptr, userdata voidptr) int {
 pub fn vmarkdown_enter_span(typ int, detail voidptr, userdata voidptr) int {
 	mut b := unsafe { &Builder(userdata) }
 	b.enter_span(typ, detail) or {
-		b.last_debug = err.msg()
+		b.callback_error = err.msg()
 		return -1
 	}
 	return 0
@@ -596,7 +615,7 @@ pub fn vmarkdown_enter_span(typ int, detail voidptr, userdata voidptr) int {
 pub fn vmarkdown_leave_span(typ int, detail voidptr, userdata voidptr) int {
 	mut b := unsafe { &Builder(userdata) }
 	b.leave_span(typ, detail) or {
-		b.last_debug = err.msg()
+		b.callback_error = err.msg()
 		return -1
 	}
 	return 0
@@ -606,7 +625,7 @@ pub fn vmarkdown_leave_span(typ int, detail voidptr, userdata voidptr) int {
 pub fn vmarkdown_text(typ int, text &char, size u32, userdata voidptr) int {
 	mut b := unsafe { &Builder(userdata) }
 	b.on_text(typ, text, size) or {
-		b.last_debug = err.msg()
+		b.callback_error = err.msg()
 		return -1
 	}
 	return 0
