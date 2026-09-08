@@ -4,6 +4,14 @@ import os
 import term
 import term.ui as tui
 
+fn test_windows_preview_console_mode_enables_virtual_terminal_processing() {
+	$if windows {
+		assert windows_preview_output_mode(0) == u32(0x0004)
+		assert windows_preview_output_mode(0x0003) == u32(0x0007)
+		assert windows_preview_output_mode(0x0007) == u32(0x0007)
+	}
+}
+
 fn test_preview_lines_for_modes() {
 	markdown := '# Title\n\nParagraph\n'
 	terminal := preview_lines(markdown, .terminal, 40) or { panic(err) }

@@ -21,6 +21,7 @@ pub fn preview_with_mode(markdown string, mode PreviewMode, source_label string)
 }
 
 fn preview_with_source(markdown string, mode PreviewMode, source_label string, source_path string) ! {
+	prepare_console_for_preview()
 	doc := parse(markdown)!
 	mut app := &PreviewApp{
 		markdown:     markdown
@@ -42,6 +43,7 @@ fn preview_with_source(markdown string, mode PreviewMode, source_label string, s
 }
 
 pub fn preview_terminal_buffer(rendered string, source_label string) ! {
+	prepare_console_for_preview()
 	doc := parse('# Preview\n')!
 	mut app := &PreviewApp{
 		markdown:     '# Preview\n'

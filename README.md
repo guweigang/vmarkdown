@@ -312,6 +312,10 @@ Available example payloads for the `vmarkdown` diagram schema:
 
 `preview(markdown)!` and `preview_file(path)!` open a lightweight full-screen `term.ui` viewer.
 
+On Windows, the preview configures a real console for UTF-8 and virtual-terminal output while it
+is running, then restores the previous console code page and output mode on exit. Redirected output
+is left unchanged.
+
 - `1` terminal view
 - `2` markdown view
 - `3` html view
