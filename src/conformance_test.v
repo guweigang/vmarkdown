@@ -28,9 +28,15 @@ fn test_supported_commonmark_corpus_has_stable_structural_round_trip() {
 			original := parse_with_dialect(example.input, dialect) or {
 				panic('${example.fixture} example ${example.number}: parse failed: ${err}')
 			}
+			original.validate() or {
+				panic('${example.fixture} example ${example.number}: invalid parsed AST: ${err}')
+			}
 			normalized := original.to_markdown()
 			reparsed := parse_with_dialect(normalized, dialect) or {
 				panic('${example.fixture} example ${example.number}: normalized parse failed: ${err}')
+			}
+			reparsed.validate() or {
+				panic('${example.fixture} example ${example.number}: invalid reparsed AST: ${err}')
 			}
 			assert original.stable_id() == reparsed.stable_id(), '${example.fixture} example ${example.number} changed after semantic round trip\ninput:\n${example.input}\nnormalized:\n${normalized}\noriginal AST:\n${original.pretty()}\n${original.to_json()}\nreparsed AST:\n${reparsed.pretty()}\n${reparsed.to_json()}'
 			checked++

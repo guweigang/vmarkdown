@@ -22,3 +22,11 @@ The v1 decoder rejects incorrect magic or versions, non-canonical or
 overflowing varints, invalid UTF-8, unknown tags, invalid flags/enums,
 truncation, trailing bytes, and documents beyond its published size, depth,
 or node-count limits.
+
+After framing is decoded, the document must also satisfy the public AST
+validation contract. In particular, headings use levels 1 through 6; list
+levels, numbers, starts, and task state are canonical; tables have one header
+row and a consistent positive column count; normalized metadata keys are
+unique; inline containers are structurally renderable; and source-span fields
+are either valid half-open ranges or unavailable negative ranges. Decoded v1
+documents do not carry source spans and therefore use unavailable ranges.

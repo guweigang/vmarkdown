@@ -34,7 +34,9 @@ pub fn binary_decode(data []u8) !Document {
 	}
 	reader.require_end(body_end, 'document payload')!
 	reader.require_end(data.len, 'binary document')!
-	return Document{ children: children }
+	doc := Document{ children: children }
+	doc.validate() or { return error('invalid binary AST: ${err}') }
+	return doc
 }
 
 struct BinaryReader {
