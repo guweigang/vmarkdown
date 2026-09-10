@@ -109,6 +109,19 @@ fn test_public_wiki_link_contract() {
 	vmarkdown.InlineNode(wiki).validate() or { panic(err) }
 }
 
+fn test_public_latex_math_contract() {
+	doc := vmarkdown.parse_with_options(r'$$\int_a^b x dx$$', vmarkdown.ParseOptions{
+		latex_math: true
+	}) or { panic(err) }
+	math_nodes := doc.find_all(.latex_math)
+	assert math_nodes.len == 1
+	assert math_nodes[0].node is vmarkdown.LatexMathNode
+	math := math_nodes[0].node as vmarkdown.LatexMathNode
+	assert math.content == r'\int_a^b x dx'
+	assert math.display
+	vmarkdown.InlineNode(math).validate() or { panic(err) }
+}
+
 fn test_public_ingest_and_encoding_contract() {
 	file := vmarkdown.decode_markdown_bytes('hello'.bytes(), 'utf-8') or { panic(err) }
 	assert file.text == 'hello'

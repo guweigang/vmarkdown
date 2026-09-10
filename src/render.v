@@ -210,6 +210,9 @@ fn (node InlineNode) render_text_inline() string {
 		CodeSpanNode {
 			return node.text
 		}
+		LatexMathNode {
+			return node.content
+		}
 		LinkNode {
 			return render_inline_text(node.text)
 		}
@@ -561,6 +564,9 @@ fn (node InlineNode) render_json_inline() string {
 		CodeSpanNode {
 			return '{"type":"code_span","text":"${json_escape(node.text)}"}'
 		}
+		LatexMathNode {
+			return '{"type":"latex_math","display":${node.display},"content":"${json_escape(node.content)}"}'
+		}
 		LinkNode {
 			return '{"type":"link","url":"${json_escape(node.url)}","text":${render_inline_json(node.text)}}'
 		}
@@ -611,6 +617,10 @@ fn (node InlineNode) render_markdown_inline(emphasis_depth int) string {
 		}
 		CodeSpanNode {
 			return markdown_code_span(node.text)
+		}
+		LatexMathNode {
+			delimiter := if node.display { '\$\$' } else { '\$' }
+			return delimiter + node.content + delimiter
 		}
 		LinkNode {
 			plain_text := render_inline_text(node.text)

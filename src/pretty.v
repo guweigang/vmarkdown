@@ -107,6 +107,10 @@ fn inline_preview(nodes []InlineNode) string {
 			CodeSpanNode {
 				sb.write_string('`' + node.text + '`')
 			}
+			LatexMathNode {
+				delimiter := if node.display { '\$\$' } else { '\$' }
+				sb.write_string(delimiter + node.content + delimiter)
+			}
 			LinkNode {
 				sb.write_string('[' + inline_preview(node.text) + '](' + node.url + ')')
 			}

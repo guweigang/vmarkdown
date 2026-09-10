@@ -142,6 +142,7 @@ enum FrameKind {
 	wiki_link
 	image
 	code_span
+	latex_math
 	code_block
 	html_block
 	table
@@ -173,6 +174,7 @@ mut:
 	span      SourceSpan = SourceSpan{ start: -1, end: -1 }
 	is_task   bool
 	checked   bool
+	display   bool
 	text      strings.Builder
 }
 
@@ -608,6 +610,11 @@ fn (mut b Builder) enter_span(typ int, detail voidptr) ! {
 		int(C.MD_SPAN_CODE) {
 			b.push_frame(.code_span)!
 		}
+		int(C.MD_SPAN_LATEXMATH), int(C.MD_SPAN_LATEXMATH_DISPLAY) {
+			b.push_frame(.latex_math)!
+			mut top := b.top()!
+			top.display = typ == int(C.MD_SPAN_LATEXMATH_DISPLAY)
+		}
 		else {}
 	}
 }
@@ -666,6 +673,14 @@ fn (mut b Builder) leave_span(typ int, _detail voidptr) ! {
 				text: frame.text.str()
 			})!
 		}
+		int(C.MD_SPAN_LATEXMATH), int(C.MD_SPAN_LATEXMATH_DISPLAY) {
+			mut frame := b.pop_frame(.latex_math)!
+			b.append_inline(LatexMathNode{
+				span: frame.span
+				content: frame.text.str()
+				display: frame.display
+			})!
+		}
 		else {}
 	}
 }
@@ -697,6 +712,13 @@ fn (mut b Builder) on_text(typ int, text &char, size u32) ! {
 			mut top := b.top()!
 			top.text.write_string(content)
 		}
+		int(C.MD_TEXT_LATEXMATH) {
+			mut top := b.top()!
+			if top.kind != .latex_math {
+				return error('LaTeX math text emitted outside a math span')
+			}
+			top.text.write_string(content)
+		}
 		int(C.MD_TEXT_HTML) {
 			if b.in_code_context() {
 				mut top := b.top()!
@@ -706,7 +728,7 @@ fn (mut b Builder) on_text(typ int, text &char, size u32) ! {
 				b.append_inline(RawHtmlInlineNode{ span: span, html: content })!
 			}
 		}
-		int(C.MD_TEXT_NORMAL), int(C.MD_TEXT_NULLCHAR), int(C.MD_TEXT_ENTITY), int(C.MD_TEXT_LATEXMATH) {
+		int(C.MD_TEXT_NORMAL), int(C.MD_TEXT_NULLCHAR), int(C.MD_TEXT_ENTITY) {
 			if b.in_code_context() {
 				mut top := b.top()!
 				top.text.write_string(content)

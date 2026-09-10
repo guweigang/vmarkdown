@@ -65,3 +65,15 @@ fn test_walk_and_rewrite_descend_into_wiki_link_labels() {
 	}) or { panic(err) }
 	assert rewritten.to_markdown() == '[[docs|new]]'
 }
+
+fn test_walk_exposes_typed_latex_math_leaf() {
+	doc := parse_with_options(r'$x^2$', ParseOptions{
+		latex_math: true
+	}) or { panic(err) }
+	math_nodes := doc.find_all(.latex_math)
+	assert math_nodes.len == 1
+	assert math_nodes[0].node is LatexMathNode
+	math := math_nodes[0].node as LatexMathNode
+	assert math.content == 'x^2'
+	assert !math.display
+}

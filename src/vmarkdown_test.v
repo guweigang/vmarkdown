@@ -132,6 +132,28 @@ fn test_parse_wiki_links_as_typed_nodes_when_enabled() {
 	assert !default_paragraph.children.any(it is WikiLinkNode)
 }
 
+fn test_parse_latex_math_as_typed_nodes_when_enabled() {
+	input := r'$a+b=c$ and $$\int_a^b x dx$$'
+	doc := parse_with_options(input, ParseOptions{
+		latex_math: true
+	}) or { panic(err) }
+	paragraph := doc.children[0] as ParagraphNode
+	assert paragraph.children.len == 3
+	assert paragraph.children[0] is LatexMathNode
+	inline_math := paragraph.children[0] as LatexMathNode
+	assert inline_math.content == 'a+b=c'
+	assert !inline_math.display
+	assert inline_math.span.is_valid()
+	assert paragraph.children[2] is LatexMathNode
+	display_math := paragraph.children[2] as LatexMathNode
+	assert display_math.content == r'\int_a^b x dx'
+	assert display_math.display
+
+	default_doc := parse(input) or { panic(err) }
+	default_paragraph := default_doc.children[0] as ParagraphNode
+	assert !default_paragraph.children.any(it is LatexMathNode)
+}
+
 fn test_parse_rejects_input_over_configured_byte_budget() {
 	if _ := parse_with_limits('12345', ParseOptions{}, ParseLimits{
 		max_input_bytes: 4

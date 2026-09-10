@@ -124,6 +124,36 @@ fn test_render_wiki_link_escapes_target_delimiter() {
 	assert reparsed.stable_id() == doc.stable_id()
 }
 
+fn test_render_latex_math_text_json_terminal_and_markdown() {
+	input := r'$a+b=c$ and $$\int_a^b x dx$$'
+	doc := parse_with_options(input, ParseOptions{
+		latex_math: true
+	}) or { panic(err) }
+	assert doc.to_text() == r'a+b=c and \int_a^b x dx'
+	json := doc.to_json()
+	assert json.contains('"type":"latex_math","display":false,"content":"a+b=c"')
+	assert json.contains('"display":true,"content":"\\\\int_a^b x dx"')
+	assert doc.to_markdown() == input
+	assert doc.to_terminal_with_options(TerminalRenderOptions{
+		width: 80
+		color: false
+	}).contains(r'\int_a^b x dx')
+	reparsed := parse_with_options(doc.to_markdown(), ParseOptions{
+		latex_math: true
+	}) or { panic(err) }
+	assert reparsed.stable_id() == doc.stable_id()
+
+	escaped_dollar := r'$price \$5$'
+	escaped_doc := parse_with_options(escaped_dollar, ParseOptions{
+		latex_math: true
+	}) or { panic(err) }
+	assert escaped_doc.to_markdown() == escaped_dollar
+	escaped_reparsed := parse_with_options(escaped_doc.to_markdown(), ParseOptions{
+		latex_math: true
+	}) or { panic(err) }
+	assert escaped_reparsed.stable_id() == escaped_doc.stable_id()
+}
+
 fn test_render_markdown_keeps_nested_list_structure_valid() {
 	doc := parse('- parent\n  - child\n') or { panic(err) }
 	markdown := doc.to_markdown()

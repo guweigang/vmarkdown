@@ -101,6 +101,19 @@ fn test_validation_rejects_invalid_and_nested_wiki_links() {
 	}
 }
 
+fn test_validation_rejects_noncanonical_latex_math_content() {
+	for content in ['line\nbreak', 'bare \$ delimiter'] {
+		math := InlineNode(LatexMathNode{ content: content })
+		if _ := math.validate() {
+			assert false, 'noncanonical LaTeX math content must fail validation'
+		} else {
+			assert err is AstValidationError
+			assert (err as AstValidationError).kind == .latex_math_content
+		}
+	}
+	InlineNode(LatexMathNode{ content: r'price \$5' }).validate() or { panic(err) }
+}
+
 fn test_validation_rejects_metadata_key_collisions_and_multiline_info() {
 	metadata := Document{
 		children: [BlockNode(MetaNode{

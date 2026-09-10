@@ -15,8 +15,9 @@ HTML block. List items use framed tag `10`.
 
 Inline tags are `20` text, `21` emphasis, `22` strong, `23` code span, `24`
 link, `25` image, `26` strikethrough, `27` soft break, `28` hard break, `29`
-raw inline HTML, and `2a` wiki link. Variable-size nested records carry a byte
-length so a decoder can reject truncation and framing errors.
+raw inline HTML, `2a` wiki link, and `2b` LaTeX math. Variable-size nested
+records carry a byte length so a decoder can reject truncation and framing
+errors.
 
 The v1 decoder rejects incorrect magic or versions, non-canonical or
 overflowing varints, invalid UTF-8, unknown tags, invalid flags/enums,
