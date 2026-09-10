@@ -3,6 +3,41 @@ module vmarkdown
 const max_ast_validation_nodes = 1_000_000
 const max_ast_validation_depth = 256
 
+pub enum AstValidationErrorKind {
+	validation_limit
+	source_span
+	heading_level
+	list_start
+	list_level
+	list_number
+	task_state
+	table_columns
+	table_header
+	table_row
+	metadata_key
+	code_info
+	adjacent_text
+	empty_text
+	empty_inline_container
+	nested_link
+}
+
+pub struct AstValidationError {
+pub:
+	kind    AstValidationErrorKind
+	path    string
+	span    SourceSpan = SourceSpan{ start: -1, end: -1 }
+	message string
+}
+
+pub fn (err AstValidationError) msg() string {
+	return if err.path.len > 0 { '${err.path} ${err.message}' } else { err.message }
+}
+
+pub fn (err AstValidationError) code() int {
+	return 1000 + int(err.kind)
+}
+
 struct AstValidator {
 mut:
 	nodes int
@@ -33,11 +68,11 @@ pub fn (node InlineNode) validate() ! {
 
 fn (mut validator AstValidator) count(path string, depth int) ! {
 	if depth > max_ast_validation_depth {
-		return error('${path} exceeds maximum AST depth ${max_ast_validation_depth}')
+		return validation_error(.validation_limit, path, 'exceeds maximum AST depth ${max_ast_validation_depth}', SourceSpan{})
 	}
 	validator.nodes++
 	if validator.nodes > max_ast_validation_nodes {
-		return error('${path} exceeds maximum AST node count ${max_ast_validation_nodes}')
+		return validation_error(.validation_limit, path, 'exceeds maximum AST node count ${max_ast_validation_nodes}', SourceSpan{})
 	}
 }
 
@@ -47,7 +82,7 @@ fn (mut validator AstValidator) validate_block(node BlockNode, path string, dept
 	match node {
 		HeadingNode {
 			if node.level < 1 || node.level > 6 {
-				return error('${path}.level must be between 1 and 6')
+				return validation_error(.heading_level, '${path}.level', 'must be between 1 and 6', node.span)
 			}
 			validator.validate_inlines(node.children, '${path}.children', depth + 1, false)!
 		}
@@ -67,25 +102,25 @@ fn (mut validator AstValidator) validate_block(node BlockNode, path string, dept
 			for key, _ in node.data {
 				normalized := normalize_text(key)
 				if normalized.len == 0 {
-					return error('${path}.data contains an empty normalized key')
+					return validation_error(.metadata_key, '${path}.data', 'contains an empty normalized key', node.span)
 				}
 				if previous := normalized_keys[normalized] {
-					return error('${path}.data keys `${previous}` and `${key}` normalize to the same value')
+					return validation_error(.metadata_key, '${path}.data', 'keys `${previous}` and `${key}` normalize to the same value', node.span)
 				}
 				normalized_keys[normalized] = key
 			}
 		}
 		CodeBlockNode {
 			if node.lang.contains_any('\r\n') {
-				return error('${path}.lang cannot contain a line break')
+				return validation_error(.code_info, '${path}.lang', 'cannot contain a line break', node.span)
 			}
 		}
 		TableNode {
 			if node.columns <= 0 {
-				return error('${path}.columns must be positive')
+				return validation_error(.table_columns, '${path}.columns', 'must be positive', node.span)
 			}
 			if node.head.len != 1 {
-				return error('${path}.head must contain exactly one row')
+				return validation_error(.table_header, '${path}.head', 'must contain exactly one row', node.span)
 			}
 			for row_index, row in node.head {
 				validator.validate_table_row(row, '${path}.head[${row_index}]', depth + 1, node.columns)!
@@ -100,24 +135,24 @@ fn (mut validator AstValidator) validate_block(node BlockNode, path string, dept
 
 fn (mut validator AstValidator) validate_list(node ListNode, path string, depth int, expected_level int) ! {
 	if node.start < 0 {
-		return error('${path}.start cannot be negative')
+		return validation_error(.list_start, '${path}.start', 'cannot be negative', node.span)
 	}
 	if !node.is_ordered && node.start != 1 {
-		return error('${path}.start must be 1 for an unordered list')
+		return validation_error(.list_start, '${path}.start', 'must be 1 for an unordered list', node.span)
 	}
 	for index, item in node.items {
 		item_path := '${path}.items[${index}]'
 		validator.count(item_path, depth + 1)!
 		validate_source_span(item.span, '${item_path}.span')!
 		if item.level != expected_level {
-			return error('${item_path}.level must be ${expected_level}')
+			return validation_error(.list_level, '${item_path}.level', 'must be ${expected_level}', item.span)
 		}
 		expected_number := if node.is_ordered { node.start + index } else { 0 }
 		if item.number != expected_number {
-			return error('${item_path}.number must be ${expected_number}')
+			return validation_error(.list_number, '${item_path}.number', 'must be ${expected_number}', item.span)
 		}
 		if item.checked && !item.is_task {
-			return error('${item_path}.checked requires is_task')
+			return validation_error(.task_state, '${item_path}.checked', 'requires is_task', item.span)
 		}
 		for child_index, child in item.children {
 			validator.validate_block(child, '${item_path}.children[${child_index}]', depth + 2, expected_level)!
@@ -129,7 +164,7 @@ fn (mut validator AstValidator) validate_table_row(row TableRowNode, path string
 	validator.count(path, depth)!
 	validate_source_span(row.span, '${path}.span')!
 	if row.cells.len != columns {
-		return error('${path}.cells has ${row.cells.len} entries, expected ${columns}')
+		return validation_error(.table_row, '${path}.cells', 'has ${row.cells.len} entries, expected ${columns}', row.span)
 	}
 	for index, cell in row.cells {
 		cell_path := '${path}.cells[${index}]'
@@ -143,7 +178,7 @@ fn (mut validator AstValidator) validate_inlines(nodes []InlineNode, path string
 	mut previous_was_text := false
 	for index, node in nodes {
 		if node is TextNode && previous_was_text {
-			return error('${path}[${index}] is adjacent to another text node')
+			return validation_error(.adjacent_text, '${path}[${index}]', 'is adjacent to another text node', node.span)
 		}
 		validator.validate_inline(node, '${path}[${index}]', depth, inside_link)!
 		previous_was_text = node is TextNode
@@ -156,7 +191,7 @@ fn (mut validator AstValidator) validate_inline(node InlineNode, path string, de
 	match node {
 		TextNode {
 			if node.text.len == 0 {
-				return error('${path}.text cannot be empty')
+				return validation_error(.empty_text, '${path}.text', 'cannot be empty', node.span)
 			}
 		}
 		EmphasisNode {
@@ -173,7 +208,7 @@ fn (mut validator AstValidator) validate_inline(node InlineNode, path string, de
 		}
 		LinkNode {
 			if inside_link {
-				return error('${path} cannot nest a link inside another link')
+				return validation_error(.nested_link, path, 'cannot nest a link inside another link', node.span)
 			}
 			validator.validate_inlines(node.text, '${path}.text', depth + 1, true)!
 		}
@@ -186,7 +221,7 @@ fn (mut validator AstValidator) validate_inline(node InlineNode, path string, de
 
 fn validate_nonempty_inline_container(children []InlineNode, path string) ! {
 	if children.len == 0 {
-		return error('${path} cannot be empty')
+		return validation_error(.empty_inline_container, path, 'cannot be empty', SourceSpan{})
 	}
 }
 
@@ -194,5 +229,14 @@ fn validate_source_span(span SourceSpan, path string) ! {
 	if span.is_valid() || (span.start < 0 && span.end < 0) {
 		return
 	}
-	return error('${path} must be a valid half-open range or an unavailable negative range')
+	return validation_error(.source_span, path, 'must be a valid half-open range or an unavailable negative range', span)
+}
+
+fn validation_error(kind AstValidationErrorKind, path string, message string, span SourceSpan) IError {
+	return AstValidationError{
+		kind: kind
+		path: path
+		span: span
+		message: message
+	}
 }

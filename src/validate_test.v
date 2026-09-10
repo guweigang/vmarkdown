@@ -17,12 +17,12 @@ fn test_validation_rejects_invalid_heading_and_source_span() {
 			level: 7
 		})]
 	}
-	assert validation_error(heading).contains('.span must be a valid half-open range')
+	assert document_validation_error(heading).contains('.span must be a valid half-open range')
 
 	bad_level := Document{
 		children: [BlockNode(HeadingNode{ level: 7 })]
 	}
-	assert validation_error(bad_level).contains('.level must be between 1 and 6')
+	assert document_validation_error(bad_level).contains('.level must be between 1 and 6')
 }
 
 fn test_validation_rejects_noncanonical_list_state() {
@@ -33,7 +33,7 @@ fn test_validation_rejects_noncanonical_list_state() {
 			items: [ListItemNode{ level: 1, number: 4 }]
 		})]
 	}
-	assert validation_error(bad_number).contains('.number must be 3')
+	assert document_validation_error(bad_number).contains('.number must be 3')
 
 	bad_task := Document{
 		children: [BlockNode(ListNode{
@@ -41,7 +41,7 @@ fn test_validation_rejects_noncanonical_list_state() {
 			items: [ListItemNode{ level: 1, checked: true }]
 		})]
 	}
-	assert validation_error(bad_task).contains('.checked requires is_task')
+	assert document_validation_error(bad_task).contains('.checked requires is_task')
 }
 
 fn test_validation_rejects_table_shape_mismatch() {
@@ -53,7 +53,7 @@ fn test_validation_rejects_table_shape_mismatch() {
 			}]
 		})]
 	}
-	assert validation_error(doc).contains('.cells has 1 entries, expected 2')
+	assert document_validation_error(doc).contains('.cells has 1 entries, expected 2')
 }
 
 fn test_validation_rejects_unstable_inline_shapes() {
@@ -62,7 +62,7 @@ fn test_validation_rejects_unstable_inline_shapes() {
 			children: [InlineNode(TextNode{ text: 'a' }), InlineNode(TextNode{ text: 'b' })]
 		})]
 	}
-	assert validation_error(adjacent_text).contains('is adjacent to another text node')
+	assert document_validation_error(adjacent_text).contains('is adjacent to another text node')
 
 	nested_link := InlineNode(LinkNode{
 		url: 'outer'
@@ -84,12 +84,12 @@ fn test_validation_rejects_metadata_key_collisions_and_multiline_info() {
 			}
 		})]
 	}
-	assert validation_error(metadata).contains('normalize to the same value')
+	assert document_validation_error(metadata).contains('normalize to the same value')
 
 	code := Document{
 		children: [BlockNode(CodeBlockNode{ lang: 'v\nunsafe' })]
 	}
-	assert validation_error(code).contains('.lang cannot contain a line break')
+	assert document_validation_error(code).contains('.lang cannot contain a line break')
 }
 
 fn test_binary_decode_rejects_semantically_invalid_ast() {
@@ -106,7 +106,7 @@ fn test_binary_decode_rejects_semantically_invalid_ast() {
 	}
 }
 
-fn validation_error(doc Document) string {
+fn document_validation_error(doc Document) string {
 	doc.validate() or { return err.msg() }
 	return ''
 }
