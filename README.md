@@ -54,6 +54,25 @@ doc := vmarkdown.parse('# hello\n\nworld')!
 println(doc.stable_id())
 ```
 
+`parse()` keeps the established GFM-oriented defaults. For an explicit and
+stable dialect contract, use `parse_with_dialect(markdown, .commonmark)` or
+`parse_with_dialect(markdown, .gfm)`. Lower-level feature switches remain
+available through `parse_with_options()`.
+
+Text parsing is bounded by default, matching the defensive posture of binary
+decoding: 64 MiB input, one million AST nodes, and 256 open nesting frames.
+Applications handling untrusted input can tighten any budget:
+
+```v
+doc := vmarkdown.parse_with_limits(markdown, vmarkdown.ParseOptions{}, vmarkdown.ParseLimits{
+	max_input_bytes: 1024 * 1024
+	max_nodes: 100_000
+	max_nesting_depth: 64
+})!
+```
+
+A limit set to `0` is unbounded. Negative limits are rejected.
+
 Run the bundled example with:
 
 ```sh

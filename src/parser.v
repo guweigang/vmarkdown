@@ -2,6 +2,18 @@ module vmarkdown
 
 import strings
 
+pub enum MarkdownDialect {
+	commonmark
+	gfm
+}
+
+pub struct ParseLimits {
+pub:
+	max_input_bytes   int = 64 * 1024 * 1024
+	max_nodes         int = 1_000_000
+	max_nesting_depth int = 256
+}
+
 pub struct ParseOptions {
 pub:
 	tables                    bool = true
@@ -22,14 +34,57 @@ pub fn parse(markdown string) !Document {
 	return parse_with_options(markdown, ParseOptions{})
 }
 
+pub fn parse_with_dialect(markdown string, dialect MarkdownDialect) !Document {
+	return parse_with_options(markdown, parse_options_for_dialect(dialect))
+}
+
+pub fn parse_options_for_dialect(dialect MarkdownDialect) ParseOptions {
+	return match dialect {
+		.commonmark {
+			ParseOptions{
+				tables: false
+				tasklists: false
+				strikethrough: false
+				permissive_url_autolinks: false
+				permissive_www_autolinks: false
+				permissive_email_autolink: false
+			}
+		}
+		.gfm { ParseOptions{} }
+	}
+}
+
 pub fn parse_with_options(markdown string, options ParseOptions) !Document {
-	mut builder := new_builder(markdown)
+	return parse_with_limits(markdown, options, ParseLimits{})
+}
+
+pub fn parse_with_limits(markdown string, options ParseOptions, limits ParseLimits) !Document {
+	validate_parse_limits(limits)!
+	if u64(markdown.len) > u64(0xffff_ffff) {
+		return error('Markdown input exceeds md4c maximum size 4294967295 bytes')
+	}
+	if limits.max_input_bytes > 0 && markdown.len > limits.max_input_bytes {
+		return error('Markdown input exceeds maximum size ${limits.max_input_bytes} bytes')
+	}
+	mut builder := new_builder(markdown, limits)
 	flags := options.to_md4c_flags()
 	rc := C.vmd_parse_to_v(markdown.str, u32(markdown.len), flags, &builder)
 	if rc != 0 {
 		return error(builder.error_message(rc))
 	}
 	return builder.finish()
+}
+
+fn validate_parse_limits(limits ParseLimits) ! {
+	if limits.max_input_bytes < 0 {
+		return error('max_input_bytes cannot be negative')
+	}
+	if limits.max_nodes < 0 {
+		return error('max_nodes cannot be negative')
+	}
+	if limits.max_nesting_depth < 0 {
+		return error('max_nesting_depth cannot be negative')
+	}
 }
 
 fn (options ParseOptions) to_md4c_flags() u32 {
@@ -122,16 +177,20 @@ mut:
 
 struct Builder {
 	markdown string
+	limits   ParseLimits
 mut:
 	frames         []Frame
 	callback_error string
 	last_debug     string
 	source_cursor  int
+	nodes          int
 }
 
-fn new_builder(markdown string) Builder {
+fn new_builder(markdown string, limits ParseLimits) Builder {
 	return Builder{
 		markdown: markdown
+		limits: limits
+		nodes: 1
 		frames: [Frame{
 			kind: .document
 			text: strings.new_builder(0)
@@ -162,10 +221,20 @@ fn (b &Builder) error_message(code int) string {
 	return 'md4c parse failed with code ${code}'
 }
 
-fn (mut b Builder) push_frame(kind FrameKind) {
+fn (mut b Builder) push_frame(kind FrameKind) ! {
+	if b.limits.max_nesting_depth > 0 && b.frames.len >= b.limits.max_nesting_depth {
+		return error('Markdown AST exceeds maximum nesting depth ${b.limits.max_nesting_depth}')
+	}
 	b.frames << Frame{
 		kind: kind
 		text: strings.new_builder(64)
+	}
+}
+
+fn (mut b Builder) reserve_node() ! {
+	b.nodes++
+	if b.limits.max_nodes > 0 && b.nodes > b.limits.max_nodes {
+		return error('Markdown AST exceeds maximum node count ${b.limits.max_nodes}')
 	}
 }
 
@@ -189,6 +258,7 @@ fn (mut b Builder) pop_frame(expected FrameKind) !Frame {
 }
 
 fn (mut b Builder) append_block(node BlockNode) ! {
+	b.reserve_node()!
 	span := node.source_span()
 	for i := b.frames.len - 1; i >= 0; i-- {
 		match b.frames[i].kind {
@@ -204,6 +274,7 @@ fn (mut b Builder) append_block(node BlockNode) ! {
 }
 
 fn (mut b Builder) append_list_item(item ListItemNode) ! {
+	b.reserve_node()!
 	for i := b.frames.len - 1; i >= 0; i-- {
 		if b.frames[i].kind == .list {
 			b.frames[i].items << item
@@ -231,6 +302,7 @@ fn (mut b Builder) append_inline(node InlineNode) ! {
 						return
 					}
 				}
+				b.reserve_node()!
 				b.frames[i].inlines << node
 				b.frames[i].absorb_span(span)
 				return
@@ -278,7 +350,7 @@ fn (mut b Builder) ensure_inline_container() ! {
 	}
 	last := b.frames[b.frames.len - 1]
 	if last.kind == .list_item {
-		b.push_frame(.paragraph)
+		b.push_frame(.paragraph)!
 		mut top := b.top()!
 		top.implicit = true
 		return
@@ -318,16 +390,16 @@ fn (mut b Builder) enter_block(typ int, detail voidptr) ! {
 	match typ {
 		int(C.MD_BLOCK_DOC) {}
 		int(C.MD_BLOCK_QUOTE) {
-			b.push_frame(.blockquote)
+			b.push_frame(.blockquote)!
 		}
 		int(C.MD_BLOCK_UL) {
-			b.push_frame(.list)
+			b.push_frame(.list)!
 			mut top := b.top()!
 			top.ordered = false
 			top.start = 1
 		}
 		int(C.MD_BLOCK_OL) {
-			b.push_frame(.list)
+			b.push_frame(.list)!
 			mut top := b.top()!
 			top.ordered = true
 			ol := unsafe { &C.MD_BLOCK_OL_DETAIL(detail) }
@@ -335,7 +407,7 @@ fn (mut b Builder) enter_block(typ int, detail voidptr) ! {
 		}
 		int(C.MD_BLOCK_LI) {
 			b.flush_implicit_paragraph()!
-			b.push_frame(.list_item)
+			b.push_frame(.list_item)!
 			mut top := b.top()!
 			depth := b.current_list_depth()
 			top.level = depth
@@ -351,41 +423,41 @@ fn (mut b Builder) enter_block(typ int, detail voidptr) ! {
 			b.append_block(HorizontalRuleNode{})!
 		}
 		int(C.MD_BLOCK_H) {
-			b.push_frame(.heading)
+			b.push_frame(.heading)!
 			mut top := b.top()!
 			h := unsafe { &C.MD_BLOCK_H_DETAIL(detail) }
 			top.level = int(h.level)
 		}
 		int(C.MD_BLOCK_CODE) {
-			b.push_frame(.code_block)
+			b.push_frame(.code_block)!
 			mut top := b.top()!
 			code := unsafe { &C.MD_BLOCK_CODE_DETAIL(detail) }
 			info := attribute_to_string(code.info).trim_space()
 			top.lang = if info.len > 0 { info } else { attribute_to_string(code.lang) }
 		}
 		int(C.MD_BLOCK_HTML) {
-			b.push_frame(.html_block)
+			b.push_frame(.html_block)!
 		}
 		int(C.MD_BLOCK_P) {
-			b.push_frame(.paragraph)
+			b.push_frame(.paragraph)!
 		}
 		int(C.MD_BLOCK_TABLE) {
-			b.push_frame(.table)
+			b.push_frame(.table)!
 			mut top := b.top()!
 			table := unsafe { &C.MD_BLOCK_TABLE_DETAIL(detail) }
 			top.columns = int(table.col_count)
 		}
 		int(C.MD_BLOCK_THEAD) {
-			b.push_frame(.table_head)
+			b.push_frame(.table_head)!
 		}
 		int(C.MD_BLOCK_TBODY) {
-			b.push_frame(.table_body)
+			b.push_frame(.table_body)!
 		}
 		int(C.MD_BLOCK_TR) {
-			b.push_frame(.table_row)
+			b.push_frame(.table_row)!
 		}
 		int(C.MD_BLOCK_TH), int(C.MD_BLOCK_TD) {
-			b.push_frame(.table_cell)
+			b.push_frame(.table_cell)!
 			mut top := b.top()!
 			cell := unsafe { &C.MD_BLOCK_TD_DETAIL(detail) }
 			top.alignment = table_alignment_from_md4c(cell.align)
@@ -479,6 +551,7 @@ fn (mut b Builder) leave_block(typ int, _detail voidptr) ! {
 		}
 		int(C.MD_BLOCK_TR) {
 			frame := b.pop_frame(.table_row)!
+			b.reserve_node()!
 			mut top := b.top()!
 			top.rows << TableRowNode{
 				span: frame.span
@@ -488,6 +561,7 @@ fn (mut b Builder) leave_block(typ int, _detail voidptr) ! {
 		}
 		int(C.MD_BLOCK_TH), int(C.MD_BLOCK_TD) {
 			frame := b.pop_frame(.table_cell)!
+			b.reserve_node()!
 			mut top := b.top()!
 			top.cells << TableCellNode{
 				span: frame.span
@@ -504,28 +578,28 @@ fn (mut b Builder) enter_span(typ int, detail voidptr) ! {
 	b.ensure_inline_container()!
 	match typ {
 		int(C.MD_SPAN_EM) {
-			b.push_frame(.emphasis)
+			b.push_frame(.emphasis)!
 		}
 		int(C.MD_SPAN_STRONG) {
-			b.push_frame(.strong)
+			b.push_frame(.strong)!
 		}
 		int(C.MD_SPAN_DEL) {
-			b.push_frame(.strikethrough)
+			b.push_frame(.strikethrough)!
 		}
 		int(C.MD_SPAN_A) {
-			b.push_frame(.link)
+			b.push_frame(.link)!
 			mut top := b.top()!
 			link_detail := unsafe { &C.MD_SPAN_A_DETAIL(detail) }
 			top.url = attribute_to_string(link_detail.href)
 		}
 		int(C.MD_SPAN_IMG) {
-			b.push_frame(.image)
+			b.push_frame(.image)!
 			mut top := b.top()!
 			image := unsafe { &C.MD_SPAN_IMG_DETAIL(detail) }
 			top.url = attribute_to_string(image.src)
 		}
 		int(C.MD_SPAN_CODE) {
-			b.push_frame(.code_span)
+			b.push_frame(.code_span)!
 		}
 		else {}
 	}
