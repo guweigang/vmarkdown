@@ -18,3 +18,16 @@ fn test_recommended_lint_rules_accept_well_formed_content() {
 	}
 	assert diagnostics.len == 0
 }
+
+fn test_lint_markdown_reports_and_fixes_trailing_whitespace() {
+	source := 'first  \r\nsecond\t\nthird '
+	diagnostics := lint_markdown(source) or { panic(err) }
+	assert diagnostics.map(it.rule_id) == ['vmarkdown.trailing-whitespace',
+		'vmarkdown.trailing-whitespace', 'vmarkdown.trailing-whitespace']
+	assert locate_lint_diagnostics(source, diagnostics) or { panic(err) }.map(it.range.start.line) == [
+		1,
+		2,
+		3,
+	]
+	assert apply_lint_fixes(source, diagnostics) or { panic(err) } == 'first\r\nsecond\nthird'
+}

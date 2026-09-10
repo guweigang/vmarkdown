@@ -314,7 +314,14 @@ diagnostics exits with status 1:
 ```sh
 v run cmd/cli lint README.md
 v run cmd/cli lint README.md --json
+v run cmd/cli lint README.md --fix
 ```
+
+The built-in trailing-whitespace rule provides safe edits. `--fix` applies all
+non-conflicting edits and preserves the file's detected encoding, BOM, and mode
+through a same-directory atomic replacement. It refuses to overwrite a file
+whose bytes changed after the lint command read it. Unfixed diagnostics still
+produce exit status 1.
 
 ## Markdown Render
 

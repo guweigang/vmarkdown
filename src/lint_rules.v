@@ -28,7 +28,46 @@ pub fn lint_markdown(source string) ![]LintDiagnostic {
 
 pub fn lint_markdown_with_options(source string, options ParseOptions) ![]LintDiagnostic {
 	doc := parse_with_options(source, options)!
-	return doc.lint(recommended_lint_rules())
+	mut diagnostics := doc.lint(recommended_lint_rules())!
+	diagnostics << trailing_whitespace_diagnostics(source)
+	return diagnostics
+}
+
+fn trailing_whitespace_diagnostics(source string) []LintDiagnostic {
+	mut diagnostics := []LintDiagnostic{}
+	mut line_start := 0
+	mut offset := 0
+	for offset <= source.len {
+		at_end := offset == source.len
+		at_break := !at_end && source[offset] in [`\r`, `\n`]
+		if at_end || at_break {
+			mut trailing_start := offset
+			for trailing_start > line_start && source[trailing_start - 1] in [` `, `\t`] {
+				trailing_start--
+			}
+			if trailing_start < offset {
+				span := SourceSpan{ start: trailing_start, end: offset }
+				diagnostics << LintDiagnostic{
+					rule_id: 'vmarkdown.trailing-whitespace'
+					severity: .warning
+					message: 'line has trailing whitespace'
+					kind: .document
+					path: 'document'
+					span: span
+					edits: [MarkdownTextEdit{ span: span }]
+				}
+			}
+			if at_end {
+				break
+			}
+			if source[offset] == `\r` && offset + 1 < source.len && source[offset + 1] == `\n` {
+				offset++
+			}
+			line_start = offset + 1
+		}
+		offset++
+	}
+	return diagnostics
 }
 
 fn check_empty_heading(visit AstVisit) []LintFinding {
