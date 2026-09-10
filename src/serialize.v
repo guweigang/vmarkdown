@@ -15,6 +15,7 @@ pub enum DiffOp {
 	added
 	removed
 	reused
+	moved
 }
 
 pub struct DiffEntry {
@@ -23,6 +24,7 @@ pub:
 	id             string
 	kind           string
 	path           string
+	previous_path  string
 	current_index  int = -1
 	previous_index int = -1
 }
@@ -49,6 +51,7 @@ pub:
 	added   []DiffSummaryItem
 	removed []DiffSummaryItem
 	reused  []DiffSummaryItem
+	moved   []DiffSummaryItem
 	lines   []string
 }
 
@@ -202,6 +205,10 @@ pub fn (plan IngestPlan) reused_blocks() []DiffEntry {
 	return filter_diff(plan.diff, .reused)
 }
 
+pub fn (plan IngestPlan) moved_blocks() []DiffEntry {
+	return filter_diff(plan.diff, .moved)
+}
+
 pub fn (result IngestResult) added_blocks() []DiffEntry {
 	return filter_diff(result.diff, .added)
 }
@@ -212,6 +219,10 @@ pub fn (result IngestResult) removed_blocks() []DiffEntry {
 
 pub fn (result IngestResult) reused_blocks() []DiffEntry {
 	return filter_diff(result.diff, .reused)
+}
+
+pub fn (result IngestResult) moved_blocks() []DiffEntry {
+	return filter_diff(result.diff, .moved)
 }
 
 pub fn (plan IngestPlan) diff_summary() DiffSummary {
@@ -952,42 +963,43 @@ fn diff_root_refs(previous []string, current []string) []string {
 }
 
 fn diff_entries(previous []BlockManifestEntry, current []BlockManifestEntry, index map[string]Chunk) []DiffEntry {
-	mut previous_by_path := map[string]BlockManifestEntry{}
-	mut current_by_path := map[string]BlockManifestEntry{}
-	for entry in previous {
-		previous_by_path[entry.path] = entry
+	mut previous_matches := []int{len: current.len, init: -1}
+	mut previous_used := []bool{len: previous.len}
+	mut previous_by_identity := map[string][]int{}
+	for previous_index, entry in previous {
+		key := manifest_identity(entry)
+		mut positions := previous_by_identity[key]
+		positions << previous_index
+		previous_by_identity[key] = positions
 	}
-	for entry in current {
-		current_by_path[entry.path] = entry
+	mut identity_offsets := map[string]int{}
+	// Align equal content in occurrence order. This is deterministic for duplicate IDs and means a
+	// leading insertion does not make every following block look removed and added.
+	for current_index, entry in current {
+		key := manifest_identity(entry)
+		positions := previous_by_identity[key]
+		offset := identity_offsets[key]
+		if offset < positions.len {
+			previous_index := positions[offset]
+			previous_matches[current_index] = previous_index
+			previous_used[previous_index] = true
+			identity_offsets[key] = offset + 1
+		}
 	}
+	in_order := manifest_in_order_matches(previous_matches)
 	mut diff := []DiffEntry{}
-	for entry in current {
-		if entry.path in previous_by_path {
-			previous_entry := previous_by_path[entry.path]
-			if previous_entry.id == entry.id {
-				diff << DiffEntry{
-					op: .reused
-					id: entry.id
-					kind: chunk_kind(index, entry.id)
-					path: entry.path
-					current_index: entry.index
-					previous_index: previous_entry.index
-				}
-			} else {
-				diff << DiffEntry{
-					op: .removed
-					id: previous_entry.id
-					kind: previous_entry.kind
-					path: previous_entry.path
-					previous_index: previous_entry.index
-				}
-				diff << DiffEntry{
-					op: .added
-					id: entry.id
-					kind: chunk_kind(index, entry.id)
-					path: entry.path
-					current_index: entry.index
-				}
+	for current_index, entry in current {
+		previous_index := previous_matches[current_index]
+		if previous_index >= 0 {
+			previous_entry := previous[previous_index]
+			diff << DiffEntry{
+				op: if in_order[current_index] { .reused } else { .moved }
+				id: entry.id
+				kind: chunk_kind(index, entry.id)
+				path: entry.path
+				previous_path: previous_entry.path
+				current_index: entry.index
+				previous_index: previous_entry.index
 			}
 		} else {
 			diff << DiffEntry{
@@ -999,8 +1011,8 @@ fn diff_entries(previous []BlockManifestEntry, current []BlockManifestEntry, ind
 			}
 		}
 	}
-	for entry in previous {
-		if entry.path !in current_by_path {
+	for previous_index, entry in previous {
+		if !previous_used[previous_index] {
 			diff << DiffEntry{
 				op: .removed
 				id: entry.id
@@ -1011,6 +1023,55 @@ fn diff_entries(previous []BlockManifestEntry, current []BlockManifestEntry, ind
 		}
 	}
 	return diff
+}
+
+fn manifest_identity(entry BlockManifestEntry) string {
+	return '${entry.kind}\x00${entry.id}'
+}
+
+// Occurrence matching turns the common subsequence problem into an LIS over previous positions.
+// Items in the LIS kept their relative order even if an insertion changed their numeric paths.
+fn manifest_in_order_matches(previous_matches []int) []bool {
+	mut sequence := []int{}
+	mut current_indices := []int{}
+	for current_index, previous_index in previous_matches {
+		if previous_index >= 0 {
+			sequence << previous_index
+			current_indices << current_index
+		}
+	}
+	mut result := []bool{len: previous_matches.len}
+	if sequence.len == 0 {
+		return result
+	}
+	mut tails := []int{}
+	mut links := []int{len: sequence.len, init: -1}
+	for sequence_index, value in sequence {
+		mut low := 0
+		mut high := tails.len
+		for low < high {
+			middle := (low + high) / 2
+			if sequence[tails[middle]] < value {
+				low = middle + 1
+			} else {
+				high = middle
+			}
+		}
+		if low > 0 {
+			links[sequence_index] = tails[low - 1]
+		}
+		if low == tails.len {
+			tails << sequence_index
+		} else {
+			tails[low] = sequence_index
+		}
+	}
+	mut cursor := tails[tails.len - 1]
+	for cursor >= 0 {
+		result[current_indices[cursor]] = true
+		cursor = links[cursor]
+	}
+	return result
 }
 
 fn filter_diff(entries []DiffEntry, op DiffOp) []DiffEntry {
@@ -1028,6 +1089,7 @@ fn build_diff_summary(entries []DiffEntry) DiffSummary {
 		added: summarize_entries(entries, .added)
 		removed: summarize_entries(entries, .removed)
 		reused: summarize_entries(entries, .reused)
+		moved: summarize_entries(entries, .moved)
 		lines: summary_lines(entries)
 	}
 }
@@ -1070,10 +1132,14 @@ fn summary_lines(entries []DiffEntry) []string {
 }
 
 fn diff_line(entry DiffEntry) string {
+	if entry.op == .moved {
+		return 'moved ${entry.kind} from ${entry.previous_path} to ${entry.path}'
+	}
 	verb := match entry.op {
 		.added { 'added' }
 		.removed { 'removed' }
 		.reused { 'reused' }
+		.moved { 'moved' }
 	}
 	return '${verb} ${entry.kind} at ${entry.path}'
 }

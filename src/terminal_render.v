@@ -6,8 +6,9 @@ import encoding.utf8.east_asian
 
 pub struct TerminalRenderOptions {
 pub:
-	width int
-	color bool = true
+	width                      int
+	color                      bool = true
+	sanitize_control_sequences bool = true
 }
 
 struct TerminalStyle {
@@ -38,13 +39,15 @@ pub fn (doc Document) to_terminal_with_options(options TerminalRenderOptions) st
 	mut ctx := TerminalRenderer{
 		width: width
 		color: color
+		sanitize_control_sequences: options.sanitize_control_sequences
 	}
 	return ctx.render_document(doc)
 }
 
 struct TerminalRenderer {
-	width int
-	color bool
+	width                      int
+	color                      bool
+	sanitize_control_sequences bool
 }
 
 fn terminal_width(options TerminalRenderOptions) int {
@@ -133,7 +136,7 @@ fn (r TerminalRenderer) render_block(node BlockNode, prefix string, depth int) s
 			return r.render_code_block(node)
 		}
 		RawHtmlBlockNode {
-			return node.html.trim_right('\n')
+			return r.safe_text(node.html).trim_right('\n')
 		}
 		HorizontalRuleNode {
 			return r.style_line('─'.repeat(min_int(r.width, 48)), TerminalStyle{'rule'})
@@ -143,7 +146,7 @@ fn (r TerminalRenderer) render_block(node BlockNode, prefix string, depth int) s
 			keys.sort()
 			mut lines := []string{}
 			for key in keys {
-				lines << r.style_line(key + ':', TerminalStyle{'meta_key'}) + ' ' + node.data[key]
+				lines << r.style_line(r.safe_text(key) + ':', TerminalStyle{'meta_key'}) + ' ' + r.safe_text(node.data[key])
 			}
 			return lines.join('\n')
 		}
@@ -228,14 +231,14 @@ fn (r TerminalRenderer) render_list_item(item ListItemNode, depth int) []string 
 }
 
 fn (r TerminalRenderer) render_code_block(node CodeBlockNode) string {
-	code_lines := normalize_code(node.content).trim_right('\n').split_into_lines()
+	code_lines := r.safe_text(normalize_code(node.content)).trim_right('\n').split_into_lines()
 	mut max_content_width := 0
 	for line in code_lines {
 		max_content_width = max_int(max_content_width, display_width(line))
 	}
 	content_width := min_int(max_int(max_content_width, 18), max_int(r.width - 6, 18))
 	frame_width := content_width + 2
-	label := if node.lang.len > 0 { ' ${node.lang} ' } else { '' }
+	label := if node.lang.len > 0 { ' ${r.safe_text(node.lang)} ' } else { '' }
 	top_fill := '─'.repeat(max_int(frame_width - display_width(label), 0))
 	mut lines := [
 		r.style_line('╭' + label + top_fill + '╮', TerminalStyle{'code_border'}),
@@ -262,7 +265,7 @@ fn (r TerminalRenderer) render_mermaid_block(node CodeBlockNode) ?string {
 	title := r.style_line(title_text, TerminalStyle{'mermaid_title'})
 	lines << title
 	for line in body.split_into_lines() {
-		lines << r.style_line(line, TerminalStyle{'mermaid'})
+		lines << r.style_line(r.safe_text(line), TerminalStyle{'mermaid'})
 	}
 	return lines.join('\n')
 }
@@ -273,7 +276,7 @@ fn (r TerminalRenderer) render_json_diagram_block(node CodeBlockNode) ?string {
 	mut lines := []string{}
 	lines << r.style_line('◈ json diagram', TerminalStyle{'mermaid_title'})
 	for line in body.split_into_lines() {
-		lines << r.style_line(line, TerminalStyle{'mermaid'})
+		lines << r.style_line(r.safe_text(line), TerminalStyle{'mermaid'})
 	}
 	return lines.join('\n')
 }
@@ -321,7 +324,7 @@ fn (r TerminalRenderer) inline_spans(nodes []InlineNode) []TerminalSpan {
 	for node in nodes {
 		match node {
 			TextNode {
-				for token in split_text_tokens(node.text) {
+				for token in split_text_tokens(r.safe_text(node.text)) {
 					spans << TerminalSpan{
 						plain: token
 						styled: token
@@ -353,7 +356,7 @@ fn (r TerminalRenderer) inline_spans(nodes []InlineNode) []TerminalSpan {
 				}
 			}
 			CodeSpanNode {
-				text := node.text
+				text := r.safe_text(node.text)
 				spans << TerminalSpan{
 					plain: text
 					styled: r.style_line(' ${text} ', TerminalStyle{'codespan'})
@@ -361,7 +364,8 @@ fn (r TerminalRenderer) inline_spans(nodes []InlineNode) []TerminalSpan {
 			}
 			LinkNode {
 				label := r.render_inline_plain(node.text)
-				display := if node.url.len > 0 { '${label} ↗ ${node.url}' } else { label }
+				url := r.safe_text(node.url)
+				display := if url.len > 0 { '${label} ↗ ${url}' } else { label }
 				spans << TerminalSpan{
 					plain: display
 					styled: r.style_line(display, TerminalStyle{'link'})
@@ -383,7 +387,8 @@ fn (r TerminalRenderer) inline_spans(nodes []InlineNode) []TerminalSpan {
 				spans << TerminalSpan{ plain: '\n', styled: '\n' }
 			}
 			RawHtmlInlineNode {
-				spans << TerminalSpan{ plain: node.html, styled: node.html }
+				html := r.safe_text(node.html)
+				spans << TerminalSpan{ plain: html, styled: html }
 			}
 		}
 	}
@@ -564,4 +569,31 @@ fn (r TerminalRenderer) style_line(input string, style TerminalStyle) string {
 		'mermaid' { term.hex(0x91d7e3, input) }
 		else { input }
 	}
+}
+
+fn (r TerminalRenderer) safe_text(input string) string {
+	if !r.sanitize_control_sequences {
+		return input
+	}
+	return sanitize_terminal_control_sequences(input)
+}
+
+fn sanitize_terminal_control_sequences(input string) string {
+	mut out := strings.new_builder(input.len)
+	for ch in input.runes() {
+		if ch == `\n` {
+			out.write_rune(ch)
+		} else if ch == `\t` {
+			out.write_string('    ')
+		} else if ch >= 0 && ch < 0x20 {
+			out.write_rune(rune(0x2400 + ch))
+		} else if ch == 0x7f {
+			out.write_rune(rune(0x2421))
+		} else if ch >= 0x80 && ch <= 0x9f {
+			out.write_rune(`�`)
+		} else {
+			out.write_rune(ch)
+		}
+	}
+	return out.str()
 }

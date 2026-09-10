@@ -147,3 +147,41 @@ Paragraph two.
 	assert summary.lines.any(it == 'removed paragraph at blocks[1]')
 	assert summary.lines.any(it == 'reused heading at blocks[0]')
 }
+
+fn test_ingest_diff_aligns_unchanged_blocks_after_leading_insertion() {
+	mut store := new_memory_store()
+	store.ingest('# Title\n\nAlpha.\n\nBeta.\n') or { panic(err) }
+	result := store.ingest('New.\n\n# Title\n\nAlpha.\n\nBeta.\n') or { panic(err) }
+
+	assert result.added_blocks().len == 1
+	assert result.removed_blocks().len == 0
+	assert result.reused_blocks().len == 3
+	assert result.moved_blocks().len == 0
+	assert result.reused_blocks().any(it.previous_path == 'blocks[0]' && it.path == 'blocks[1]')
+}
+
+fn test_ingest_diff_pairs_duplicate_ids_deterministically() {
+	mut store := new_memory_store()
+	store.ingest('Same.\n\nSame.\n') or { panic(err) }
+	result := store.ingest('New.\n\nSame.\n\nSame.\n') or { panic(err) }
+
+	reused := result.reused_blocks()
+	assert reused.len == 2
+	assert reused[0].previous_path == 'blocks[0]'
+	assert reused[0].path == 'blocks[1]'
+	assert reused[1].previous_path == 'blocks[1]'
+	assert reused[1].path == 'blocks[2]'
+}
+
+fn test_ingest_diff_reports_reordered_block_as_moved() {
+	mut store := new_memory_store()
+	store.ingest('Alpha.\n\nBeta.\n\nGamma.\n') or { panic(err) }
+	result := store.ingest('Beta.\n\nAlpha.\n\nGamma.\n') or { panic(err) }
+
+	assert result.added_blocks().len == 0
+	assert result.removed_blocks().len == 0
+	assert result.reused_blocks().len == 2
+	assert result.moved_blocks().len == 1
+	assert result.moved_blocks()[0].previous_path != result.moved_blocks()[0].path
+	assert result.diff_summary().lines.any(it.starts_with('moved paragraph from '))
+}
