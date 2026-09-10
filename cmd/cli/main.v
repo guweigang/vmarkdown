@@ -112,6 +112,18 @@ fn main() {
 				eprintln(err)
 				exit(1)
 			}
+			if lint_options.fix {
+				fixed := vmarkdown.apply_lint_fixes(input.text, diagnostics) or {
+					eprintln(err)
+					exit(1)
+				}
+				if fixed != input.text {
+					vmarkdown.save_markdown_file_if_unchanged(args[2], input, fixed) or {
+						eprintln(err)
+						exit(1)
+					}
+				}
+			}
 			if lint_options.json {
 				println(json2.encode(located, escape_unicode: true))
 			} else {
@@ -124,7 +136,8 @@ fn main() {
 					println('${position}: ${item.diagnostic.severity}: ${item.diagnostic.message} (${item.diagnostic.rule_id})')
 				}
 			}
-			if diagnostics.len > 0 {
+			unfixed := diagnostics.filter(it.edits.len == 0)
+			if (!lint_options.fix && diagnostics.len > 0) || (lint_options.fix && unfixed.len > 0) {
 				exit(1)
 			}
 		}
@@ -298,7 +311,7 @@ vmarkdown commands:
   vmarkdown markdown <file.md>
   vmarkdown html <file.md>
   vmarkdown ast <file.md>
-  vmarkdown lint <file.md> [--json]
+  vmarkdown lint <file.md> [--json] [--fix]
   vmarkdown mermaid <file.mmd> [--width N]
   vmarkdown mermaid diff <before.mmd> <after.mmd>
   vmarkdown mermaid diff-preview <before.mmd> <after.mmd>
@@ -321,17 +334,24 @@ options:
 
 struct LintCliOptions {
 	json          bool
+	fix           bool
 	encoding_args []string
 }
 
 fn lint_cli_options(options []string) !LintCliOptions {
 	mut json_output := false
+	mut fix := false
 	mut encoding_args := []string{}
 	mut index := 0
 	for index < options.len {
 		option := options[index]
 		if option == '--json' {
 			json_output = true
+			index++
+			continue
+		}
+		if option == '--fix' {
+			fix = true
 			index++
 			continue
 		}
@@ -353,6 +373,7 @@ fn lint_cli_options(options []string) !LintCliOptions {
 	}
 	return LintCliOptions{
 		json: json_output
+		fix: fix
 		encoding_args: encoding_args
 	}
 }

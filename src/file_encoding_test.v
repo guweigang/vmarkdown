@@ -1,5 +1,7 @@
 module vmarkdown
 
+import os
+
 fn test_markdown_encoding_auto_detects_utf8_and_gbk() {
 	utf8_file := decode_markdown_bytes('# 中文\n'.bytes(), 'auto') or { panic(err) }
 	assert utf8_file.encoding == .utf8
@@ -10,6 +12,27 @@ fn test_markdown_encoding_auto_detects_utf8_and_gbk() {
 	}
 	assert gbk_file.encoding == .gbk
 	assert gbk_file.text == '# 中文\n'
+}
+
+fn test_save_markdown_file_if_unchanged_preserves_encoding_and_detects_conflicts() {
+	path := os.join_path(os.temp_dir(), 'vmarkdown-save-${os.getpid()}.md')
+	defer {
+		os.rm(path) or {}
+	}
+	original_bytes := [u8(0xff), 0xfe, 0x23, 0x00, 0x20, 0x00, 0x41, 0x00]
+	os.write_file_array(path, original_bytes) or { panic(err) }
+	original := read_markdown_file(path) or { panic(err) }
+	save_markdown_file_if_unchanged(path, original, '# B') or { panic(err) }
+	assert os.read_bytes(path) or { panic(err) } == [u8(0xff), 0xfe, 0x23, 0x00, 0x20, 0x00, 0x42,
+		0x00]
+
+	os.write_file(path, '# external') or { panic(err) }
+	if _ := save_markdown_file_if_unchanged(path, original, '# C') {
+		assert false
+	} else {
+		assert err.msg().contains('changed on disk')
+	}
+	assert os.read_file(path) or { panic(err) } == '# external'
 }
 
 fn test_markdown_encoding_detects_and_preserves_bom() {

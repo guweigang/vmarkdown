@@ -22,9 +22,9 @@ pub fn preview_with_mode(markdown string, mode PreviewMode, source_label string)
 
 fn preview_with_source(markdown string, mode PreviewMode, source_label string, source_path string) ! {
 	source := MarkdownFile{
-		text:     markdown
+		text: markdown
 		encoding: .utf8
-		raw:      markdown.bytes()
+		raw: markdown.bytes()
 	}
 	preview_with_markdown_file(source, mode, source_label, source_path)!
 }
@@ -33,24 +33,24 @@ fn preview_with_markdown_file(source MarkdownFile, mode PreviewMode, source_labe
 	prepare_console_for_preview()
 	doc := parse(source.text)!
 	mut app := &PreviewApp{
-		markdown:        source.text
-		doc:             doc
-		mode:            mode
-		source_label:    if source_label.len > 0 { source_label } else { 'buffer' }
-		source_path:     source_path
+		markdown: source.text
+		doc: doc
+		mode: mode
+		source_label: if source_label.len > 0 { source_label } else { 'buffer' }
+		source_path: source_path
 		source_encoding: source.encoding
-		source_bom:      source.bom
-		source_raw:      source.raw.clone()
-		source_loaded:   source_path.len > 0
-		editor:          new_markdown_editor(source.text)
+		source_bom: source.bom
+		source_raw: source.raw.clone()
+		source_loaded: source_path.len > 0
+		editor: new_markdown_editor(source.text)
 	}
 	app.tui = tui.init(
-		user_data:      app
-		event_fn:       preview_event
-		frame_fn:       preview_frame
-		hide_cursor:    true
+		user_data: app
+		event_fn: preview_event
+		frame_fn: preview_frame
+		hide_cursor: true
 		capture_events: true
-		window_title:   'vmarkdown preview'
+		window_title: 'vmarkdown preview'
 	)
 	app.tui.run()!
 }
@@ -59,19 +59,19 @@ pub fn preview_terminal_buffer(rendered string, source_label string) ! {
 	prepare_console_for_preview()
 	doc := parse('# Preview\n')!
 	mut app := &PreviewApp{
-		markdown:     '# Preview\n'
-		doc:          doc
-		mode:         .terminal
+		markdown: '# Preview\n'
+		doc: doc
+		mode: .terminal
 		source_label: if source_label.len > 0 { source_label } else { 'buffer' }
 		raw_terminal: rendered
 	}
 	app.tui = tui.init(
-		user_data:      app
-		event_fn:       preview_event
-		frame_fn:       preview_frame
-		hide_cursor:    true
+		user_data: app
+		event_fn: preview_event
+		frame_fn: preview_frame
+		hide_cursor: true
 		capture_events: true
-		window_title:   'vmarkdown preview'
+		window_title: 'vmarkdown preview'
 	)
 	app.tui.run()!
 }
@@ -420,14 +420,13 @@ fn (mut app PreviewApp) ensure_lines() {
 		app.lines = app.editor.lines.clone()
 		app.line_sources = []PreviewLineSource{cap: app.editor.lines.len}
 		for index in 0 .. app.editor.lines.len {
-			columns, exact := build_preview_source_columns(app.editor.lines[index],
-				app.editor.lines[index], .markdown)
+			columns, exact := build_preview_source_columns(app.editor.lines[index], app.editor.lines[index], .markdown)
 			app.line_sources << PreviewLineSource{
-				start_line:     index
-				end_line:       index
-				source_line:    index
+				start_line: index
+				end_line: index
+				source_line: index
 				source_columns: columns
-				exact_columns:  exact
+				exact_columns: exact
 			}
 		}
 		app.last_width = app.tui.window_width
@@ -492,10 +491,8 @@ fn (mut app PreviewApp) move_normal_cursor_horizontal(delta int) {
 }
 
 fn (mut app PreviewApp) sync_editor_cursor_from_source() {
-	app.editor.cursor_y = min_int(max_int(app.source_cursor_line, 0),
-		max_int(app.editor.lines.len - 1, 0))
-	app.editor.cursor_x = min_int(max_int(app.source_cursor_x, 0),
-		app.editor.current_line().runes().len)
+	app.editor.cursor_y = min_int(max_int(app.source_cursor_line, 0), max_int(app.editor.lines.len - 1, 0))
+	app.editor.cursor_x = min_int(max_int(app.source_cursor_x, 0), app.editor.current_line().runes().len)
 }
 
 fn (mut app PreviewApp) move_normal_source_word(forward bool) {
@@ -552,8 +549,7 @@ fn (mut app PreviewApp) prepare_source_reposition() {
 fn (mut app PreviewApp) reposition_from_source() {
 	app.view_cursor = find_preview_line_for_source(app.line_sources, app.source_cursor_line)
 	if app.view_cursor >= 0 && app.view_cursor < app.line_sources.len {
-		app.view_cursor_x = preview_column_for_source(app.line_sources[app.view_cursor],
-			app.source_cursor_x)
+		app.view_cursor_x = preview_column_for_source(app.line_sources[app.view_cursor], app.source_cursor_x)
 	} else {
 		app.view_cursor_x = app.source_cursor_x
 	}
@@ -612,11 +608,9 @@ fn (mut app PreviewApp) draw_content() {
 		}
 		is_current := line_index == current_line_index
 		line_no := format_preview_line_number(line_index + 1, gutter_width, is_current)
-		line := highlight_preview_line(app.lines[line_index], app.search_query,
-			line_index == app.current_match_line_index())
+		line := highlight_preview_line(app.lines[line_index], app.search_query, line_index == app.current_match_line_index())
 		app.tui.draw_text(0, i + 2, line_no)
-		app.tui.draw_text(gutter_width, i + 2, clip_preview_content_line(line, max_int(
-			app.tui.window_width - gutter_width - 1, 1)))
+		app.tui.draw_text(gutter_width, i + 2, clip_preview_content_line(line, max_int(app.tui.window_width - gutter_width - 1, 1)))
 	}
 }
 
@@ -624,17 +618,14 @@ fn (mut app PreviewApp) draw_footer() {
 	hints_y := max_int(app.tui.window_height - 1, 1)
 	command_y := max_int(app.tui.window_height, 1)
 	hints := if app.editing {
-		build_preview_footer_line(.markdown, app.scroll, app.viewport_height(), app.lines.len,
-			app.tui.window_width)
+		build_preview_footer_line(.markdown, app.scroll, app.viewport_height(), app.lines.len, app.tui.window_width)
 	} else {
-		build_preview_footer_line(app.mode, app.scroll, app.viewport_height(), app.lines.len,
-			app.tui.window_width)
+		build_preview_footer_line(app.mode, app.scroll, app.viewport_height(), app.lines.len, app.tui.window_width)
 	}
 	command := if app.editing {
 		build_editor_command_line(app.editor)
 	} else {
-		build_preview_command_line(app.search_query, app.search_active, app.search_status,
-			app.current_match, app.lines)
+		build_preview_command_line(app.search_query, app.search_active, app.search_status, app.current_match, app.lines)
 	}
 	app.tui.draw_text(0, hints_y, hints)
 	app.tui.draw_text(0, command_y, pad_preview_line(command, app.tui.window_width))
@@ -646,16 +637,14 @@ fn (mut app PreviewApp) draw_help_overlay() {
 	height := lines.len + 2
 	x := max_int((app.tui.window_width - width) / 2, 0)
 	y := max_int((app.tui.window_height - height) / 2, 0)
-	app.tui.draw_text(x, y, style_preview_overlay_border('╭' + '─'.repeat(max_int(width -
-		2, 0)) + '╮'))
+	app.tui.draw_text(x, y, style_preview_overlay_border('╭' + '─'.repeat(max_int(width - 2, 0)) + '╮'))
 	for i, line in lines {
 		plain := fit_preview_plain(line, max_int(width - 2, 1))
 		padding := ' '.repeat(max_int(width - 2 - plain.runes().len, 0))
 		styled := style_preview_overlay_row(plain, padding, i == 0)
 		app.tui.draw_text(x, y + i + 1, styled)
 	}
-	app.tui.draw_text(x, y + height - 1, style_preview_overlay_border('╰' +
-		'─'.repeat(max_int(width - 2, 0)) + '╯'))
+	app.tui.draw_text(x, y + height - 1, style_preview_overlay_border('╰' + '─'.repeat(max_int(width - 2, 0)) + '╯'))
 }
 
 fn (mut app PreviewApp) draw_quit_confirm_overlay() {
@@ -664,16 +653,14 @@ fn (mut app PreviewApp) draw_quit_confirm_overlay() {
 	height := lines.len + 2
 	x := max_int((app.tui.window_width - width) / 2, 0)
 	y := max_int((app.tui.window_height - height) / 2, 0)
-	app.tui.draw_text(x, y, style_preview_overlay_border('╭' + '─'.repeat(max_int(width -
-		2, 0)) + '╮'))
+	app.tui.draw_text(x, y, style_preview_overlay_border('╭' + '─'.repeat(max_int(width - 2, 0)) + '╮'))
 	for i, line in lines {
 		plain := fit_preview_plain(line, max_int(width - 2, 1))
 		padding := ' '.repeat(max_int(width - 2 - plain.runes().len, 0))
 		styled := style_preview_overlay_row(plain, padding, i == 0)
 		app.tui.draw_text(x, y + i + 1, styled)
 	}
-	app.tui.draw_text(x, y + height - 1, style_preview_overlay_border('╰' +
-		'─'.repeat(max_int(width - 2, 0)) + '╯'))
+	app.tui.draw_text(x, y + height - 1, style_preview_overlay_border('╰' + '─'.repeat(max_int(width - 2, 0)) + '╯'))
 }
 
 fn style_preview_overlay_border(text string) string {
@@ -826,8 +813,7 @@ fn (mut app PreviewApp) handle_editor_normal_input(e &tui.Event) {
 				app.save_editor()
 			}
 			.d {
-				app.editor.cursor_y = min_int(app.editor.cursor_y + app.half_page_step(),
-					app.editor.lines.len - 1)
+				app.editor.cursor_y = min_int(app.editor.cursor_y + app.half_page_step(), app.editor.lines.len - 1)
 			}
 			.u {
 				app.editor.cursor_y = max_int(app.editor.cursor_y - app.half_page_step(), 0)
@@ -1057,7 +1043,7 @@ fn (mut app PreviewApp) save_editor_with_force(force bool) bool {
 		app.editor.status = 'write failed: ${err}'
 		return false
 	}
-	atomic_write_preview_file_bytes(app.source_path, encoded) or {
+	atomic_write_markdown_file_bytes(app.source_path, encoded) or {
 		app.editor.status = 'write failed: ${err}'
 		return false
 	}
@@ -1088,22 +1074,7 @@ fn source_file_changed_on_disk(path string, expected string, expected_raw []u8, 
 }
 
 fn atomic_write_preview_file(path string, text string) ! {
-	atomic_write_preview_file_bytes(path, text.bytes())!
-}
-
-fn atomic_write_preview_file_bytes(path string, bytes []u8) ! {
-	directory := os.dir(path)
-	base := os.file_name(path)
-	temporary := os.join_path(directory, '.${base}.vmarkdown-${os.getpid()}.tmp')
-	defer {
-		if os.exists(temporary) {
-			os.rm(temporary) or {}
-		}
-	}
-	mode := if attributes := os.stat(path) { int(attributes.mode & 0o777) } else { 0o666 }
-	os.write_file_array(temporary, bytes)!
-	os.chmod(temporary, mode)!
-	os.mv(temporary, path)!
+	atomic_write_markdown_file_bytes(path, text.bytes())!
 }
 
 fn (mut app PreviewApp) sync_editor_viewport() {
@@ -1113,8 +1084,7 @@ fn (mut app PreviewApp) sync_editor_viewport() {
 	if app.editor.cursor_y >= app.scroll + app.viewport_height() {
 		app.scroll = app.editor.cursor_y - app.viewport_height() + 1
 	}
-	app.scroll = min_int(max_int(app.scroll, 0),
-		max_int(app.editor.lines.len - app.viewport_height(), 0))
+	app.scroll = min_int(max_int(app.scroll, 0), max_int(app.editor.lines.len - app.viewport_height(), 0))
 	content_width := max_int(app.tui.window_width - app.line_number_gutter_width() - 2, 1)
 	if app.editor.cursor_x < app.edit_col_start {
 		app.edit_col_start = app.editor.cursor_x
@@ -1136,8 +1106,7 @@ fn (mut app PreviewApp) draw_editor_content() {
 		if line_index >= app.editor.lines.len {
 			break
 		}
-		line_no := format_preview_line_number(line_index + 1, gutter_width,
-			line_index == app.editor.cursor_y)
+		line_no := format_preview_line_number(line_index + 1, gutter_width, line_index == app.editor.cursor_y)
 		runes := app.editor.lines[line_index].runes()
 		start := min_int(app.edit_col_start, runes.len)
 		visible := fit_editor_display(runes[start..].string().replace('\t', '    '), content_width)
@@ -1263,8 +1232,7 @@ fn build_preview_header_line(source_label string, mode PreviewMode, current_line
 	} else {
 		''
 	}
-	filler_plain := ' '.repeat(max_int(safe_width - left_plain.len - mode_plain.len -
-		line_plain.len - source_plain.len, 0))
+	filler_plain := ' '.repeat(max_int(safe_width - left_plain.len - mode_plain.len - line_plain.len - source_plain.len, 0))
 	left := term.bold(term.hex(0xe6b450, left_plain))
 	filler := term.bg_rgb(18, 24, 28, filler_plain)
 	source := term.bg_rgb(18, 24, 28, term.bright_black(source_plain))
@@ -1306,8 +1274,7 @@ fn style_preview_footer_left(input string, mode PreviewMode) string {
 		}
 		out = out.replace_once(marker, replacement)
 	}
-	out = out.replace_once('[h/j/k/l] move  [w/b] word  [x/dd] delete  [u/Ctrl+r] undo/redo  [/] search  [i] insert  [?] help  [q] quit',
-		term.dim('[h/j/k/l] move  [w/b] word  [x/dd] delete  [u/Ctrl+r] undo/redo  [/] search  [i] insert  [?] help  [q] quit'))
+	out = out.replace_once('[h/j/k/l] move  [w/b] word  [x/dd] delete  [u/Ctrl+r] undo/redo  [/] search  [i] insert  [?] help  [q] quit', term.dim('[h/j/k/l] move  [w/b] word  [x/dd] delete  [u/Ctrl+r] undo/redo  [/] search  [i] insert  [?] help  [q] quit'))
 	return out
 }
 
@@ -1334,24 +1301,24 @@ struct PreviewModeItem {
 fn preview_mode_items() []PreviewModeItem {
 	return [
 		PreviewModeItem{
-			key:   '1'
+			key: '1'
 			label: 'terminal'
-			mode:  .terminal
+			mode: .terminal
 		},
 		PreviewModeItem{
-			key:   '2'
+			key: '2'
 			label: 'markdown'
-			mode:  .markdown
+			mode: .markdown
 		},
 		PreviewModeItem{
-			key:   '3'
+			key: '3'
 			label: 'html'
-			mode:  .html
+			mode: .html
 		},
 		PreviewModeItem{
-			key:   '4'
+			key: '4'
 			label: 'ast'
-			mode:  .ast
+			mode: .ast
 		},
 	]
 }

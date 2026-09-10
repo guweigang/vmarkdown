@@ -57,9 +57,9 @@ pub fn decode_markdown_bytes(bytes []u8, requested_encoding string) !MarkdownFil
 	raw := bytes.bytestr()
 	if validate.utf8_string(raw) {
 		return MarkdownFile{
-			text:     raw
+			text: raw
 			encoding: .utf8
-			raw:      bytes.clone()
+			raw: bytes.clone()
 		}
 	}
 	if decoded := decode_markdown_as(bytes, .gbk, false, bytes) {
@@ -98,6 +98,33 @@ pub fn encode_markdown_text(text string, encoding MarkdownEncoding, bom bool) ![
 	return encoded
 }
 
+// save_markdown_file_if_unchanged preserves the detected encoding and BOM,
+// refuses to overwrite bytes changed since original was read, and replaces the
+// destination through a same-directory temporary file.
+pub fn save_markdown_file_if_unchanged(path string, original MarkdownFile, text string) ! {
+	current := os.read_bytes(path)!
+	if current != original.raw {
+		return error('file changed on disk; refusing to overwrite `${path}`')
+	}
+	encoded := encode_markdown_text(text, original.encoding, original.bom)!
+	atomic_write_markdown_file_bytes(path, encoded)!
+}
+
+fn atomic_write_markdown_file_bytes(path string, bytes []u8) ! {
+	directory := os.dir(path)
+	base := os.file_name(path)
+	temporary := os.join_path(directory, '.${base}.vmarkdown-${os.getpid()}.tmp')
+	defer {
+		if os.exists(temporary) {
+			os.rm(temporary) or {}
+		}
+	}
+	mode := if attributes := os.stat(path) { int(attributes.mode & 0o777) } else { 0o666 }
+	os.write_file_array(temporary, bytes)!
+	os.chmod(temporary, mode)!
+	os.mv(temporary, path)!
+}
+
 fn decode_markdown_as(payload []u8, encoding MarkdownEncoding, bom bool, original []u8) !MarkdownFile {
 	text := if encoding == .utf8 {
 		value := payload.bytestr()
@@ -115,10 +142,10 @@ fn decode_markdown_as(payload []u8, encoding MarkdownEncoding, bom bool, origina
 		return error('file is not valid ${encoding.label()}')
 	}
 	return MarkdownFile{
-		text:     text
+		text: text
 		encoding: encoding
-		bom:      bom
-		raw:      original.clone()
+		bom: bom
+		raw: original.clone()
 	}
 }
 
@@ -131,7 +158,9 @@ fn markdown_encoding_from_name(name string) !MarkdownEncoding {
 		'utf32be', 'utf-32be' { .utf32_be }
 		'gbk', 'cp936', 'windows-936', 'gb2312' { .gbk }
 		'gb18030', 'cp54936' { .gb18030 }
-		else { return error('unsupported Markdown encoding `${name}`') }
+		else {
+			return error('unsupported Markdown encoding `${name}`')
+		}
 	}
 }
 
