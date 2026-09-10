@@ -10,6 +10,16 @@ fn test_public_parse_render_and_codec_contract() {
 		max_nesting_depth: 16
 	}) or { panic(err) }
 	doc.validate() or { panic(err) }
+	headings := doc.find_all(.heading)
+	assert headings.len == 1
+	assert headings[0].node is vmarkdown.HeadingNode
+	mut visited_paths := []string{}
+	mut visited_paths_ref := &visited_paths
+	assert doc.walk(fn [mut visited_paths_ref] (visit vmarkdown.AstVisit) bool {
+		visited_paths_ref << visit.path
+		return visit.kind != .hard_break
+	})
+	assert visited_paths.len > headings.len
 	assert doc.to_text() == 'API\n\ntext'
 	assert doc.to_json().contains('"type":"heading"')
 	assert doc.to_markdown().starts_with('# API')

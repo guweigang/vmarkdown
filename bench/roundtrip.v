@@ -17,12 +17,17 @@ fn main() {
 		eprintln('benchmark reparse failed: ${err}')
 		exit(1)
 	}
+	text_nodes := reparsed.find_all(.text)
 	elapsed := time.since(started)
 	if doc.stable_id() != reparsed.stable_id() {
 		eprintln('benchmark document changed after Markdown round trip')
 		exit(1)
 	}
-	println('${source.len} input bytes, ${doc.children.len} blocks, parse/render/reparse in ${elapsed.milliseconds()} ms')
+	if text_nodes.len < 2048 {
+		eprintln('benchmark traversal returned only ${text_nodes.len} text nodes')
+		exit(1)
+	}
+	println('${source.len} input bytes, ${doc.children.len} blocks, parse/render/reparse/query in ${elapsed.milliseconds()} ms')
 	if os.getenv('CI').len > 0 && elapsed.milliseconds() > 15_000 {
 		eprintln('benchmark exceeded the 15000 ms CI smoke budget')
 		exit(1)
