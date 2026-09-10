@@ -99,6 +99,59 @@ fn test_parse_preserves_default_extension_semantics() {
 	assert paragraph.children.any(it is SoftBreakNode)
 }
 
+fn test_named_dialects_make_extension_behavior_explicit() {
+	input := '| A | B |\n| --- | --- |\n| ~~x~~ | y |\n'
+	commonmark := parse_with_dialect(input, .commonmark) or { panic(err) }
+	assert commonmark.children.len == 1
+	assert commonmark.children[0] is ParagraphNode
+
+	gfm := parse_with_dialect(input, .gfm) or { panic(err) }
+	assert gfm.children.len == 1
+	assert gfm.children[0] is TableNode
+	table := gfm.children[0] as TableNode
+	assert table.body[0].cells[0].children[0] is StrikethroughNode
+}
+
+fn test_parse_rejects_input_over_configured_byte_budget() {
+	if _ := parse_with_limits('12345', ParseOptions{}, ParseLimits{
+		max_input_bytes: 4
+	}) {
+		assert false, 'oversized Markdown input must fail'
+	} else {
+		assert err.msg().contains('maximum size 4 bytes')
+	}
+}
+
+fn test_parse_rejects_ast_over_configured_node_budget() {
+	if _ := parse_with_limits('text', ParseOptions{}, ParseLimits{
+		max_nodes: 2
+	}) {
+		assert false, 'Markdown over the node budget must fail'
+	} else {
+		assert err.msg().contains('maximum node count 2')
+	}
+}
+
+fn test_parse_rejects_ast_over_configured_nesting_budget() {
+	if _ := parse_with_limits('> > nested', ParseOptions{}, ParseLimits{
+		max_nesting_depth: 2
+	}) {
+		assert false, 'deeply nested Markdown must fail'
+	} else {
+		assert err.msg().contains('maximum nesting depth 2')
+	}
+}
+
+fn test_parse_rejects_negative_limits() {
+	if _ := parse_with_limits('text', ParseOptions{}, ParseLimits{
+		max_nodes: -1
+	}) {
+		assert false, 'negative parse limits must fail'
+	} else {
+		assert err.msg() == 'max_nodes cannot be negative'
+	}
+}
+
 fn test_parse_preserves_inline_raw_html_without_treating_it_as_text() {
 	doc := parse('before <mark>inside</mark> after') or { panic(err) }
 	paragraph := doc.children[0] as ParagraphNode

@@ -20,15 +20,16 @@ fn test_supported_commonmark_corpus_has_stable_structural_round_trip() {
 	expected_counts := [652, 12, 5, 5, 2, 14]
 	mut checked := 0
 	for fixture_index, fixture in fixtures {
+		dialect := if fixture_index == 0 { MarkdownDialect.commonmark } else { MarkdownDialect.gfm }
 		path := os.join_path(@VMODROOT, 'thirdparty', 'md4c', 'test', fixture)
 		examples := load_markdown_spec_examples(path, fixture) or { panic(err) }
 		assert examples.len == expected_counts[fixture_index], '${fixture} corpus size changed'
 		for example in examples {
-			original := parse(example.input) or {
+			original := parse_with_dialect(example.input, dialect) or {
 				panic('${example.fixture} example ${example.number}: parse failed: ${err}')
 			}
 			normalized := original.to_markdown()
-			reparsed := parse(normalized) or {
+			reparsed := parse_with_dialect(normalized, dialect) or {
 				panic('${example.fixture} example ${example.number}: normalized parse failed: ${err}')
 			}
 			assert original.stable_id() == reparsed.stable_id(), '${example.fixture} example ${example.number} changed after semantic round trip\ninput:\n${example.input}\nnormalized:\n${normalized}\noriginal AST:\n${original.pretty()}\n${original.to_json()}\nreparsed AST:\n${reparsed.pretty()}\n${reparsed.to_json()}'
