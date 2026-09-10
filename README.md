@@ -20,6 +20,7 @@ One deliberate adjustment was made for production parsing: `ListItemNode.childre
 - `src/parser.v`: md4c-backed parser and event builder
 - `src/walk.v`: public pre-order AST traversal and queries
 - `src/rewrite.v`: validated block and inline AST rewrite passes
+- `src/lint.v`: composable AST lint diagnostics and atomic UTF-8 text fixes
 - `src/validate.v`: recursive AST invariant validation
 - `src/binary_codec.v`: bounded decoder for the versioned binary AST format
 - `src/serialize.v`: normalized stable IDs, chunk collection, and in-memory incremental ingest
@@ -248,6 +249,40 @@ original tree; newly returned nodes are not revisited during the same pass.
 Adjacent text nodes created by a rewrite are merged into canonical form before
 validation. Their source spans are combined only when the original ranges are
 contiguous; otherwise the merged node reports an unavailable span.
+
+### Lint diagnostics and fixes
+
+`Document.lint()` runs composable rules over the same pre-order `AstVisit`
+stream. The result carries a stable rule ID, severity, node kind, AST path,
+source span, message, and optional text edits:
+
+```v
+rules := [vmarkdown.LintRule{
+	id: 'project.no-draft'
+	severity: .warning
+	check: fn (visit vmarkdown.AstVisit) []vmarkdown.LintFinding {
+		if visit.node is vmarkdown.TextNode && visit.node.text == 'draft' {
+			return [vmarkdown.LintFinding{
+				message: 'replace draft text'
+				edits: [vmarkdown.MarkdownTextEdit{
+					span: visit.span
+					replacement: 'final'
+				}]
+			}]
+		}
+		return []vmarkdown.LintFinding{}
+	}
+}]
+diagnostics := doc.lint(rules)!
+fixed_source := vmarkdown.apply_lint_fixes(source, diagnostics)!
+```
+
+Rule IDs accept lowercase ASCII letters, digits, `.`, `_`, and `-`, and must
+be unique in a run. Diagnostics are stable in AST visit order, then rule order.
+Fixes use half-open UTF-8 byte ranges. `apply_lint_fixes()` applies the
+complete set atomically after rejecting malformed, out-of-bounds,
+code-point-splitting, or overlapping edits. Use `apply_markdown_edits()` when
+the edits do not originate from lint diagnostics.
 
 ## Markdown Render
 

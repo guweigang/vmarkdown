@@ -24,6 +24,15 @@ fn main() {
 		eprintln('benchmark identity rewrite failed: ${err}')
 		exit(1)
 	}
+	diagnostics := rewritten.lint([vmarkdown.LintRule{
+		id: 'benchmark.noop'
+		check: fn (visit vmarkdown.AstVisit) []vmarkdown.LintFinding {
+			return []vmarkdown.LintFinding{}
+		}
+	}]) or {
+		eprintln('benchmark lint failed: ${err}')
+		exit(1)
+	}
 	elapsed := time.since(started)
 	if doc.stable_id() != reparsed.stable_id() || reparsed.stable_id() != rewritten.stable_id() {
 		eprintln('benchmark document changed after Markdown round trip')
@@ -33,7 +42,11 @@ fn main() {
 		eprintln('benchmark traversal returned only ${text_nodes.len} text nodes')
 		exit(1)
 	}
-	println('${source.len} input bytes, ${doc.children.len} blocks, parse/render/reparse/query/rewrite in ${elapsed.milliseconds()} ms')
+	if diagnostics.len != 0 {
+		eprintln('benchmark no-op lint unexpectedly returned diagnostics')
+		exit(1)
+	}
+	println('${source.len} input bytes, ${doc.children.len} blocks, parse/render/reparse/query/rewrite/lint in ${elapsed.milliseconds()} ms')
 	if os.getenv('CI').len > 0 && elapsed.milliseconds() > 15_000 {
 		eprintln('benchmark exceeded the 15000 ms CI smoke budget')
 		exit(1)
