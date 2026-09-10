@@ -516,6 +516,7 @@ fn diagram_diff_lines(entries []DiagramDiffEntry) []string {
 			.added { 'added' }
 			.removed { 'removed' }
 			.reused { 'reused' }
+			.moved { 'moved' }
 		}
 		lines << '${action} ${entry.kind} at ${entry.path}'
 	}

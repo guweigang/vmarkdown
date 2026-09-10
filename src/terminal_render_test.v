@@ -147,6 +147,50 @@ fn test_render_terminal_json_diagram_code_block() {
 	assert out.contains('Preview')
 }
 
+fn test_terminal_render_sanitizes_untrusted_control_sequences_by_default() {
+	doc := Document{
+		children: [
+			BlockNode(ParagraphNode{
+				children: [InlineNode(TextNode{
+					text: 'safe\x1b]0;owned\a text'
+				})]
+			}),
+			BlockNode(CodeBlockNode{
+				lang: 'txt\x1b'
+				content: 'line\x1b[2J\n'
+			}),
+			BlockNode(RawHtmlBlockNode{
+				html: '<b>raw</b>\x1b[31m\n'
+			}),
+		]
+	}
+	rendered := doc.to_terminal_with_options(TerminalRenderOptions{
+		width: 60
+		color: false
+	})
+	assert !rendered.contains('\x1b')
+	assert !rendered.contains('\a')
+	assert rendered.contains('␛]0;owned␇')
+	assert rendered.contains('line␛[2J')
+	assert rendered.contains('<b>raw</b>␛[31m')
+}
+
+fn test_terminal_render_can_explicitly_preserve_control_sequences() {
+	doc := Document{
+		children: [BlockNode(ParagraphNode{
+			children: [InlineNode(TextNode{
+				text: 'raw\x1b[31m'
+			})]
+		})]
+	}
+	rendered := doc.to_terminal_with_options(TerminalRenderOptions{
+		width: 60
+		color: false
+		sanitize_control_sequences: false
+	})
+	assert rendered.contains('\x1b[31m')
+}
+
 fn test_terminal_renders_task_state_breaks_and_raw_html() {
 	doc := parse('- [x] done\n\n~~gone~~  \nnext <kbd>key</kbd>\n\n<div>raw</div>\n') or {
 		panic(err)

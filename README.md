@@ -145,6 +145,10 @@ representations. Raw HTML is represented by `RawHtmlBlockNode` and
 `RawHtmlInlineNode`; it is preserved verbatim and is neither interpreted nor
 sanitized by the AST parser.
 
+`render_html()` also preserves raw HTML through md4c and therefore returns
+unsanitized output. Sanitize the result before embedding Markdown from an
+untrusted source into a web page.
+
 ## Markdown Render
 
 `to_markdown()` / `render_markdown()` render the AST back into normalized Markdown.
@@ -166,6 +170,11 @@ sanitized by the AST parser.
 ## Terminal Render
 
 `render_terminal()` and `doc.to_terminal()` provide a lightweight ANSI-colored terminal preview built on V's `term` module.
+
+Terminal rendering replaces user-provided C0/C1 control characters with visible
+or inert Unicode characters by default, preventing Markdown text, code, links,
+and raw HTML from injecting terminal escape sequences. Trusted callers can opt
+out with `TerminalRenderOptions{sanitize_control_sequences: false}`.
 
 ![terminal preview](assets/terminal_preview.png)
 
@@ -452,10 +461,15 @@ blocks[1].items[0].children[1]
 
 When a nested structure changes, both the changed descendant and any affected ancestor containers can appear in the diff.
 
+Unchanged blocks are aligned by stable ID and relative order even when an
+insertion changes their numeric path. Explicitly reordered entries use the
+`moved` operation and expose both `previous_path` and the current `path`, so a
+leading insertion does not report every later block as removed and added.
+
 ## Notes
 
 - The parser currently targets the core node types from your DSL sketch.
 - `MetaNode` is kept in the AST for your PollyDB layer, but it is not emitted by `md4c` directly.
 - GFM tables are projected into `TableNode` / `TableRowNode` / `TableCellNode`, including
   header/body sections, per-cell alignment, and inline children.
-- Raw HTML and some extended spans are not yet projected into dedicated V nodes.
+- Wiki links, LaTeX math, and underline spans are still flattened to their semantic text.
