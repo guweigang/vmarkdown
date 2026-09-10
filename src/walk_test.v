@@ -46,3 +46,22 @@ fn test_find_all_returns_typed_matching_visits() {
 	assert (links[0].node as LinkNode).url == 'first'
 	assert links[1].path.ends_with('.children[2]')
 }
+
+fn test_walk_and_rewrite_descend_into_wiki_link_labels() {
+	doc := parse_with_options('[[docs|old]]', ParseOptions{
+		wiki_links: true
+	}) or { panic(err) }
+	wikis := doc.find_all(.wiki_link)
+	assert wikis.len == 1
+	assert wikis[0].node is WikiLinkNode
+	assert (wikis[0].node as WikiLinkNode).target == 'docs'
+	assert doc.find_all(.text)[0].path.ends_with('.text[0]')
+
+	rewritten := doc.rewrite_inlines(fn (visit AstInlineRewrite) ![]InlineNode {
+		if visit.node is TextNode && visit.node.text == 'old' {
+			return [InlineNode(TextNode{ text: 'new' })]
+		}
+		return [visit.node]
+	}) or { panic(err) }
+	assert rewritten.to_markdown() == '[[docs|new]]'
+}

@@ -139,6 +139,7 @@ enum FrameKind {
 	strong
 	strikethrough
 	link
+	wiki_link
 	image
 	code_span
 	code_block
@@ -289,7 +290,7 @@ fn (mut b Builder) append_inline(node InlineNode) ! {
 	span := node.source_span()
 	for i := b.frames.len - 1; i >= 0; i-- {
 		match b.frames[i].kind {
-			.heading, .paragraph, .emphasis, .strong, .strikethrough, .link, .image, .table_cell {
+			.heading, .paragraph, .emphasis, .strong, .strikethrough, .link, .wiki_link, .image, .table_cell {
 				if node is TextNode && b.frames[i].inlines.len > 0 {
 					last_index := b.frames[i].inlines.len - 1
 					last := b.frames[i].inlines[last_index]
@@ -332,7 +333,7 @@ fn merge_source_spans(left SourceSpan, right SourceSpan) SourceSpan {
 fn (b &Builder) has_inline_parent() bool {
 	for i := b.frames.len - 1; i >= 0; i-- {
 		match b.frames[i].kind {
-			.heading, .paragraph, .emphasis, .strong, .strikethrough, .link, .image, .table_cell {
+			.heading, .paragraph, .emphasis, .strong, .strikethrough, .link, .wiki_link, .image, .table_cell {
 				return true
 			}
 			else {}
@@ -592,6 +593,12 @@ fn (mut b Builder) enter_span(typ int, detail voidptr) ! {
 			link_detail := unsafe { &C.MD_SPAN_A_DETAIL(detail) }
 			top.url = attribute_to_string(link_detail.href)
 		}
+		int(C.MD_SPAN_WIKILINK) {
+			b.push_frame(.wiki_link)!
+			mut top := b.top()!
+			wiki := unsafe { &C.MD_SPAN_WIKILINK_DETAIL(detail) }
+			top.url = attribute_to_string(wiki.target)
+		}
 		int(C.MD_SPAN_IMG) {
 			b.push_frame(.image)!
 			mut top := b.top()!
@@ -634,6 +641,14 @@ fn (mut b Builder) leave_span(typ int, _detail voidptr) ! {
 				span: frame.span
 				text: frame.inlines.clone()
 				url: frame.url
+			})!
+		}
+		int(C.MD_SPAN_WIKILINK) {
+			frame := b.pop_frame(.wiki_link)!
+			b.append_inline(WikiLinkNode{
+				span: frame.span
+				target: frame.url
+				text: frame.inlines.clone()
 			})!
 		}
 		int(C.MD_SPAN_IMG) {

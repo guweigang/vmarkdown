@@ -20,6 +20,7 @@ pub enum AstValidationErrorKind {
 	empty_text
 	empty_inline_container
 	nested_link
+	wiki_link_target
 }
 
 pub struct AstValidationError {
@@ -209,6 +210,15 @@ fn (mut validator AstValidator) validate_inline(node InlineNode, path string, de
 		LinkNode {
 			if inside_link {
 				return validation_error(.nested_link, path, 'cannot nest a link inside another link', node.span)
+			}
+			validator.validate_inlines(node.text, '${path}.text', depth + 1, true)!
+		}
+		WikiLinkNode {
+			if inside_link {
+				return validation_error(.nested_link, path, 'cannot nest a wiki link inside another link', node.span)
+			}
+			if normalize_text(node.target).len == 0 || node.target.contains_any('\r\n') {
+				return validation_error(.wiki_link_target, '${path}.target', 'must be non-empty and cannot contain a line break', node.span)
 			}
 			validator.validate_inlines(node.text, '${path}.text', depth + 1, true)!
 		}

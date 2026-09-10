@@ -110,6 +110,9 @@ fn inline_preview(nodes []InlineNode) string {
 			LinkNode {
 				sb.write_string('[' + inline_preview(node.text) + '](' + node.url + ')')
 			}
+			WikiLinkNode {
+				sb.write_string('[[' + node.target + '|' + inline_preview(node.text) + ']]')
+			}
 			ImageNode {
 				sb.write_string('![' + inline_preview(node.alt) + '](' + node.url + ')')
 			}

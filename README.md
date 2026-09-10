@@ -165,10 +165,11 @@ by md4c; Markdown delimiters that do not produce callbacks may sit immediately
 outside the range. `BlockNode.source_span()` and `InlineNode.source_span()`
 provide uniform access without a sum-type match.
 
-Task state, strikethrough, soft breaks, and hard breaks have explicit AST
-representations. Raw HTML is represented by `RawHtmlBlockNode` and
-`RawHtmlInlineNode`; it is preserved verbatim and is neither interpreted nor
-sanitized by the AST parser.
+Task state, strikethrough, soft breaks, hard breaks, and opt-in wiki links have
+explicit AST representations. `WikiLinkNode` preserves its destination and
+recursive inline label when `ParseOptions.wiki_links` is enabled. Raw HTML is
+represented by `RawHtmlBlockNode` and `RawHtmlInlineNode`; it is preserved
+verbatim and is neither interpreted nor sanitized by the AST parser.
 
 `render_html()` also preserves raw HTML through md4c and therefore returns
 unsanitized output. Sanitize the result before embedding Markdown from an
@@ -670,4 +671,5 @@ leading insertion does not report every later block as removed and added.
 - `MetaNode` is kept in the AST for your PollyDB layer, but it is not emitted by `md4c` directly.
 - GFM tables are projected into `TableNode` / `TableRowNode` / `TableCellNode`, including
   header/body sections, per-cell alignment, and inline children.
-- Wiki links, LaTeX math, and underline spans are still flattened to their semantic text.
+- Wiki links become typed `WikiLinkNode` values when `ParseOptions.wiki_links` is enabled.
+- LaTeX math and underline spans are still flattened to their semantic text.

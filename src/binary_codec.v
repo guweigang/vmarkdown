@@ -342,6 +342,14 @@ fn (mut r BinaryReader) read_inline(container_end int, depth int) !InlineNode {
 			end := r.read_sized_end('link text')!
 			return InlineNode(LinkNode{ url: url, text: r.read_inlines(end, depth + 1)! })
 		}
+		wiki_link_type_tag {
+			target := r.read_string('wiki link target')!
+			end := r.read_sized_end('wiki link text')!
+			return InlineNode(WikiLinkNode{
+				target: target
+				text: r.read_inlines(end, depth + 1)!
+			})
+		}
 		image_type_tag {
 			url := r.read_string('image URL')!
 			end := r.read_sized_end('image alt text')!
