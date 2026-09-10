@@ -64,11 +64,91 @@ fn scan_markdown_source_blocks(markdown string) []MarkdownSourceBlock {
 		end := max_int(i - 1, start)
 		blocks << MarkdownSourceBlock{
 			start_line: start
-			end_line:   end
-			text:       lines[start..end + 1].join('\n')
+			end_line: end
+			text: lines[start..end + 1].join('\n')
 		}
 	}
 	return blocks
+}
+
+// ast_markdown_source_blocks uses parser-provided byte spans as the primary
+// source of block boundaries. The syntax scanner is retained only for nodes
+// such as thematic breaks for which md4c emits no source-bearing callback.
+fn ast_markdown_source_blocks(markdown string) []MarkdownSourceBlock {
+	doc := parse(markdown) or { return scan_markdown_source_blocks(markdown) }
+	lines := markdown.split('\n')
+	fallback := scan_markdown_source_blocks(markdown)
+	mut blocks := []MarkdownSourceBlock{cap: doc.children.len}
+	mut previous_end := -1
+	for node in doc.children {
+		span := block_source_span(node)
+		mut start_line := -1
+		mut end_line := -1
+		if span.is_valid() && span.start < markdown.len {
+			start_line = source_line_for_byte_offset(markdown, span.start)
+			last_byte := if span.end > span.start { span.end - 1 } else { span.start }
+			end_line = source_line_for_byte_offset(markdown, last_byte)
+			if node is CodeBlockNode {
+				start_line, end_line = expand_fenced_code_lines(lines, start_line, end_line)
+			}
+		}
+		if start_line < 0 {
+			for candidate in fallback {
+				if candidate.start_line > previous_end {
+					start_line = candidate.start_line
+					end_line = candidate.end_line
+					break
+				}
+			}
+		}
+		if start_line < 0 || start_line >= lines.len {
+			continue
+		}
+		end_line = min_int(max_int(end_line, start_line), lines.len - 1)
+		blocks << MarkdownSourceBlock{
+			start_line: start_line
+			end_line: end_line
+			text: lines[start_line..end_line + 1].join('\n')
+		}
+		previous_end = end_line
+	}
+	return if blocks.len == doc.children.len { blocks } else { fallback }
+}
+
+fn source_line_for_byte_offset(markdown string, offset int) int {
+	mut line := 0
+	limit := min_int(max_int(offset, 0), markdown.len)
+	for i, byte in markdown.bytes() {
+		if i >= limit {
+			break
+		}
+		if byte == `\n` {
+			line++
+		}
+	}
+	return line
+}
+
+fn expand_fenced_code_lines(lines []string, content_start int, content_end int) (int, int) {
+	mut start := content_start
+	mut end := content_end
+	mut fence := ''
+	if start > 0 {
+		candidate := lines[start - 1].trim_space()
+		if candidate.starts_with('```') || candidate.starts_with('~~~') {
+			start--
+			fence = candidate[..3]
+		}
+	}
+	if fence.len > 0 {
+		for i := end + 1; i < lines.len; i++ {
+			if lines[i].trim_space().starts_with(fence) {
+				end = i
+				break
+			}
+		}
+	}
+	return start, end
 }
 
 fn is_single_line_markdown_block(line string) bool {
@@ -110,7 +190,7 @@ fn build_preview_line_sources(markdown string, mode PreviewMode, width int, actu
 	if actual_lines.len == 0 {
 		return []PreviewLineSource{}
 	}
-	blocks := scan_markdown_source_blocks(markdown)
+	blocks := ast_markdown_source_blocks(markdown)
 	if blocks.len == 0 {
 		return []PreviewLineSource{len: actual_lines.len, init: PreviewLineSource{}}
 	}
@@ -151,8 +231,7 @@ fn build_preview_line_sources(markdown string, mode PreviewMode, width int, actu
 			} else {
 				''
 			}
-			candidate_columns, candidate_exact := build_preview_source_columns_from(source_text,
-				actual_lines[line_index], mode, source_offsets[candidate])
+			candidate_columns, candidate_exact := build_preview_source_columns_from(source_text, actual_lines[line_index], mode, source_offsets[candidate])
 			mut score := 0
 			for is_exact in candidate_exact {
 				if is_exact {
@@ -177,11 +256,11 @@ fn build_preview_line_sources(markdown string, mode PreviewMode, width int, actu
 			source_offsets[source_line] = next_offset
 		}
 		result[line_index] = PreviewLineSource{
-			start_line:     block.start_line
-			end_line:       block.end_line
-			source_line:    source_line
+			start_line: block.start_line
+			end_line: block.end_line
+			source_line: source_line
 			source_columns: columns
-			exact_columns:  exact
+			exact_columns: exact
 		}
 	}
 	return result
