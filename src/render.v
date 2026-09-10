@@ -474,7 +474,7 @@ fn render_table_cell_markdown(nodes []InlineNode) string {
 	mut sb := strings.new_builder(32)
 	for node in nodes {
 		rendered := node.render_markdown_inline(0)
-		if node is CodeSpanNode {
+		if node is CodeSpanNode || node is WikiLinkNode {
 			sb.write_string(rendered)
 		} else {
 			sb.write_string(rendered.replace('|', '\\|'))
