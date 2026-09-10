@@ -454,13 +454,14 @@ const strikethrough_type_tag = u8(0x26)
 const soft_break_type_tag = u8(0x27)
 const hard_break_type_tag = u8(0x28)
 const raw_html_inline_type_tag = u8(0x29)
+const binary_format_version = u8(1)
 
 pub fn (doc Document) binary_encode() []u8 {
 	mut body := []u8{}
 	for child in doc.children {
 		body << child.binary_encode()
 	}
-	mut out := [document_type_tag]
+	mut out := [u8(`V`), `M`, `D`, `A`, binary_format_version, document_type_tag]
 	out << encode_varint(body.len)
 	out << body
 	return out
@@ -484,8 +485,8 @@ pub fn (node BlockNode) binary_encode() []u8 {
 		}
 		ListNode {
 			mut out := [list_type_tag, bool_u8(node.is_ordered)]
-			out << encode_u16(u16(node.items.len))
-			out << encode_u16(u16(node.start))
+			out << encode_varint(node.items.len)
+			out << encode_varint(node.start)
 			for item in node.items {
 				item_bytes := item.binary_encode()
 				out << encode_varint(item_bytes.len)
@@ -504,7 +505,7 @@ pub fn (node BlockNode) binary_encode() []u8 {
 			mut keys := node.data.keys()
 			keys.sort()
 			mut out := [meta_type_tag]
-			out << encode_u16(u16(keys.len))
+			out << encode_varint(keys.len)
 			for key in keys {
 				key_bytes := normalize_text(key).bytes()
 				value_bytes := normalize_text(node.data[key]).bytes()
@@ -540,9 +541,9 @@ pub fn (node BlockNode) binary_encode() []u8 {
 		}
 		TableNode {
 			mut out := [table_type_tag]
-			out << encode_u16(u16(node.columns))
-			out << encode_u16(u16(node.head.len))
-			out << encode_u16(u16(node.body.len))
+			out << encode_varint(node.columns)
+			out << encode_varint(node.head.len)
+			out << encode_varint(node.body.len)
 			mut rows := node.head.clone()
 			rows << node.body
 			for row in rows {
@@ -556,7 +557,7 @@ pub fn (node BlockNode) binary_encode() []u8 {
 }
 
 fn (row TableRowNode) binary_encode() []u8 {
-	mut out := encode_u16(u16(row.cells.len))
+	mut out := encode_varint(row.cells.len)
 	for cell in row.cells {
 		content := encode_inline_sequence(cell.children)
 		out << u8(cell.alignment)
@@ -574,8 +575,8 @@ pub fn (item ListItemNode) binary_encode() []u8 {
 		body << child_bytes
 	}
 	mut out := [list_item_type_tag]
-	out << encode_u16(u16(item.level))
-	out << encode_u16(u16(item.number))
+	out << encode_varint(item.level)
+	out << encode_varint(item.number)
 	out << bool_u8(item.is_task)
 	out << bool_u8(item.checked)
 	out << encode_varint(body.len)
@@ -665,11 +666,10 @@ fn encode_inline_sequence(nodes []InlineNode) []u8 {
 	return out
 }
 
-fn encode_u16(value u16) []u8 {
-	return [u8(value & 0xff), u8((value >> 8) & 0xff)]
-}
-
 fn encode_varint(value int) []u8 {
+	if value < 0 {
+		panic('binary codec cannot encode a negative integer: ${value}')
+	}
 	mut n := u64(value)
 	mut out := []u8{}
 	for {
