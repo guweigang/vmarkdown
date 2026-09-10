@@ -20,6 +20,13 @@ fn test_public_parse_render_and_codec_contract() {
 		return visit.kind != .hard_break
 	})
 	assert visited_paths.len > headings.len
+	rewritten := doc.rewrite_inlines(fn (visit vmarkdown.AstInlineRewrite) ![]vmarkdown.InlineNode {
+		if visit.node is vmarkdown.TextNode && visit.node.text == 'API' {
+			return [vmarkdown.InlineNode(vmarkdown.TextNode{ text: 'renamed' })]
+		}
+		return [visit.node]
+	}) or { panic(err) }
+	assert rewritten.to_markdown().starts_with('# renamed')
 	assert doc.to_text() == 'API\n\ntext'
 	assert doc.to_json().contains('"type":"heading"')
 	assert doc.to_markdown().starts_with('# API')
