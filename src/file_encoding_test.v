@@ -32,7 +32,7 @@ fn test_markdown_encoding_detects_and_preserves_bom() {
 }
 
 fn test_markdown_encoding_auto_detects_gb18030_four_byte_character() {
-	text := 'x' + rune(0x80).str() + 'y'
+	text := 'x' + rune(0x3400).str() + 'y'
 	encoded := encode_markdown_text(text, .gb18030, false) or { panic(err) }
 	file := decode_markdown_bytes(encoded, 'auto') or { panic(err) }
 	assert file.encoding == .gb18030
