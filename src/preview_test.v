@@ -400,6 +400,55 @@ fn test_preview_save_detects_external_change_and_force_overwrites() {
 	assert os.read_file(path) or { panic(err) } == '# Original local\n'
 }
 
+fn test_preview_editor_preserves_gbk_encoding_on_save() {
+	path := os.join_path(os.temp_dir(), 'vmarkdown-preview-gbk-${os.getpid()}.md')
+	raw := [u8(0x23), 0x20, 0xd6, 0xd0, 0xce, 0xc4]
+	os.write_file_array(path, raw) or { panic(err) }
+	defer {
+		os.rm(path) or {}
+	}
+	source := read_markdown_file(path) or { panic(err) }
+	mut app := PreviewApp{
+		markdown:        source.text
+		doc:             parse(source.text) or { panic(err) }
+		source_path:     path
+		source_encoding: source.encoding
+		source_bom:      source.bom
+		source_raw:      source.raw.clone()
+		source_loaded:   true
+		editor:          new_markdown_editor(source.text)
+	}
+	app.editor.cursor_x = app.editor.current_line().runes().len
+	app.editor.insert_text(' OK')
+	assert app.save_editor()
+	expected := [u8(0x23), 0x20, 0xd6, 0xd0, 0xce, 0xc4, 0x20, 0x4f, 0x4b]
+	assert os.read_bytes(path) or { panic(err) } == expected
+}
+
+fn test_preview_editor_rejects_unrepresentable_gbk_text() {
+	path := os.join_path(os.temp_dir(), 'vmarkdown-preview-gbk-reject-${os.getpid()}.md')
+	raw := [u8(0xd6), 0xd0, 0xce, 0xc4]
+	os.write_file_array(path, raw) or { panic(err) }
+	defer {
+		os.rm(path) or {}
+	}
+	source := read_markdown_file(path) or { panic(err) }
+	mut app := PreviewApp{
+		markdown:        source.text
+		doc:             parse(source.text) or { panic(err) }
+		source_path:     path
+		source_encoding: source.encoding
+		source_raw:      source.raw.clone()
+		source_loaded:   true
+		editor:          new_markdown_editor(source.text)
+	}
+	app.editor.cursor_x = app.editor.current_line().runes().len
+	app.editor.insert_text('😀')
+	assert !app.save_editor()
+	assert app.editor.status.contains('cannot be represented as GBK')
+	assert os.read_bytes(path) or { panic(err) } == raw
+}
+
 fn test_atomic_preview_save_preserves_permissions_and_cleans_temp_file() {
 	path := os.join_path(os.temp_dir(), 'vmarkdown-preview-atomic-${os.getpid()}.md')
 	temporary := os.join_path(os.dir(path), '.${os.file_name(path)}.vmarkdown-${os.getpid()}.tmp')

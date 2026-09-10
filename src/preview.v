@@ -21,15 +21,28 @@ pub fn preview_with_mode(markdown string, mode PreviewMode, source_label string)
 }
 
 fn preview_with_source(markdown string, mode PreviewMode, source_label string, source_path string) ! {
+	source := MarkdownFile{
+		text:     markdown
+		encoding: .utf8
+		raw:      markdown.bytes()
+	}
+	preview_with_markdown_file(source, mode, source_label, source_path)!
+}
+
+fn preview_with_markdown_file(source MarkdownFile, mode PreviewMode, source_label string, source_path string) ! {
 	prepare_console_for_preview()
-	doc := parse(markdown)!
+	doc := parse(source.text)!
 	mut app := &PreviewApp{
-		markdown:     markdown
-		doc:          doc
-		mode:         mode
-		source_label: if source_label.len > 0 { source_label } else { 'buffer' }
-		source_path:  source_path
-		editor:       new_markdown_editor(markdown)
+		markdown:        source.text
+		doc:             doc
+		mode:            mode
+		source_label:    if source_label.len > 0 { source_label } else { 'buffer' }
+		source_path:     source_path
+		source_encoding: source.encoding
+		source_bom:      source.bom
+		source_raw:      source.raw.clone()
+		source_loaded:   source_path.len > 0
+		editor:          new_markdown_editor(source.text)
 	}
 	app.tui = tui.init(
 		user_data:      app
@@ -68,8 +81,16 @@ pub fn preview_file(path string) ! {
 }
 
 pub fn preview_file_with_mode(path string, mode PreviewMode) ! {
-	markdown := os.read_file(path)!
-	preview_with_source(markdown, mode, path, path)!
+	preview_file_with_mode_and_encoding(path, mode, 'auto')!
+}
+
+pub fn preview_file_with_encoding(path string, requested_encoding string) ! {
+	preview_file_with_mode_and_encoding(path, .terminal, requested_encoding)!
+}
+
+pub fn preview_file_with_mode_and_encoding(path string, mode PreviewMode, requested_encoding string) ! {
+	source := read_markdown_file_with_encoding(path, requested_encoding)!
+	preview_with_markdown_file(source, mode, path, path)!
 }
 
 pub fn preview_mermaid(input string) ! {
@@ -204,6 +225,10 @@ mut:
 	show_quit_confirm          bool
 	raw_terminal               string
 	source_path                string
+	source_encoding            MarkdownEncoding
+	source_bom                 bool
+	source_raw                 []u8
+	source_loaded              bool
 	editing                    bool
 	editor                     MarkdownEditor
 	edit_col_start             int
@@ -562,10 +587,11 @@ fn (app &PreviewApp) half_page_step() int {
 
 fn (mut app PreviewApp) draw_header() {
 	line_number := if app.editing { app.editor.cursor_y + 1 } else { app.current_line_index() + 1 }
+	encoding := if app.source_path.len > 0 { ' [${app.source_encoding.label()}]' } else { '' }
 	label := if app.editor.dirty {
-		app.source_label + ' [+]'
+		app.source_label + encoding + ' [+]'
 	} else {
-		app.source_label
+		app.source_label + encoding
 	}
 	line := build_preview_header_line(label, app.mode, line_number, app.tui.window_width)
 	app.tui.draw_text(0, 0, line)
@@ -1021,15 +1047,22 @@ fn (mut app PreviewApp) save_editor_with_force(force bool) bool {
 		app.editor.status = 'no file name'
 		return false
 	}
-	if !force && source_file_changed_on_disk(app.source_path, app.editor.saved_text) {
+	if !force
+		&& source_file_changed_on_disk(app.source_path, app.editor.saved_text, app.source_raw, app.source_loaded) {
 		app.editor.status = 'file changed on disk; use :w! to overwrite'
 		return false
 	}
 	text := app.editor.text()
-	atomic_write_preview_file(app.source_path, text) or {
+	encoded := encode_markdown_text(text, app.source_encoding, app.source_bom) or {
 		app.editor.status = 'write failed: ${err}'
 		return false
 	}
+	atomic_write_preview_file_bytes(app.source_path, encoded) or {
+		app.editor.status = 'write failed: ${err}'
+		return false
+	}
+	app.source_raw = encoded.clone()
+	app.source_loaded = true
 	app.markdown = text
 	app.doc = parse(text) or {
 		app.editor.status = 'written; preview parse failed: ${err}'
@@ -1042,15 +1075,23 @@ fn (mut app PreviewApp) save_editor_with_force(force bool) bool {
 	return true
 }
 
-fn source_file_changed_on_disk(path string, expected string) bool {
+fn source_file_changed_on_disk(path string, expected string, expected_raw []u8, loaded bool) bool {
 	if path.len == 0 || !os.exists(path) {
 		return true
+	}
+	if loaded {
+		current := os.read_bytes(path) or { return true }
+		return current != expected_raw
 	}
 	current := os.read_file(path) or { return true }
 	return current != expected
 }
 
 fn atomic_write_preview_file(path string, text string) ! {
+	atomic_write_preview_file_bytes(path, text.bytes())!
+}
+
+fn atomic_write_preview_file_bytes(path string, bytes []u8) ! {
 	directory := os.dir(path)
 	base := os.file_name(path)
 	temporary := os.join_path(directory, '.${base}.vmarkdown-${os.getpid()}.tmp')
@@ -1060,7 +1101,7 @@ fn atomic_write_preview_file(path string, text string) ! {
 		}
 	}
 	mode := if attributes := os.stat(path) { int(attributes.mode & 0o777) } else { 0o666 }
-	os.write_file(temporary, text)!
+	os.write_file_array(temporary, bytes)!
 	os.chmod(temporary, mode)!
 	os.mv(temporary, path)!
 }

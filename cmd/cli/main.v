@@ -21,7 +21,11 @@ fn main() {
 				eprintln('preview requires a markdown file path')
 				exit(1)
 			}
-			vmarkdown.preview_file(args[2]) or {
+			encoding := markdown_encoding_option(args[3..]) or {
+				eprintln(err)
+				exit(1)
+			}
+			vmarkdown.preview_file_with_encoding(args[2], encoding) or {
 				eprintln(err)
 				exit(1)
 			}
@@ -31,11 +35,11 @@ fn main() {
 				eprintln('terminal requires a markdown file path')
 				exit(1)
 			}
-			markdown := os.read_file(args[2]) or {
+			input := read_cli_markdown_file(args[2], args[3..]) or {
 				eprintln(err)
 				exit(1)
 			}
-			output := vmarkdown.render_terminal(markdown) or {
+			output := vmarkdown.render_terminal(input.text) or {
 				eprintln(err)
 				exit(1)
 			}
@@ -46,11 +50,11 @@ fn main() {
 				eprintln('markdown requires a markdown file path')
 				exit(1)
 			}
-			markdown := os.read_file(args[2]) or {
+			input := read_cli_markdown_file(args[2], args[3..]) or {
 				eprintln(err)
 				exit(1)
 			}
-			output := vmarkdown.render_markdown(markdown) or {
+			output := vmarkdown.render_markdown(input.text) or {
 				eprintln(err)
 				exit(1)
 			}
@@ -61,11 +65,11 @@ fn main() {
 				eprintln('html requires a markdown file path')
 				exit(1)
 			}
-			markdown := os.read_file(args[2]) or {
+			input := read_cli_markdown_file(args[2], args[3..]) or {
 				eprintln(err)
 				exit(1)
 			}
-			output := vmarkdown.render_html(markdown) or {
+			output := vmarkdown.render_html(input.text) or {
 				eprintln(err)
 				exit(1)
 			}
@@ -76,11 +80,11 @@ fn main() {
 				eprintln('ast requires a markdown file path')
 				exit(1)
 			}
-			markdown := os.read_file(args[2]) or {
+			input := read_cli_markdown_file(args[2], args[3..]) or {
 				eprintln(err)
 				exit(1)
 			}
-			doc := vmarkdown.parse(markdown) or {
+			doc := vmarkdown.parse(input.text) or {
 				eprintln(err)
 				exit(1)
 			}
@@ -270,8 +274,41 @@ vmarkdown commands:
   vmarkdown diagram validate <tree|dependency|call|org|timeline|pipeline|state> <input.json>
 
 options:
+	  --encoding <auto|utf-8|gbk|gb18030|utf-16le|utf-16be|utf-32le|utf-32be>
+	                  select Markdown file encoding (default: auto)
   -h, --help     show this help text
   -v, --version  show the vmarkdown version'
+}
+
+fn read_cli_markdown_file(path string, options []string) !vmarkdown.MarkdownFile {
+	encoding := markdown_encoding_option(options)!
+	return vmarkdown.read_markdown_file_with_encoding(path, encoding)
+}
+
+fn markdown_encoding_option(options []string) !string {
+	mut encoding := 'auto'
+	mut i := 0
+	for i < options.len {
+		option := options[i]
+		if option == '--encoding' {
+			if i + 1 >= options.len {
+				return error('--encoding requires a value')
+			}
+			encoding = options[i + 1]
+			i += 2
+			continue
+		}
+		if option.starts_with('--encoding=') {
+			encoding = option.all_after('=')
+			if encoding.len == 0 {
+				return error('--encoding requires a value')
+			}
+			i++
+			continue
+		}
+		return error('unknown option `${option}`')
+	}
+	return encoding
 }
 
 fn version_text() string {

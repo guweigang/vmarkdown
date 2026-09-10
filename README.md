@@ -347,6 +347,7 @@ CLI examples:
 vmarkdown preview README.md
 vmarkdown terminal README.md
 vmarkdown ast README.md
+vmarkdown preview legacy.md --encoding gbk
 vmarkdown mermaid examples/sample.mmd
 vmarkdown mermaid diff before.mmd after.mmd
 vmarkdown mermaid diff-preview before.mmd after.mmd
@@ -354,6 +355,17 @@ vmarkdown mermaid-preview examples/sample.mmd
 vmarkdown diagram preview dependency examples/diagrams/dependency.json --width 72
 vmarkdown diagram diff-preview dependency before.json after.json
 ```
+
+### File encodings
+
+Markdown file commands detect UTF-8, UTF-8/16/32 BOMs, GBK, and GB18030. Detection prefers a
+BOM, then strict UTF-8, then GBK and GB18030. Use `--encoding <name>` when a file is ambiguous or
+incorrectly identified; supported names include `utf-8`, `gbk`, `gb18030`, `utf-16le`, `utf-16be`,
+`utf-32le`, and `utf-32be`.
+
+The interactive editor preserves the detected source encoding and BOM when saving. A save fails
+instead of replacing characters with `?` when edited text cannot be represented by the original
+encoding; convert that file to UTF-8 before saving such characters.
 
 `mermaid-preview` wraps a `.mmd` file into a temporary Mermaid markdown buffer and opens the same full-screen preview UI. `diagram preview` does the same for the internal diagram schema after rendering it to ASCII, so Mermaid source files and JSON diagram payloads can both enter the same preview workflow.
 
