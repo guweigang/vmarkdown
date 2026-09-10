@@ -28,10 +28,13 @@ jobs:
           check-latest: true
 
       - name: Verify formatting
-        run: v fmt -verify src cmd examples bench
+        run: v fmt -verify src cmd examples bench tests/public_api_contract_test.v
 
       - name: Run tests
         run: v test src
+
+      - name: Verify public API from an external module
+        run: v test tests/public_api_contract_test.v
 
       - name: Large-document performance smoke
         run: v run bench/roundtrip.v
