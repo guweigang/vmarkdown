@@ -44,6 +44,14 @@ fn test_public_parse_render_and_codec_contract() {
 		replacement: 'final'
 	}]) or { panic(err) }
 	assert fixed == 'final'
+	index := vmarkdown.new_source_index('# API\n\n中文') or { panic(err) }
+	position := index.position(7) or { panic(err) }
+	assert position.line == 3
+	assert position.column == 1
+	assert position.byte_column == 1
+	located := index.locate_diagnostics(diagnostics) or { panic(err) }
+	assert located[0].has_range
+	assert located[0].range.start.line == 1
 	assert doc.to_text() == 'API\n\ntext'
 	assert doc.to_json().contains('"type":"heading"')
 	assert doc.to_markdown().starts_with('# API')

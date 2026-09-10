@@ -33,6 +33,14 @@ fn main() {
 		eprintln('benchmark lint failed: ${err}')
 		exit(1)
 	}
+	index := vmarkdown.new_source_index(normalized) or {
+		eprintln('benchmark source indexing failed: ${err}')
+		exit(1)
+	}
+	last_text_range := index.range(text_nodes.last().span) or {
+		eprintln('benchmark source lookup failed: ${err}')
+		exit(1)
+	}
 	elapsed := time.since(started)
 	if doc.stable_id() != reparsed.stable_id() || reparsed.stable_id() != rewritten.stable_id() {
 		eprintln('benchmark document changed after Markdown round trip')
@@ -46,7 +54,11 @@ fn main() {
 		eprintln('benchmark no-op lint unexpectedly returned diagnostics')
 		exit(1)
 	}
-	println('${source.len} input bytes, ${doc.children.len} blocks, parse/render/reparse/query/rewrite/lint in ${elapsed.milliseconds()} ms')
+	if last_text_range.start.line < 1 {
+		eprintln('benchmark source lookup returned an invalid line')
+		exit(1)
+	}
+	println('${source.len} input bytes, ${doc.children.len} blocks, parse/render/reparse/query/rewrite/lint/index in ${elapsed.milliseconds()} ms')
 	if os.getenv('CI').len > 0 && elapsed.milliseconds() > 15_000 {
 		eprintln('benchmark exceeded the 15000 ms CI smoke budget')
 		exit(1)
