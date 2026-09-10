@@ -52,6 +52,19 @@ fn test_binary_v1_round_trip_preserves_latex_math() {
 	assert math.display
 }
 
+fn test_binary_v1_round_trip_preserves_underline() {
+	doc := parse_with_options('_**important**_', ParseOptions{
+		underline: true
+	}) or { panic(err) }
+	encoded := doc.binary_encode()
+	assert encoded.contains(underline_type_tag)
+	decoded := binary_decode(encoded) or { panic(err) }
+	assert decoded.binary_encode() == encoded
+	underline := decoded.find_all(.underline)[0].node as UnderlineNode
+	assert underline.children[0] is StrongNode
+	assert render_inline_text(underline.children) == 'important'
+}
+
 fn test_binary_v1_varint_does_not_truncate_large_values() {
 	doc := Document{
 		children: [BlockNode(ListNode{

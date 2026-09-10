@@ -134,6 +134,7 @@ pub type InlineNode = CodeSpanNode
 	| StrikethroughNode
 	| StrongNode
 	| TextNode
+	| UnderlineNode
 	| WikiLinkNode
 
 pub struct TextNode {
@@ -155,6 +156,12 @@ pub:
 }
 
 pub struct StrikethroughNode {
+pub:
+	span     SourceSpan = SourceSpan{ start: -1, end: -1 }
+	children []InlineNode
+}
+
+pub struct UnderlineNode {
 pub:
 	span     SourceSpan = SourceSpan{ start: -1, end: -1 }
 	children []InlineNode
@@ -237,6 +244,7 @@ pub fn (node InlineNode) source_span() SourceSpan {
 		StrikethroughNode { node.span }
 		StrongNode { node.span }
 		TextNode { node.span }
+		UnderlineNode { node.span }
 		WikiLinkNode { node.span }
 	}
 }

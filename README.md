@@ -165,13 +165,14 @@ by md4c; Markdown delimiters that do not produce callbacks may sit immediately
 outside the range. `BlockNode.source_span()` and `InlineNode.source_span()`
 provide uniform access without a sum-type match.
 
-Task state, strikethrough, soft breaks, hard breaks, opt-in wiki links, and
-opt-in LaTeX math have explicit AST representations. `WikiLinkNode` preserves
+Task state, strikethrough, soft breaks, hard breaks, opt-in wiki links, LaTeX
+math, and underline have explicit AST representations. `WikiLinkNode` preserves
 its destination and recursive inline label when `ParseOptions.wiki_links` is
 enabled. `LatexMathNode` preserves formula content and whether `$` or `$$`
-delimiters were used when `ParseOptions.latex_math` is enabled. Raw HTML is
-represented by `RawHtmlBlockNode` and `RawHtmlInlineNode`; it is preserved
-verbatim and is neither interpreted nor sanitized by the AST parser.
+delimiters were used when `ParseOptions.latex_math` is enabled. `UnderlineNode`
+preserves recursive inline content when `ParseOptions.underline` is enabled.
+Raw HTML is represented by `RawHtmlBlockNode` and `RawHtmlInlineNode`; it is
+preserved verbatim and is neither interpreted nor sanitized by the AST parser.
 
 `render_html()` also preserves raw HTML through md4c and therefore returns
 unsanitized output. Sanitize the result before embedding Markdown from an
@@ -669,10 +670,11 @@ leading insertion does not report every later block as removed and added.
 
 ## Notes
 
-- The parser currently targets the core node types from your DSL sketch.
+- Every md4c block and span callback now has an explicit AST representation;
+  dialect-specific nodes remain gated by their `ParseOptions` switches.
 - `MetaNode` is kept in the AST for your PollyDB layer, but it is not emitted by `md4c` directly.
 - GFM tables are projected into `TableNode` / `TableRowNode` / `TableCellNode`, including
   header/body sections, per-cell alignment, and inline children.
 - Wiki links become typed `WikiLinkNode` values when `ParseOptions.wiki_links` is enabled.
 - LaTeX math becomes typed `LatexMathNode` values when `ParseOptions.latex_math` is enabled.
-- Underline spans are still flattened to their semantic text.
+- Underline spans become typed `UnderlineNode` values when `ParseOptions.underline` is enabled.

@@ -154,6 +154,24 @@ fn test_render_latex_math_text_json_terminal_and_markdown() {
 	assert escaped_reparsed.stable_id() == escaped_doc.stable_id()
 }
 
+fn test_render_underline_text_json_terminal_and_markdown() {
+	input := '_foo_ and ___bar___'
+	doc := parse_with_options(input, ParseOptions{
+		underline: true
+	}) or { panic(err) }
+	assert doc.to_text() == 'foo and bar'
+	assert doc.to_json().contains('"type":"underline"')
+	assert doc.to_markdown() == input
+	assert doc.to_terminal_with_options(TerminalRenderOptions{
+		width: 80
+		color: false
+	}) == 'foo and bar'
+	reparsed := parse_with_options(doc.to_markdown(), ParseOptions{
+		underline: true
+	}) or { panic(err) }
+	assert reparsed.stable_id() == doc.stable_id()
+}
+
 fn test_render_markdown_keeps_nested_list_structure_valid() {
 	doc := parse('- parent\n  - child\n') or { panic(err) }
 	markdown := doc.to_markdown()

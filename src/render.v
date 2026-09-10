@@ -207,6 +207,9 @@ fn (node InlineNode) render_text_inline() string {
 		StrikethroughNode {
 			return render_inline_text(node.children)
 		}
+		UnderlineNode {
+			return render_inline_text(node.children)
+		}
 		CodeSpanNode {
 			return node.text
 		}
@@ -561,6 +564,9 @@ fn (node InlineNode) render_json_inline() string {
 		StrikethroughNode {
 			return '{"type":"strikethrough","children":${render_inline_json(node.children)}}'
 		}
+		UnderlineNode {
+			return '{"type":"underline","children":${render_inline_json(node.children)}}'
+		}
 		CodeSpanNode {
 			return '{"type":"code_span","text":"${json_escape(node.text)}"}'
 		}
@@ -614,6 +620,9 @@ fn (node InlineNode) render_markdown_inline(emphasis_depth int) string {
 		}
 		StrikethroughNode {
 			return '~~' + render_inline_markdown_depth(node.children, emphasis_depth) + '~~'
+		}
+		UnderlineNode {
+			return '_' + render_inline_markdown_depth(node.children, emphasis_depth) + '_'
 		}
 		CodeSpanNode {
 			return markdown_code_span(node.text)

@@ -208,6 +208,10 @@ fn (mut validator AstValidator) validate_inline(node InlineNode, path string, de
 			validate_nonempty_inline_container(node.children, '${path}.children')!
 			validator.validate_inlines(node.children, '${path}.children', depth + 1, inside_link)!
 		}
+		UnderlineNode {
+			validate_nonempty_inline_container(node.children, '${path}.children')!
+			validator.validate_inlines(node.children, '${path}.children', depth + 1, inside_link)!
+		}
 		LinkNode {
 			if inside_link {
 				return validation_error(.nested_link, path, 'cannot nest a link inside another link', node.span)

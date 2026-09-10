@@ -355,6 +355,14 @@ fn (r TerminalRenderer) inline_spans(nodes []InlineNode) []TerminalSpan {
 					}
 				}
 			}
+			UnderlineNode {
+				for span in r.inline_spans(node.children) {
+					spans << TerminalSpan{
+						plain: span.plain
+						styled: r.style_line(span.styled, TerminalStyle{'underline'})
+					}
+				}
+			}
 			CodeSpanNode {
 				text := r.safe_text(node.text)
 				spans << TerminalSpan{
@@ -578,6 +586,7 @@ fn (r TerminalRenderer) style_line(input string, style TerminalStyle) string {
 		'strong' { term.bold(input) }
 		'emphasis' { term.italic(term.hex(0xc6a0f6, input)) }
 		'strikethrough' { term.dim(input) }
+		'underline' { term.underline(input) }
 		'link' { term.underline(term.cyan(input)) }
 		'image' { term.dim(term.hex(0xf4a261, input)) }
 		'rule' { term.bright_black(input) }

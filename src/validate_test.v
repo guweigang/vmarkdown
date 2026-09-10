@@ -114,6 +114,16 @@ fn test_validation_rejects_noncanonical_latex_math_content() {
 	InlineNode(LatexMathNode{ content: r'price \$5' }).validate() or { panic(err) }
 }
 
+fn test_validation_rejects_empty_underline_container() {
+	underline := InlineNode(UnderlineNode{})
+	if _ := underline.validate() {
+		assert false, 'empty underline containers must fail validation'
+	} else {
+		assert err is AstValidationError
+		assert (err as AstValidationError).kind == .empty_inline_container
+	}
+}
+
 fn test_validation_rejects_metadata_key_collisions_and_multiline_info() {
 	metadata := Document{
 		children: [BlockNode(MetaNode{

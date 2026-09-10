@@ -77,3 +77,21 @@ fn test_walk_exposes_typed_latex_math_leaf() {
 	assert math.content == 'x^2'
 	assert !math.display
 }
+
+fn test_walk_and_rewrite_descend_into_underline() {
+	doc := parse_with_options('_old_', ParseOptions{
+		underline: true
+	}) or { panic(err) }
+	underlines := doc.find_all(.underline)
+	assert underlines.len == 1
+	assert underlines[0].node is UnderlineNode
+	assert doc.find_all(.text)[0].path.ends_with('.children[0]')
+
+	rewritten := doc.rewrite_inlines(fn (visit AstInlineRewrite) ![]InlineNode {
+		if visit.node is TextNode && visit.node.text == 'old' {
+			return [InlineNode(TextNode{ text: 'new' })]
+		}
+		return [visit.node]
+	}) or { panic(err) }
+	assert rewritten.to_markdown() == '_new_'
+}

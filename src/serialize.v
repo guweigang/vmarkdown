@@ -475,6 +475,7 @@ const hard_break_type_tag = u8(0x28)
 const raw_html_inline_type_tag = u8(0x29)
 const wiki_link_type_tag = u8(0x2a)
 const latex_math_type_tag = u8(0x2b)
+const underline_type_tag = u8(0x2c)
 const binary_format_version = u8(1)
 
 pub fn (doc Document) binary_encode() []u8 {
@@ -631,6 +632,13 @@ pub fn (node InlineNode) binary_encode() []u8 {
 		StrikethroughNode {
 			content := encode_inline_sequence(node.children)
 			mut out := [strikethrough_type_tag]
+			out << encode_varint(content.len)
+			out << content
+			return out
+		}
+		UnderlineNode {
+			content := encode_inline_sequence(node.children)
+			mut out := [underline_type_tag]
 			out << encode_varint(content.len)
 			out << content
 			return out
@@ -872,6 +880,13 @@ fn (node InlineNode) normalized_bytes() []u8 {
 		}
 		StrikethroughNode {
 			mut out := 'strikethrough:'.bytes()
+			for child in node.children {
+				out << child.normalized_bytes()
+			}
+			return out
+		}
+		UnderlineNode {
+			mut out := 'underline:'.bytes()
 			for child in node.children {
 				out << child.normalized_bytes()
 			}

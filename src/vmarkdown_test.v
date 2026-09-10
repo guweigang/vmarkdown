@@ -154,6 +154,30 @@ fn test_parse_latex_math_as_typed_nodes_when_enabled() {
 	assert !default_paragraph.children.any(it is LatexMathNode)
 }
 
+fn test_parse_underline_as_typed_recursive_nodes_when_enabled() {
+	input := '_foo_ and ___bar___'
+	doc := parse_with_options(input, ParseOptions{
+		underline: true
+	}) or { panic(err) }
+	paragraph := doc.children[0] as ParagraphNode
+	assert paragraph.children.len == 3
+	assert paragraph.children[0] is UnderlineNode
+	underline := paragraph.children[0] as UnderlineNode
+	assert underline.children[0] is TextNode
+	assert (underline.children[0] as TextNode).text == 'foo'
+	assert underline.span.is_valid()
+	assert paragraph.children[2] is UnderlineNode
+	level_1 := paragraph.children[2] as UnderlineNode
+	assert level_1.children[0] is UnderlineNode
+	level_2 := level_1.children[0] as UnderlineNode
+	assert level_2.children[0] is UnderlineNode
+
+	default_doc := parse('_foo_') or { panic(err) }
+	default_paragraph := default_doc.children[0] as ParagraphNode
+	assert default_paragraph.children[0] is EmphasisNode
+	assert !default_paragraph.children.any(it is UnderlineNode)
+}
+
 fn test_parse_rejects_input_over_configured_byte_budget() {
 	if _ := parse_with_limits('12345', ParseOptions{}, ParseLimits{
 		max_input_bytes: 4

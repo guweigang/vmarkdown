@@ -334,6 +334,10 @@ fn (mut r BinaryReader) read_inline(container_end int, depth int) !InlineNode {
 			end := r.read_sized_end('strikethrough children')!
 			return InlineNode(StrikethroughNode{ children: r.read_inlines(end, depth + 1)! })
 		}
+		underline_type_tag {
+			end := r.read_sized_end('underline children')!
+			return InlineNode(UnderlineNode{ children: r.read_inlines(end, depth + 1)! })
+		}
 		code_span_type_tag {
 			return InlineNode(CodeSpanNode{ text: r.read_string('code span')! })
 		}
