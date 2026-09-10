@@ -194,10 +194,6 @@ fn is_valid_lint_rule_id(id string) bool {
 	return true
 }
 
-fn is_utf8_boundary(source string, offset int) bool {
-	return offset == 0 || offset == source.len || source[offset] & 0xc0 != 0x80
-}
-
 fn lint_contract_error(kind LintContractErrorKind, rule_id string, message string) LintContractError {
 	return LintContractError{
 		kind: kind

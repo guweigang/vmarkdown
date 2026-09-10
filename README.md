@@ -21,6 +21,7 @@ One deliberate adjustment was made for production parsing: `ListItemNode.childre
 - `src/walk.v`: public pre-order AST traversal and queries
 - `src/rewrite.v`: validated block and inline AST rewrite passes
 - `src/lint.v`: composable AST lint diagnostics and atomic UTF-8 text fixes
+- `src/source_index.v`: public UTF-8 byte-offset to source-coordinate mapping
 - `src/validate.v`: recursive AST invariant validation
 - `src/binary_codec.v`: bounded decoder for the versioned binary AST format
 - `src/serialize.v`: normalized stable IDs, chunk collection, and in-memory incremental ingest
@@ -283,6 +284,27 @@ Fixes use half-open UTF-8 byte ranges. `apply_lint_fixes()` applies the
 complete set atomically after rejecting malformed, out-of-bounds,
 code-point-splitting, or overlapping edits. Use `apply_markdown_edits()` when
 the edits do not originate from lint diagnostics.
+
+### Source coordinates
+
+`SourceSpan` remains a compact half-open UTF-8 byte range. Build one
+`SourceIndex` when a consumer needs human-facing coordinates for diagnostics,
+editor navigation, or protocol adapters:
+
+```v
+index := vmarkdown.new_source_index(source)!
+position := index.position(byte_offset)!
+range := index.range(node.span)!
+line := index.line_text(position.line)!
+located := index.locate_diagnostics(diagnostics)!
+```
+
+Offsets are zero-based; reported lines, Unicode code-point columns, and byte
+columns are one-based. CRLF and lone CR/LF each delimit one logical line, and
+`line_text()` excludes the terminator. Invalid UTF-8, out-of-bounds offsets,
+code-point-splitting offsets, malformed spans, and invalid line numbers return
+a structured `SourceIndexError`. Located lint diagnostics retain entries with
+unavailable spans and mark them with `has_range == false`.
 
 ## Markdown Render
 
