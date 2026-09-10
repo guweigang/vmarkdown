@@ -138,6 +138,7 @@ enum FrameKind {
 	emphasis
 	strong
 	strikethrough
+	underline
 	link
 	wiki_link
 	image
@@ -292,7 +293,7 @@ fn (mut b Builder) append_inline(node InlineNode) ! {
 	span := node.source_span()
 	for i := b.frames.len - 1; i >= 0; i-- {
 		match b.frames[i].kind {
-			.heading, .paragraph, .emphasis, .strong, .strikethrough, .link, .wiki_link, .image, .table_cell {
+			.heading, .paragraph, .emphasis, .strong, .strikethrough, .underline, .link, .wiki_link, .image, .table_cell {
 				if node is TextNode && b.frames[i].inlines.len > 0 {
 					last_index := b.frames[i].inlines.len - 1
 					last := b.frames[i].inlines[last_index]
@@ -335,7 +336,7 @@ fn merge_source_spans(left SourceSpan, right SourceSpan) SourceSpan {
 fn (b &Builder) has_inline_parent() bool {
 	for i := b.frames.len - 1; i >= 0; i-- {
 		match b.frames[i].kind {
-			.heading, .paragraph, .emphasis, .strong, .strikethrough, .link, .wiki_link, .image, .table_cell {
+			.heading, .paragraph, .emphasis, .strong, .strikethrough, .underline, .link, .wiki_link, .image, .table_cell {
 				return true
 			}
 			else {}
@@ -589,6 +590,9 @@ fn (mut b Builder) enter_span(typ int, detail voidptr) ! {
 		int(C.MD_SPAN_DEL) {
 			b.push_frame(.strikethrough)!
 		}
+		int(C.MD_SPAN_U) {
+			b.push_frame(.underline)!
+		}
 		int(C.MD_SPAN_A) {
 			b.push_frame(.link)!
 			mut top := b.top()!
@@ -638,6 +642,13 @@ fn (mut b Builder) leave_span(typ int, _detail voidptr) ! {
 		int(C.MD_SPAN_DEL) {
 			frame := b.pop_frame(.strikethrough)!
 			b.append_inline(StrikethroughNode{
+				span: frame.span
+				children: frame.inlines.clone()
+			})!
+		}
+		int(C.MD_SPAN_U) {
+			frame := b.pop_frame(.underline)!
+			b.append_inline(UnderlineNode{
 				span: frame.span
 				children: frame.inlines.clone()
 			})!

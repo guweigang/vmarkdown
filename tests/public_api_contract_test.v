@@ -122,6 +122,18 @@ fn test_public_latex_math_contract() {
 	vmarkdown.InlineNode(math).validate() or { panic(err) }
 }
 
+fn test_public_underline_contract() {
+	doc := vmarkdown.parse_with_options('_underlined_', vmarkdown.ParseOptions{
+		underline: true
+	}) or { panic(err) }
+	underlines := doc.find_all(.underline)
+	assert underlines.len == 1
+	assert underlines[0].node is vmarkdown.UnderlineNode
+	underline := underlines[0].node as vmarkdown.UnderlineNode
+	assert underline.children.len == 1
+	vmarkdown.InlineNode(underline).validate() or { panic(err) }
+}
+
 fn test_public_ingest_and_encoding_contract() {
 	file := vmarkdown.decode_markdown_bytes('hello'.bytes(), 'utf-8') or { panic(err) }
 	assert file.text == 'hello'

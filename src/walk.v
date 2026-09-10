@@ -26,6 +26,7 @@ pub enum AstNodeKind {
 	strikethrough
 	strong
 	text
+	underline
 }
 
 pub type AstWalkNode = BlockquoteNode
@@ -53,6 +54,7 @@ pub type AstWalkNode = BlockquoteNode
 	| TableNode
 	| TableRowNode
 	| TextNode
+	| UnderlineNode
 
 pub struct AstVisit {
 pub:
@@ -215,6 +217,9 @@ fn walk_inline(node InlineNode, path string, depth int, visitor fn (AstVisit) bo
 		StrikethroughNode {
 			return walk_inlines(node.children, '${path}.children', depth + 1, visitor)
 		}
+		UnderlineNode {
+			return walk_inlines(node.children, '${path}.children', depth + 1, visitor)
+		}
 		LinkNode {
 			return walk_inlines(node.text, '${path}.text', depth + 1, visitor)
 		}
@@ -257,6 +262,7 @@ fn inline_kind(node InlineNode) AstNodeKind {
 		StrikethroughNode { .strikethrough }
 		StrongNode { .strong }
 		TextNode { .text }
+		UnderlineNode { .underline }
 	}
 }
 
@@ -288,5 +294,6 @@ fn inline_walk_node(node InlineNode) AstWalkNode {
 		StrikethroughNode { AstWalkNode(node) }
 		StrongNode { AstWalkNode(node) }
 		TextNode { AstWalkNode(node) }
+		UnderlineNode { AstWalkNode(node) }
 	}
 }

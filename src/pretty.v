@@ -104,6 +104,9 @@ fn inline_preview(nodes []InlineNode) string {
 			StrikethroughNode {
 				sb.write_string('~~' + inline_preview(node.children) + '~~')
 			}
+			UnderlineNode {
+				sb.write_string('_' + inline_preview(node.children) + '_')
+			}
 			CodeSpanNode {
 				sb.write_string('`' + node.text + '`')
 			}

@@ -235,6 +235,12 @@ fn rewrite_inline(node InlineNode, path string, depth int, rewriter fn (AstInlin
 				children: rewrite_inline_nodes(node.children, '${path}.children', depth + 1, rewriter)!
 			})
 		}
+		UnderlineNode {
+			InlineNode(UnderlineNode{
+				span: node.span
+				children: rewrite_inline_nodes(node.children, '${path}.children', depth + 1, rewriter)!
+			})
+		}
 		LinkNode {
 			InlineNode(LinkNode{
 				span: node.span
