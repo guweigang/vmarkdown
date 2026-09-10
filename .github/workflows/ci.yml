@@ -28,10 +28,13 @@ jobs:
           check-latest: true
 
       - name: Verify formatting
-        run: v fmt -verify src cmd examples
+        run: v fmt -verify src cmd examples bench
 
       - name: Run tests
         run: v test src
+
+      - name: Large-document performance smoke
+        run: v run bench/roundtrip.v
 
       - name: Build CLI
         run: v -o /tmp/vmarkdown cmd/cli
