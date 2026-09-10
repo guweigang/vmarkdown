@@ -21,6 +21,7 @@ One deliberate adjustment was made for production parsing: `ListItemNode.childre
 - `src/walk.v`: public pre-order AST traversal and queries
 - `src/rewrite.v`: validated block and inline AST rewrite passes
 - `src/lint.v`: composable AST lint diagnostics and atomic UTF-8 text fixes
+- `src/lint_rules.v`: conservative reusable Markdown lint rules
 - `src/source_index.v`: public UTF-8 byte-offset to source-coordinate mapping
 - `src/validate.v`: recursive AST invariant validation
 - `src/binary_codec.v`: bounded decoder for the versioned binary AST format
@@ -305,6 +306,15 @@ columns are one-based. CRLF and lone CR/LF each delimit one logical line, and
 code-point-splitting offsets, malformed spans, and invalid line numbers return
 a structured `SourceIndexError`. Located lint diagnostics retain entries with
 unavailable spans and mark them with `has_range == false`.
+
+The CLI runs the recommended structural and accessibility rules with source
+coordinates. Use `--json` for machine-readable output; a document with
+diagnostics exits with status 1:
+
+```sh
+v run cmd/cli lint README.md
+v run cmd/cli lint README.md --json
+```
 
 ## Markdown Render
 

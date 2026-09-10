@@ -1,5 +1,6 @@
 module main
 
+import json2
 import os
 import vmarkdown
 
@@ -89,6 +90,43 @@ fn main() {
 				exit(1)
 			}
 			println(doc.pretty())
+		}
+		'lint' {
+			if args.len < 3 {
+				eprintln('lint requires a markdown file path')
+				exit(1)
+			}
+			lint_options := lint_cli_options(args[3..]) or {
+				eprintln(err)
+				exit(1)
+			}
+			input := read_cli_markdown_file(args[2], lint_options.encoding_args) or {
+				eprintln(err)
+				exit(1)
+			}
+			diagnostics := vmarkdown.lint_markdown(input.text) or {
+				eprintln(err)
+				exit(1)
+			}
+			located := vmarkdown.locate_lint_diagnostics(input.text, diagnostics) or {
+				eprintln(err)
+				exit(1)
+			}
+			if lint_options.json {
+				println(json2.encode(located, escape_unicode: true))
+			} else {
+				for item in located {
+					position := if item.has_range {
+						'${args[2]}:${item.range.start.line}:${item.range.start.column}'
+					} else {
+						'${args[2]}:${item.diagnostic.path}'
+					}
+					println('${position}: ${item.diagnostic.severity}: ${item.diagnostic.message} (${item.diagnostic.rule_id})')
+				}
+			}
+			if diagnostics.len > 0 {
+				exit(1)
+			}
 		}
 		'mermaid' {
 			if args.len < 3 {
@@ -260,6 +298,7 @@ vmarkdown commands:
   vmarkdown markdown <file.md>
   vmarkdown html <file.md>
   vmarkdown ast <file.md>
+  vmarkdown lint <file.md> [--json]
   vmarkdown mermaid <file.mmd> [--width N]
   vmarkdown mermaid diff <before.mmd> <after.mmd>
   vmarkdown mermaid diff-preview <before.mmd> <after.mmd>
@@ -278,6 +317,44 @@ options:
 	                  select Markdown file encoding (default: auto)
   -h, --help     show this help text
   -v, --version  show the vmarkdown version'
+}
+
+struct LintCliOptions {
+	json          bool
+	encoding_args []string
+}
+
+fn lint_cli_options(options []string) !LintCliOptions {
+	mut json_output := false
+	mut encoding_args := []string{}
+	mut index := 0
+	for index < options.len {
+		option := options[index]
+		if option == '--json' {
+			json_output = true
+			index++
+			continue
+		}
+		if option == '--encoding' {
+			if index + 1 >= options.len {
+				return error('--encoding requires a value')
+			}
+			encoding_args << option
+			encoding_args << options[index + 1]
+			index += 2
+			continue
+		}
+		if option.starts_with('--encoding=') {
+			encoding_args << option
+			index++
+			continue
+		}
+		return error('unknown option `${option}`')
+	}
+	return LintCliOptions{
+		json: json_output
+		encoding_args: encoding_args
+	}
 }
 
 fn read_cli_markdown_file(path string, options []string) !vmarkdown.MarkdownFile {
@@ -317,13 +394,13 @@ fn version_text() string {
 
 fn build_diagrams_demo() string {
 	tree := vmarkdown.render_ascii_tree(vmarkdown.AsciiTreeNode{
-		label:    'vmarkdown'
+		label: 'vmarkdown'
 		children: [
 			vmarkdown.AsciiTreeNode{
 				label: 'parser'
 			},
 			vmarkdown.AsciiTreeNode{
-				label:    'preview'
+				label: 'preview'
 				children: [
 					vmarkdown.AsciiTreeNode{
 						label: 'search'
@@ -340,21 +417,21 @@ fn build_diagrams_demo() string {
 		vmarkdown.AsciiGraphEdge{ from: 'parser', to: 'renderer' },
 	], 80)
 	org := vmarkdown.render_ascii_org_chart(vmarkdown.AsciiOrgNode{
-		name:    'Guwei'
-		title:   'Founder'
+		name: 'Guwei'
+		title: 'Founder'
 		reports: [
 			vmarkdown.AsciiOrgNode{
-				name:    'Parser Team'
-				title:   'Core'
+				name: 'Parser Team'
+				title: 'Core'
 				reports: [
 					vmarkdown.AsciiOrgNode{
-						name:  'Lexer Squad'
+						name: 'Lexer Squad'
 						title: 'Infra'
 					},
 				]
 			},
 			vmarkdown.AsciiOrgNode{
-				name:  'Preview Team'
+				name: 'Preview Team'
 				title: 'UI'
 			},
 		]
@@ -408,13 +485,13 @@ fn build_diagram_sample(kind string, width int) string {
 
 fn sample_tree(width int) string {
 	return vmarkdown.render_ascii_tree(vmarkdown.AsciiTreeNode{
-		label:    'vmarkdown'
+		label: 'vmarkdown'
 		children: [
 			vmarkdown.AsciiTreeNode{
 				label: 'parser'
 			},
 			vmarkdown.AsciiTreeNode{
-				label:    'preview'
+				label: 'preview'
 				children: [
 					vmarkdown.AsciiTreeNode{
 						label: 'search'
@@ -444,21 +521,21 @@ fn sample_call_graph(width int) string {
 
 fn sample_org_chart(width int) string {
 	return vmarkdown.render_ascii_org_chart(vmarkdown.AsciiOrgNode{
-		name:    'Guwei'
-		title:   'Founder'
+		name: 'Guwei'
+		title: 'Founder'
 		reports: [
 			vmarkdown.AsciiOrgNode{
-				name:    'Parser Team'
-				title:   'Core'
+				name: 'Parser Team'
+				title: 'Core'
 				reports: [
 					vmarkdown.AsciiOrgNode{
-						name:  'Lexer Squad'
+						name: 'Lexer Squad'
 						title: 'Infra'
 					},
 				]
 			},
 			vmarkdown.AsciiOrgNode{
-				name:  'Preview Team'
+				name: 'Preview Team'
 				title: 'UI'
 			},
 		]

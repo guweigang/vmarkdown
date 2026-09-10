@@ -24,12 +24,7 @@ fn main() {
 		eprintln('benchmark identity rewrite failed: ${err}')
 		exit(1)
 	}
-	diagnostics := rewritten.lint([vmarkdown.LintRule{
-		id: 'benchmark.noop'
-		check: fn (visit vmarkdown.AstVisit) []vmarkdown.LintFinding {
-			return []vmarkdown.LintFinding{}
-		}
-	}]) or {
+	diagnostics := rewritten.lint(vmarkdown.recommended_lint_rules()) or {
 		eprintln('benchmark lint failed: ${err}')
 		exit(1)
 	}
@@ -51,7 +46,7 @@ fn main() {
 		exit(1)
 	}
 	if diagnostics.len != 0 {
-		eprintln('benchmark no-op lint unexpectedly returned diagnostics')
+		eprintln('benchmark recommended lint unexpectedly returned diagnostics')
 		exit(1)
 	}
 	if last_text_range.start.line < 1 {
