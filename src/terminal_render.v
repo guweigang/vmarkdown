@@ -91,7 +91,17 @@ fn (r TerminalRenderer) render_block(node BlockNode, prefix string, depth int) s
 		ListNode {
 			mut lines := []string{}
 			for i, item in node.items {
-				marker := if node.is_ordered { '${node.start + i}.' } else { '•' }
+				base_marker := if node.is_ordered { '${node.start + i}.' } else { '•' }
+				task_marker := if item.is_task {
+					if item.checked { '[x] ' } else { '[ ] ' }
+				} else {
+					''
+				}
+				marker := if item.is_task {
+					base_marker + ' ' + task_marker.trim_right(' ')
+				} else {
+					base_marker
+				}
 				item_prefix := prefix + r.style_line(marker, TerminalStyle{'bullet'}) + ' '
 				body_prefix := prefix + '  '
 				item_lines := r.render_list_item(item, depth + 1)
@@ -121,6 +131,9 @@ fn (r TerminalRenderer) render_block(node BlockNode, prefix string, depth int) s
 				}
 			}
 			return r.render_code_block(node)
+		}
+		RawHtmlBlockNode {
+			return node.html.trim_right('\n')
 		}
 		HorizontalRuleNode {
 			return r.style_line('─'.repeat(min_int(r.width, 48)), TerminalStyle{'rule'})
@@ -230,9 +243,7 @@ fn (r TerminalRenderer) render_code_block(node CodeBlockNode) string {
 	for line in code_lines {
 		content := truncate_display_width(line, content_width)
 		padding := ' '.repeat(max_int(content_width - display_width(content), 0))
-		lines << r.style_line('│ ', TerminalStyle{'code_border'}) +
-			r.style_line(content, TerminalStyle{'code'}) + padding +
-			r.style_line(' │', TerminalStyle{'code_border'})
+		lines << r.style_line('│ ', TerminalStyle{'code_border'}) + r.style_line(content, TerminalStyle{'code'}) + padding + r.style_line(' │', TerminalStyle{'code_border'})
 	}
 	lines << r.style_line('╰' + '─'.repeat(frame_width) + '╯', TerminalStyle{'code_border'})
 	return lines.join('\n')
@@ -312,7 +323,7 @@ fn (r TerminalRenderer) inline_spans(nodes []InlineNode) []TerminalSpan {
 			TextNode {
 				for token in split_text_tokens(node.text) {
 					spans << TerminalSpan{
-						plain:  token
+						plain: token
 						styled: token
 					}
 				}
@@ -320,7 +331,7 @@ fn (r TerminalRenderer) inline_spans(nodes []InlineNode) []TerminalSpan {
 			EmphasisNode {
 				for span in r.inline_spans(node.children) {
 					spans << TerminalSpan{
-						plain:  span.plain
+						plain: span.plain
 						styled: r.style_line(span.styled, TerminalStyle{'emphasis'})
 					}
 				}
@@ -328,15 +339,23 @@ fn (r TerminalRenderer) inline_spans(nodes []InlineNode) []TerminalSpan {
 			StrongNode {
 				for span in r.inline_spans(node.children) {
 					spans << TerminalSpan{
-						plain:  span.plain
+						plain: span.plain
 						styled: r.style_line(span.styled, TerminalStyle{'strong'})
+					}
+				}
+			}
+			StrikethroughNode {
+				for span in r.inline_spans(node.children) {
+					spans << TerminalSpan{
+						plain: span.plain
+						styled: r.style_line(span.styled, TerminalStyle{'strikethrough'})
 					}
 				}
 			}
 			CodeSpanNode {
 				text := node.text
 				spans << TerminalSpan{
-					plain:  text
+					plain: text
 					styled: r.style_line(' ${text} ', TerminalStyle{'codespan'})
 				}
 			}
@@ -344,7 +363,7 @@ fn (r TerminalRenderer) inline_spans(nodes []InlineNode) []TerminalSpan {
 				label := r.render_inline_plain(node.text)
 				display := if node.url.len > 0 { '${label} ↗ ${node.url}' } else { label }
 				spans << TerminalSpan{
-					plain:  display
+					plain: display
 					styled: r.style_line(display, TerminalStyle{'link'})
 				}
 			}
@@ -356,9 +375,15 @@ fn (r TerminalRenderer) inline_spans(nodes []InlineNode) []TerminalSpan {
 					'▣ image'
 				}
 				spans << TerminalSpan{
-					plain:  display
+					plain: display
 					styled: r.style_line(display, TerminalStyle{'image'})
 				}
+			}
+			SoftBreakNode, HardBreakNode {
+				spans << TerminalSpan{ plain: '\n', styled: '\n' }
+			}
+			RawHtmlInlineNode {
+				spans << TerminalSpan{ plain: node.html, styled: node.html }
 			}
 		}
 	}
@@ -411,7 +436,7 @@ fn (r TerminalRenderer) wrap_plain(input string, width int) []string {
 		return [input]
 	}
 	return wrap_terminal_lines([TerminalSpan{
-		plain:  input
+		plain: input
 		styled: input
 	}], width)
 }
@@ -530,6 +555,7 @@ fn (r TerminalRenderer) style_line(input string, style TerminalStyle) string {
 		'codespan' { term.bg_rgb(42, 42, 48, term.hex(0xf5a97f, input)) }
 		'strong' { term.bold(input) }
 		'emphasis' { term.italic(term.hex(0xc6a0f6, input)) }
+		'strikethrough' { term.dim(input) }
 		'link' { term.underline(term.cyan(input)) }
 		'image' { term.dim(term.hex(0xf4a261, input)) }
 		'rule' { term.bright_black(input) }

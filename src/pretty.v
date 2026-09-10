@@ -16,15 +16,16 @@ fn write_block_pretty(mut sb strings.Builder, node BlockNode, prefix string, is_
 	next_prefix := if is_last { prefix + '   ' } else { prefix + '│  ' }
 	match node {
 		HeadingNode {
-			sb.write_string(prefix + branch + 'Heading(level=${node.level}) "' +
-				inline_preview(node.children) + '"\n')
+			sb.write_string(prefix + branch + 'Heading(level=${node.level}) "' + inline_preview(node.children) + '"\n')
 		}
 		ParagraphNode {
 			sb.write_string(prefix + branch + 'Paragraph "' + inline_preview(node.children) + '"\n')
 		}
 		CodeBlockNode {
-			sb.write_string(prefix + branch + 'CodeBlock(lang="' + node.lang + '") "' +
-				single_line(node.content) + '"\n')
+			sb.write_string(prefix + branch + 'CodeBlock(lang="' + node.lang + '") "' + single_line(node.content) + '"\n')
+		}
+		RawHtmlBlockNode {
+			sb.write_string(prefix + branch + 'RawHtmlBlock "' + single_line(node.html) + '"\n')
 		}
 		HorizontalRuleNode {
 			sb.write_string(prefix + branch + 'HorizontalRule\n')
@@ -70,8 +71,7 @@ fn write_block_pretty(mut sb strings.Builder, node BlockNode, prefix string, is_
 					} else {
 						'├─ '
 					}
-					sb.write_string(row_prefix + cell_branch + 'Cell(align=${cell.alignment}) "' +
-						inline_preview(cell.children) + '"\n')
+					sb.write_string(row_prefix + cell_branch + 'Cell(align=${cell.alignment}) "' + inline_preview(cell.children) + '"\n')
 				}
 			}
 		}
@@ -81,7 +81,8 @@ fn write_block_pretty(mut sb strings.Builder, node BlockNode, prefix string, is_
 fn write_list_item_pretty(mut sb strings.Builder, item ListItemNode, prefix string, is_last bool) {
 	branch := if is_last { '└─ ' } else { '├─ ' }
 	next_prefix := if is_last { prefix + '   ' } else { prefix + '│  ' }
-	sb.write_string(prefix + branch + 'ListItem(level=${item.level}, number=${item.number})\n')
+	task := if item.is_task { ', checked=${item.checked}' } else { '' }
+	sb.write_string(prefix + branch + 'ListItem(level=${item.level}, number=${item.number}${task})\n')
 	for i, child in item.children {
 		write_block_pretty(mut sb, child, next_prefix, i == item.children.len - 1)
 	}
@@ -100,6 +101,9 @@ fn inline_preview(nodes []InlineNode) string {
 			StrongNode {
 				sb.write_string('**' + inline_preview(node.children) + '**')
 			}
+			StrikethroughNode {
+				sb.write_string('~~' + inline_preview(node.children) + '~~')
+			}
 			CodeSpanNode {
 				sb.write_string('`' + node.text + '`')
 			}
@@ -109,6 +113,9 @@ fn inline_preview(nodes []InlineNode) string {
 			ImageNode {
 				sb.write_string('![' + inline_preview(node.alt) + '](' + node.url + ')')
 			}
+			SoftBreakNode { sb.write_string('\\n') }
+			HardBreakNode { sb.write_string('  \\n') }
+			RawHtmlInlineNode { sb.write_string(node.html) }
 		}
 	}
 	return single_line(sb.str())

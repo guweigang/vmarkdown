@@ -37,8 +37,7 @@ pub fn render_html_with_options(markdown string, options HtmlRenderOptions) !str
 	if options.skip_utf8_bom {
 		render_flags |= u32(C.MD_HTML_FLAG_SKIP_UTF8_BOM)
 	}
-	rc := C.md_html(markdown.str, u32(markdown.len), html_process_output, &out,
-		options.parser.to_md4c_flags(), render_flags)
+	rc := C.md_html(markdown.str, u32(markdown.len), html_process_output, &out, options.parser.to_md4c_flags(), render_flags)
 	if rc != 0 {
 		return error('md4c html render failed with code ${rc}')
 	}
@@ -148,6 +147,9 @@ fn (node BlockNode) render_text_block() string {
 		CodeBlockNode {
 			return node.content.trim_right('\n')
 		}
+		RawHtmlBlockNode {
+			return node.html
+		}
 		HorizontalRuleNode {
 			return '---'
 		}
@@ -202,6 +204,9 @@ fn (node InlineNode) render_text_inline() string {
 		StrongNode {
 			return render_inline_text(node.children)
 		}
+		StrikethroughNode {
+			return render_inline_text(node.children)
+		}
 		CodeSpanNode {
 			return node.text
 		}
@@ -210,6 +215,15 @@ fn (node InlineNode) render_text_inline() string {
 		}
 		ImageNode {
 			return render_inline_text(node.alt)
+		}
+		SoftBreakNode {
+			return '\n'
+		}
+		HardBreakNode {
+			return '\n'
+		}
+		RawHtmlInlineNode {
+			return node.html
 		}
 	}
 }
@@ -250,6 +264,9 @@ fn (node BlockNode) render_json_block() string {
 		}
 		CodeBlockNode {
 			return '{"type":"code_block","lang":"${json_escape(node.lang)}","content":"${json_escape(node.content)}"}'
+		}
+		RawHtmlBlockNode {
+			return '{"type":"raw_html_block","html":"${json_escape(node.html)}"}'
 		}
 		HorizontalRuleNode {
 			return '{"type":"horizontal_rule"}'
@@ -306,7 +323,12 @@ fn (node BlockNode) render_markdown_block(prefix string, depth int) string {
 			mut lines := []string{}
 			for i, item in node.items {
 				marker := if node.is_ordered { '${node.start + i}.' } else { '-' }
-				item_prefix := '${prefix}${marker} '
+				task := if item.is_task {
+					if item.checked { '[x] ' } else { '[ ] ' }
+				} else {
+					''
+				}
+				item_prefix := '${prefix}${marker} ${task}'
 				body_prefix := prefix + '  '
 				item_lines := item.render_markdown_item(depth + 1)
 				if item_lines.len == 0 {
@@ -344,6 +366,9 @@ fn (node BlockNode) render_markdown_block(prefix string, depth int) string {
 				return '${fence}${lang}\n${content}\n${fence}'
 			}
 			return '${fence}\n${content}\n${fence}'
+		}
+		RawHtmlBlockNode {
+			return node.html
 		}
 		HorizontalRuleNode {
 			return '---'
@@ -406,8 +431,7 @@ fn render_table_markdown(node TableNode) string {
 }
 
 fn render_table_markdown_row(row TableRowNode) string {
-	return '| ' +
-		row.cells.map(escape_table_cell(render_inline_markdown(it.children))).join(' | ') + ' |'
+	return '| ' + row.cells.map(escape_table_cell(render_inline_markdown(it.children))).join(' | ') + ' |'
 }
 
 fn escape_table_cell(input string) string {
@@ -441,7 +465,7 @@ fn (item ListItemNode) starts_with_nested_list() bool {
 
 fn (item ListItemNode) render_json_item() string {
 	mut sb := strings.new_builder(128)
-	sb.write_string('{"level":${item.level},"number":${item.number},"children":[')
+	sb.write_string('{"level":${item.level},"number":${item.number},"is_task":${item.is_task},"checked":${item.checked},"children":[')
 	for i, child in item.children {
 		if i > 0 {
 			sb.write_string(',')
@@ -476,6 +500,9 @@ fn (node InlineNode) render_json_inline() string {
 		StrongNode {
 			return '{"type":"strong","children":${render_inline_json(node.children)}}'
 		}
+		StrikethroughNode {
+			return '{"type":"strikethrough","children":${render_inline_json(node.children)}}'
+		}
 		CodeSpanNode {
 			return '{"type":"code_span","text":"${json_escape(node.text)}"}'
 		}
@@ -484,6 +511,15 @@ fn (node InlineNode) render_json_inline() string {
 		}
 		ImageNode {
 			return '{"type":"image","url":"${json_escape(node.url)}","alt":${render_inline_json(node.alt)}}'
+		}
+		SoftBreakNode {
+			return '{"type":"soft_break"}'
+		}
+		HardBreakNode {
+			return '{"type":"hard_break"}'
+		}
+		RawHtmlInlineNode {
+			return '{"type":"raw_html_inline","html":"${json_escape(node.html)}"}'
 		}
 	}
 }
@@ -507,16 +543,26 @@ fn (node InlineNode) render_markdown_inline() string {
 		StrongNode {
 			return '**' + render_inline_markdown(node.children) + '**'
 		}
+		StrikethroughNode {
+			return '~~' + render_inline_markdown(node.children) + '~~'
+		}
 		CodeSpanNode {
 			return markdown_code_span(node.text)
 		}
 		LinkNode {
-			return '[' + render_inline_markdown(node.text) + '](' +
-				markdown_link_destination(node.url) + ')'
+			return '[' + render_inline_markdown(node.text) + '](' + markdown_link_destination(node.url) + ')'
 		}
 		ImageNode {
-			return '![' + render_inline_markdown(node.alt) + '](' +
-				markdown_link_destination(node.url) + ')'
+			return '![' + render_inline_markdown(node.alt) + '](' + markdown_link_destination(node.url) + ')'
+		}
+		SoftBreakNode {
+			return '\n'
+		}
+		HardBreakNode {
+			return '  \n'
+		}
+		RawHtmlInlineNode {
+			return node.html
 		}
 	}
 }
@@ -537,12 +583,7 @@ fn json_escape(input string) string {
 }
 
 fn escape_markdown_text(input string) string {
-	return input.replace('\\', '\\\\')
-		.replace('[', '\\[')
-		.replace(']', '\\]')
-		.replace('*', '\\*')
-		.replace('_', '\\_')
-		.replace('`', '\\`')
+	return input.replace('\\', '\\\\').replace('[', '\\[').replace(']', '\\]').replace('*', '\\*').replace('_', '\\_').replace('`', '\\`')
 }
 
 fn markdown_fence(content string) string {
