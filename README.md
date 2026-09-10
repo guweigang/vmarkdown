@@ -18,6 +18,7 @@ One deliberate adjustment was made for production parsing: `ListItemNode.childre
 
 - `src/ast.v`: AST types
 - `src/parser.v`: md4c-backed parser and event builder
+- `src/binary_codec.v`: bounded decoder for the versioned binary AST format
 - `src/serialize.v`: normalized stable IDs, chunk collection, and in-memory incremental ingest
 - `src/render.v`: HTML, plain-text, and JSON renderers
 - `src/ascii_layout.v`: reusable terminal layout primitives
@@ -100,23 +101,49 @@ There are now two encoding paths:
 - `semantic_stable_id()` / `semantic_encode()`
   Uses the older normalized semantic byte stream and is kept for comparison/debugging.
 
-The binary protocol follows the type-tagged layout direction from your DSL notes. Current block tags are:
+Document encodings start with the `VMDA` magic and a format version. Version 1
+uses canonical unsigned varints for every length, count, and non-negative
+integer, so values cannot be silently truncated to 16 bits. Decode with
+`vmarkdown.binary_decode(bytes)!`. The complete contract and tag table are in
+[`BINARY_FORMAT.md`](BINARY_FORMAT.md).
+
+Current block tags are:
 
 - `HeadingNode`: `0x01` + `level (u8)` + `content_len (varint)` + encoded inline data
 - `ParagraphNode`: `0x02` + `content_len (varint)` + encoded inline data
-- `ListNode`: `0x03` + `is_ordered (u8)` + `item_count (u16)` + `start (u16)` + encoded items
-- `MetaNode`: `0x04` + `kv_pairs_count (u16)` + encoded key/value pairs
+- `ListNode`: `0x03` + `is_ordered (u8)` + `item_count (varint)` + `start (varint)` + encoded items
+- `MetaNode`: `0x04` + `kv_pairs_count (varint)` + encoded key/value pairs
 - `BlockquoteNode`: `0x05` + `content_len (varint)` + encoded child blocks
 - `CodeBlockNode`: `0x06` + `lang_len (varint)` + `lang` + `content_len (varint)` + `content`
 - `HorizontalRuleNode`: `0x07`
 - `TableNode`: `0x08` + column/header/body counts + length-prefixed rows and cells
+- `RawHtmlBlockNode`: `0x09` + length-prefixed verbatim HTML
 
 Notes on stability:
 
 - Plain text is normalized by collapsing repeated whitespace and trimming edges.
 - Code text keeps internal spacing but normalizes newlines to `\n`.
 - Structural changes change IDs.
-- If the binary protocol changes in the future, previously computed `stable_id()` values will also change.
+- Source spans are deliberately excluded from encoding and stable IDs.
+- Future incompatible changes require a new format version and will change `stable_id()` values.
+
+## AST source spans and raw HTML
+
+Parsed documents and semantic nodes expose `SourceSpan`, a half-open UTF-8 byte
+range into the original Markdown. A negative start means md4c emitted no
+source-bearing callback for that node. Preview block mapping uses these spans
+as its primary boundary source, with syntax scanning only as a fallback for
+source-less nodes such as thematic breaks.
+
+For container nodes, the span covers the source-bearing child content exposed
+by md4c; Markdown delimiters that do not produce callbacks may sit immediately
+outside the range. `BlockNode.source_span()` and `InlineNode.source_span()`
+provide uniform access without a sum-type match.
+
+Task state, strikethrough, soft breaks, and hard breaks have explicit AST
+representations. Raw HTML is represented by `RawHtmlBlockNode` and
+`RawHtmlInlineNode`; it is preserved verbatim and is neither interpreted nor
+sanitized by the AST parser.
 
 ## Markdown Render
 

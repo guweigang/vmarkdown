@@ -79,16 +79,52 @@ fn test_parse_block_html_preserves_verbatim_content() {
 	input := '<p align="center">\n  <img src="brand.jpg" alt="Brand" />\n</p>\n'
 	doc := parse(input) or { panic(err) }
 	assert doc.children.len == 1
-	assert doc.children[0] is ParagraphNode
+	assert doc.children[0] is RawHtmlBlockNode
+	html := doc.children[0] as RawHtmlBlockNode
+	assert html.html == input
+	assert html.span == SourceSpan{ start: 0, end: input.len }
+}
+
+fn test_parse_preserves_default_extension_semantics() {
+	input := '- [x] shipped\n- [ ] pending\n\n~~removed~~ and a  \nhard break\nand soft\n'
+	doc := parse(input) or { panic(err) }
+	list := doc.children[0] as ListNode
+	assert list.items[0].is_task
+	assert list.items[0].checked
+	assert list.items[1].is_task
+	assert !list.items[1].checked
+	paragraph := doc.children[1] as ParagraphNode
+	assert paragraph.children[0] is StrikethroughNode
+	assert paragraph.children.any(it is HardBreakNode)
+	assert paragraph.children.any(it is SoftBreakNode)
+}
+
+fn test_parse_preserves_inline_raw_html_without_treating_it_as_text() {
+	doc := parse('before <mark>inside</mark> after') or { panic(err) }
 	paragraph := doc.children[0] as ParagraphNode
-	assert paragraph.children.len == 1
-	assert paragraph.children[0] is TextNode
-	assert (paragraph.children[0] as TextNode).text == input
+	assert paragraph.children.filter(it is RawHtmlInlineNode).len == 2
+	assert (paragraph.children[1] as RawHtmlInlineNode).html == '<mark>'
+}
+
+fn test_source_spans_are_utf8_byte_ranges() {
+	input := '# hé\n\nleft\nright\n'
+	doc := parse(input) or { panic(err) }
+	assert doc.span == SourceSpan{ start: 0, end: input.len }
+	heading := doc.children[0] as HeadingNode
+	assert heading.span == SourceSpan{ start: 2, end: 5 }
+	assert doc.children[0].source_span() == heading.span
+	assert heading.span.len() == 3
+	text := heading.children[0] as TextNode
+	assert text.span == SourceSpan{ start: 2, end: 5 }
+	paragraph := doc.children[1] as ParagraphNode
+	assert paragraph.children[1] is SoftBreakNode
+	assert (paragraph.children[1] as SoftBreakNode).span == SourceSpan{ start: 11, end: 12 }
+	assert paragraph.children[1].source_span() == SourceSpan{ start: 11, end: 12 }
 }
 
 fn test_binary_encoding_uses_protocol_type_tags() {
 	heading := HeadingNode{
-		level:    2
+		level: 2
 		children: [InlineNode(TextNode{
 			text: 'Hello'
 		})]

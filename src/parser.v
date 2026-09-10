@@ -82,6 +82,7 @@ enum FrameKind {
 	paragraph
 	emphasis
 	strong
+	strikethrough
 	link
 	image
 	code_span
@@ -113,6 +114,9 @@ mut:
 	body_rows []TableRowNode
 	cells     []TableCellNode
 	alignment TableAlignment
+	span      SourceSpan = SourceSpan{ start: -1, end: -1 }
+	is_task   bool
+	checked   bool
 	text      strings.Builder
 }
 
@@ -122,12 +126,13 @@ mut:
 	frames         []Frame
 	callback_error string
 	last_debug     string
+	source_cursor  int
 }
 
 fn new_builder(markdown string) Builder {
 	return Builder{
 		markdown: markdown
-		frames:   [Frame{
+		frames: [Frame{
 			kind: .document
 			text: strings.new_builder(0)
 		}]
@@ -139,6 +144,7 @@ fn (mut b Builder) finish() !Document {
 		return error('markdown parse ended with an unbalanced frame stack')
 	}
 	return Document{
+		span: SourceSpan{ start: 0, end: b.markdown.len }
 		children: b.frames[0].blocks.clone()
 	}
 }
@@ -183,10 +189,12 @@ fn (mut b Builder) pop_frame(expected FrameKind) !Frame {
 }
 
 fn (mut b Builder) append_block(node BlockNode) ! {
+	span := node.source_span()
 	for i := b.frames.len - 1; i >= 0; i-- {
 		match b.frames[i].kind {
 			.document, .blockquote, .list_item {
 				b.frames[i].blocks << node
+				b.frames[i].absorb_span(span)
 				return
 			}
 			else {}
@@ -199,6 +207,7 @@ fn (mut b Builder) append_list_item(item ListItemNode) ! {
 	for i := b.frames.len - 1; i >= 0; i-- {
 		if b.frames[i].kind == .list {
 			b.frames[i].items << item
+			b.frames[i].absorb_span(item.span)
 			return
 		}
 	}
@@ -206,10 +215,12 @@ fn (mut b Builder) append_list_item(item ListItemNode) ! {
 }
 
 fn (mut b Builder) append_inline(node InlineNode) ! {
+	span := node.source_span()
 	for i := b.frames.len - 1; i >= 0; i-- {
 		match b.frames[i].kind {
-			.heading, .paragraph, .emphasis, .strong, .link, .image, .table_cell {
+			.heading, .paragraph, .emphasis, .strong, .strikethrough, .link, .image, .table_cell {
 				b.frames[i].inlines << node
+				b.frames[i].absorb_span(span)
 				return
 			}
 			.code_span {
@@ -224,7 +235,7 @@ fn (mut b Builder) append_inline(node InlineNode) ! {
 fn (b &Builder) has_inline_parent() bool {
 	for i := b.frames.len - 1; i >= 0; i-- {
 		match b.frames[i].kind {
-			.heading, .paragraph, .emphasis, .strong, .link, .image, .table_cell {
+			.heading, .paragraph, .emphasis, .strong, .strikethrough, .link, .image, .table_cell {
 				return true
 			}
 			else {}
@@ -260,6 +271,7 @@ fn (mut b Builder) flush_implicit_paragraph() ! {
 	}
 	frame := b.pop_frame(.paragraph)!
 	b.append_block(ParagraphNode{
+		span: frame.span
 		children: frame.inlines.clone()
 	})!
 }
@@ -303,6 +315,12 @@ fn (mut b Builder) enter_block(typ int, detail voidptr) ! {
 			depth := b.current_list_depth()
 			top.level = depth
 			top.number = b.next_list_item_number()!
+			li := unsafe { &C.MD_BLOCK_LI_DETAIL(detail) }
+			top.is_task = li.is_task != 0
+			top.checked = top.is_task && li.task_mark != ` `
+			if top.is_task {
+				top.absorb_span(SourceSpan{ start: int(li.task_mark_offset), end: int(li.task_mark_offset) + 1 })
+			}
 		}
 		int(C.MD_BLOCK_HR) {
 			b.append_block(HorizontalRuleNode{})!
@@ -357,23 +375,28 @@ fn (mut b Builder) leave_block(typ int, _detail voidptr) ! {
 		int(C.MD_BLOCK_QUOTE) {
 			frame := b.pop_frame(.blockquote)!
 			b.append_block(BlockquoteNode{
+				span: frame.span
 				children: frame.blocks.clone()
 			})!
 		}
 		int(C.MD_BLOCK_UL), int(C.MD_BLOCK_OL) {
 			frame := b.pop_frame(.list)!
 			b.append_block(ListNode{
+				span: frame.span
 				is_ordered: frame.ordered
-				start:      frame.start
-				items:      frame.items.clone()
+				start: frame.start
+				items: frame.items.clone()
 			})!
 		}
 		int(C.MD_BLOCK_LI) {
 			b.flush_implicit_paragraph()!
 			frame := b.pop_frame(.list_item)!
 			b.append_list_item(ListItemNode{
-				level:    frame.level
-				number:   frame.number
+				span: frame.span
+				level: frame.level
+				number: frame.number
+				is_task: frame.is_task
+				checked: frame.checked
 				children: frame.blocks.clone()
 			})!
 		}
@@ -381,63 +404,72 @@ fn (mut b Builder) leave_block(typ int, _detail voidptr) ! {
 		int(C.MD_BLOCK_H) {
 			frame := b.pop_frame(.heading)!
 			b.append_block(HeadingNode{
-				level:    frame.level
+				span: frame.span
+				level: frame.level
 				children: frame.inlines.clone()
 			})!
 		}
 		int(C.MD_BLOCK_CODE) {
 			mut frame := b.pop_frame(.code_block)!
 			b.append_block(CodeBlockNode{
-				lang:    frame.lang
+				span: frame.span
+				lang: frame.lang
 				content: frame.text.str()
 			})!
 		}
 		int(C.MD_BLOCK_HTML) {
 			mut frame := b.pop_frame(.html_block)!
-			b.append_block(ParagraphNode{
-				children: [InlineNode(TextNode{
-					text: frame.text.str()
-				})]
+			b.append_block(RawHtmlBlockNode{
+				span: frame.span
+				html: frame.text.str()
 			})!
 		}
 		int(C.MD_BLOCK_P) {
 			frame := b.pop_frame(.paragraph)!
 			b.append_block(ParagraphNode{
+				span: frame.span
 				children: frame.inlines.clone()
 			})!
 		}
 		int(C.MD_BLOCK_TABLE) {
 			frame := b.pop_frame(.table)!
 			b.append_block(TableNode{
+				span: frame.span
 				columns: frame.columns
-				head:    frame.head_rows.clone()
-				body:    frame.body_rows.clone()
+				head: frame.head_rows.clone()
+				body: frame.body_rows.clone()
 			})!
 		}
 		int(C.MD_BLOCK_THEAD) {
 			frame := b.pop_frame(.table_head)!
 			mut top := b.top()!
 			top.head_rows << frame.rows
+			top.absorb_span(frame.span)
 		}
 		int(C.MD_BLOCK_TBODY) {
 			frame := b.pop_frame(.table_body)!
 			mut top := b.top()!
 			top.body_rows << frame.rows
+			top.absorb_span(frame.span)
 		}
 		int(C.MD_BLOCK_TR) {
 			frame := b.pop_frame(.table_row)!
 			mut top := b.top()!
 			top.rows << TableRowNode{
+				span: frame.span
 				cells: frame.cells.clone()
 			}
+			top.absorb_span(frame.span)
 		}
 		int(C.MD_BLOCK_TH), int(C.MD_BLOCK_TD) {
 			frame := b.pop_frame(.table_cell)!
 			mut top := b.top()!
 			top.cells << TableCellNode{
+				span: frame.span
 				alignment: frame.alignment
-				children:  frame.inlines.clone()
+				children: frame.inlines.clone()
 			}
+			top.absorb_span(frame.span)
 		}
 		else {}
 	}
@@ -451,6 +483,9 @@ fn (mut b Builder) enter_span(typ int, detail voidptr) ! {
 		}
 		int(C.MD_SPAN_STRONG) {
 			b.push_frame(.strong)
+		}
+		int(C.MD_SPAN_DEL) {
+			b.push_frame(.strikethrough)
 		}
 		int(C.MD_SPAN_A) {
 			b.push_frame(.link)
@@ -476,25 +511,36 @@ fn (mut b Builder) leave_span(typ int, _detail voidptr) ! {
 		int(C.MD_SPAN_EM) {
 			frame := b.pop_frame(.emphasis)!
 			b.append_inline(EmphasisNode{
+				span: frame.span
 				children: frame.inlines.clone()
 			})!
 		}
 		int(C.MD_SPAN_STRONG) {
 			frame := b.pop_frame(.strong)!
 			b.append_inline(StrongNode{
+				span: frame.span
+				children: frame.inlines.clone()
+			})!
+		}
+		int(C.MD_SPAN_DEL) {
+			frame := b.pop_frame(.strikethrough)!
+			b.append_inline(StrikethroughNode{
+				span: frame.span
 				children: frame.inlines.clone()
 			})!
 		}
 		int(C.MD_SPAN_A) {
 			frame := b.pop_frame(.link)!
 			b.append_inline(LinkNode{
+				span: frame.span
 				text: frame.inlines.clone()
-				url:  frame.url
+				url: frame.url
 			})!
 		}
 		int(C.MD_SPAN_IMG) {
 			frame := b.pop_frame(.image)!
 			b.append_inline(ImageNode{
+				span: frame.span
 				alt: frame.inlines.clone()
 				url: frame.url
 			})!
@@ -502,6 +548,7 @@ fn (mut b Builder) leave_span(typ int, _detail voidptr) ! {
 		int(C.MD_SPAN_CODE) {
 			mut frame := b.pop_frame(.code_span)!
 			b.append_inline(CodeSpanNode{
+				span: frame.span
 				text: frame.text.str()
 			})!
 		}
@@ -511,35 +558,90 @@ fn (mut b Builder) leave_span(typ int, _detail voidptr) ! {
 
 fn (mut b Builder) on_text(typ int, text &char, size u32) ! {
 	content := unsafe { tos(&u8(text), int(size)).clone() }
+	span := b.source_span_for(typ, text, int(size))
+	b.absorb_open_frames(span)
 	match typ {
-		int(C.MD_TEXT_BR), int(C.MD_TEXT_SOFTBR) {
+		int(C.MD_TEXT_BR) {
 			if b.in_code_context() {
 				mut top := b.top()!
 				top.text.write_string('\n')
 			} else {
 				b.ensure_inline_container()!
-				b.append_inline(TextNode{
-					text: '\n'
-				})!
+				b.append_inline(HardBreakNode{ span: span })!
+			}
+		}
+		int(C.MD_TEXT_SOFTBR) {
+			if b.in_code_context() {
+				mut top := b.top()!
+				top.text.write_string('\n')
+			} else {
+				b.ensure_inline_container()!
+				b.append_inline(SoftBreakNode{ span: span })!
 			}
 		}
 		int(C.MD_TEXT_CODE) {
 			mut top := b.top()!
 			top.text.write_string(content)
 		}
-		int(C.MD_TEXT_HTML), int(C.MD_TEXT_NORMAL), int(C.MD_TEXT_NULLCHAR), int(C.MD_TEXT_ENTITY),
-		int(C.MD_TEXT_LATEXMATH) {
+		int(C.MD_TEXT_HTML) {
+			if b.in_code_context() {
+				mut top := b.top()!
+				top.text.write_string(content)
+			} else {
+				b.ensure_inline_container()!
+				b.append_inline(RawHtmlInlineNode{ span: span, html: content })!
+			}
+		}
+		int(C.MD_TEXT_NORMAL), int(C.MD_TEXT_NULLCHAR), int(C.MD_TEXT_ENTITY), int(C.MD_TEXT_LATEXMATH) {
 			if b.in_code_context() {
 				mut top := b.top()!
 				top.text.write_string(content)
 			} else {
 				b.ensure_inline_container()!
 				b.append_inline(TextNode{
+					span: span
 					text: content
 				})!
 			}
 		}
 		else {}
+	}
+}
+
+fn (mut frame Frame) absorb_span(span SourceSpan) {
+	if !span.is_valid() {
+		return
+	}
+	if !frame.span.is_valid() {
+		frame.span = span
+		return
+	}
+	frame.span = SourceSpan{
+		start: min_int(frame.span.start, span.start)
+		end: max_int(frame.span.end, span.end)
+	}
+}
+
+fn (mut b Builder) source_span_for(typ int, text &char, size int) SourceSpan {
+	base := usize(b.markdown.str)
+	address := usize(text)
+	if size >= 0 && address >= base && address + usize(size) <= base + usize(b.markdown.len) {
+		start := int(address - base)
+		b.source_cursor = max_int(b.source_cursor, start + size)
+		return SourceSpan{ start: start, end: start + size }
+	}
+	if typ == int(C.MD_TEXT_BR) || typ == int(C.MD_TEXT_SOFTBR)
+		|| (typ == int(C.MD_TEXT_HTML) && size == 1) {
+		start := b.markdown.index_after('\n', b.source_cursor) or { return SourceSpan{} }
+		b.source_cursor = start + 1
+		return SourceSpan{ start: start, end: start + 1 }
+	}
+	return SourceSpan{}
+}
+
+fn (mut b Builder) absorb_open_frames(span SourceSpan) {
+	for i in 0 .. b.frames.len {
+		b.frames[i].absorb_span(span)
 	}
 }
 

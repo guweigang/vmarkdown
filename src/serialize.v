@@ -98,8 +98,8 @@ pub mut:
 
 pub fn new_memory_store() MemoryStore {
 	return MemoryStore{
-		chunks:    map[string]Chunk{}
-		roots:     map[string][]string{}
+		chunks: map[string]Chunk{}
+		roots: map[string][]string{}
 		manifests: map[string][]BlockManifestEntry{}
 	}
 }
@@ -180,12 +180,12 @@ pub fn commit_ingest_plan(mut store ChunkStore, plan IngestPlan) !IngestResult {
 	store.put_root_manifest(plan.root_id, plan.manifest)!
 	store.set_last_root_id(plan.root_id)!
 	return IngestResult{
-		root_id:  plan.root_id
-		added:    added
-		reused:   reused
-		changed:  plan.changed.clone()
-		chunks:   plan.all_chunks.clone()
-		diff:     plan.diff.clone()
+		root_id: plan.root_id
+		added: added
+		reused: reused
+		changed: plan.changed.clone()
+		chunks: plan.all_chunks.clone()
+		diff: plan.diff.clone()
 		manifest: plan.manifest.clone()
 	}
 }
@@ -274,6 +274,9 @@ pub fn (node BlockNode) stable_id() string {
 		TableNode {
 			return 'table:' + hash_bytes(encoded)
 		}
+		RawHtmlBlockNode {
+			return 'html:' + hash_bytes(encoded)
+		}
 	}
 }
 
@@ -316,6 +319,9 @@ pub fn (node BlockNode) semantic_stable_id() string {
 		}
 		TableNode {
 			return 'table:' + hash_bytes(normalized)
+		}
+		RawHtmlBlockNode {
+			return 'html:' + hash_bytes(normalized)
 		}
 	}
 }
@@ -365,15 +371,15 @@ fn make_ingest_plan(doc Document, store ChunkStore) IngestPlan {
 		}
 	}
 	return IngestPlan{
-		root_id:       root.id
+		root_id: root.id
 		previous_root: previous_root
-		root_refs:     root.refs.clone()
-		to_add:        to_add
-		to_reuse:      to_reuse
-		changed:       diff_root_refs(previous_refs, root.refs)
-		all_chunks:    collector.chunks.clone()
-		diff:          diff_entries(previous_manifest, collector.manifest, chunk_index)
-		manifest:      collector.manifest.clone()
+		root_refs: root.refs.clone()
+		to_add: to_add
+		to_reuse: to_reuse
+		changed: diff_root_refs(previous_refs, root.refs)
+		all_chunks: collector.chunks.clone()
+		diff: diff_entries(previous_manifest, collector.manifest, chunk_index)
+		manifest: collector.manifest.clone()
 	}
 }
 
@@ -384,7 +390,7 @@ fn (mut c ChunkCollector) collect_document(doc Document) Chunk {
 		refs << child.stable_id()
 	}
 	root := Chunk{
-		id:   doc.stable_id()
+		id: doc.stable_id()
 		kind: 'document'
 		data: doc.binary_encode()
 		refs: refs
@@ -396,13 +402,14 @@ fn (mut c ChunkCollector) collect_document(doc Document) Chunk {
 fn (mut c ChunkCollector) collect_block(node BlockNode, path string, index int) {
 	mut refs := []string{}
 	c.manifest << BlockManifestEntry{
-		id:    node.stable_id()
-		kind:  node.kind_name()
-		path:  path
+		id: node.stable_id()
+		kind: node.kind_name()
+		path: path
 		index: index
 	}
 	match node {
-		HeadingNode, ParagraphNode, CodeBlockNode, HorizontalRuleNode, MetaNode, TableNode {}
+		HeadingNode, ParagraphNode, CodeBlockNode, HorizontalRuleNode, MetaNode, RawHtmlBlockNode, TableNode {
+		}
 		BlockquoteNode {
 			for child_index, child in node.children {
 				c.collect_block(child, '${path}.children[${child_index}]', child_index)
@@ -412,15 +419,14 @@ fn (mut c ChunkCollector) collect_block(node BlockNode, path string, index int) 
 		ListNode {
 			for item_index, item in node.items {
 				for child_index, child in item.children {
-					c.collect_block(child, '${path}.items[${item_index}].children[${child_index}]',
-						child_index)
+					c.collect_block(child, '${path}.items[${item_index}].children[${child_index}]', child_index)
 					refs << child.stable_id()
 				}
 			}
 		}
 	}
 	c.chunks << Chunk{
-		id:   node.stable_id()
+		id: node.stable_id()
 		kind: node.kind_name()
 		data: node.binary_encode()
 		refs: refs
@@ -436,6 +442,7 @@ const blockquote_type_tag = u8(0x05)
 const code_block_type_tag = u8(0x06)
 const horizontal_rule_type_tag = u8(0x07)
 const table_type_tag = u8(0x08)
+const raw_html_block_type_tag = u8(0x09)
 const list_item_type_tag = u8(0x10)
 const text_type_tag = u8(0x20)
 const emphasis_type_tag = u8(0x21)
@@ -443,13 +450,18 @@ const strong_type_tag = u8(0x22)
 const code_span_type_tag = u8(0x23)
 const link_type_tag = u8(0x24)
 const image_type_tag = u8(0x25)
+const strikethrough_type_tag = u8(0x26)
+const soft_break_type_tag = u8(0x27)
+const hard_break_type_tag = u8(0x28)
+const raw_html_inline_type_tag = u8(0x29)
+const binary_format_version = u8(1)
 
 pub fn (doc Document) binary_encode() []u8 {
 	mut body := []u8{}
 	for child in doc.children {
 		body << child.binary_encode()
 	}
-	mut out := [document_type_tag]
+	mut out := [u8(`V`), `M`, `D`, `A`, binary_format_version, document_type_tag]
 	out << encode_varint(body.len)
 	out << body
 	return out
@@ -473,8 +485,8 @@ pub fn (node BlockNode) binary_encode() []u8 {
 		}
 		ListNode {
 			mut out := [list_type_tag, bool_u8(node.is_ordered)]
-			out << encode_u16(u16(node.items.len))
-			out << encode_u16(u16(node.start))
+			out << encode_varint(node.items.len)
+			out << encode_varint(node.start)
 			for item in node.items {
 				item_bytes := item.binary_encode()
 				out << encode_varint(item_bytes.len)
@@ -482,11 +494,18 @@ pub fn (node BlockNode) binary_encode() []u8 {
 			}
 			return out
 		}
+		RawHtmlBlockNode {
+			data := node.html.bytes()
+			mut out := [raw_html_block_type_tag]
+			out << encode_varint(data.len)
+			out << data
+			return out
+		}
 		MetaNode {
 			mut keys := node.data.keys()
 			keys.sort()
 			mut out := [meta_type_tag]
-			out << encode_u16(u16(keys.len))
+			out << encode_varint(keys.len)
 			for key in keys {
 				key_bytes := normalize_text(key).bytes()
 				value_bytes := normalize_text(node.data[key]).bytes()
@@ -522,9 +541,9 @@ pub fn (node BlockNode) binary_encode() []u8 {
 		}
 		TableNode {
 			mut out := [table_type_tag]
-			out << encode_u16(u16(node.columns))
-			out << encode_u16(u16(node.head.len))
-			out << encode_u16(u16(node.body.len))
+			out << encode_varint(node.columns)
+			out << encode_varint(node.head.len)
+			out << encode_varint(node.body.len)
 			mut rows := node.head.clone()
 			rows << node.body
 			for row in rows {
@@ -538,7 +557,7 @@ pub fn (node BlockNode) binary_encode() []u8 {
 }
 
 fn (row TableRowNode) binary_encode() []u8 {
-	mut out := encode_u16(u16(row.cells.len))
+	mut out := encode_varint(row.cells.len)
 	for cell in row.cells {
 		content := encode_inline_sequence(cell.children)
 		out << u8(cell.alignment)
@@ -556,8 +575,10 @@ pub fn (item ListItemNode) binary_encode() []u8 {
 		body << child_bytes
 	}
 	mut out := [list_item_type_tag]
-	out << encode_u16(u16(item.level))
-	out << encode_u16(u16(item.number))
+	out << encode_varint(item.level)
+	out << encode_varint(item.number)
+	out << bool_u8(item.is_task)
+	out << bool_u8(item.checked)
 	out << encode_varint(body.len)
 	out << body
 	return out
@@ -582,6 +603,13 @@ pub fn (node InlineNode) binary_encode() []u8 {
 		StrongNode {
 			content := encode_inline_sequence(node.children)
 			mut out := [strong_type_tag]
+			out << encode_varint(content.len)
+			out << content
+			return out
+		}
+		StrikethroughNode {
+			content := encode_inline_sequence(node.children)
+			mut out := [strikethrough_type_tag]
 			out << encode_varint(content.len)
 			out << content
 			return out
@@ -613,6 +641,19 @@ pub fn (node InlineNode) binary_encode() []u8 {
 			out << alt_bytes
 			return out
 		}
+		SoftBreakNode {
+			return [soft_break_type_tag]
+		}
+		HardBreakNode {
+			return [hard_break_type_tag]
+		}
+		RawHtmlInlineNode {
+			data := node.html.bytes()
+			mut out := [raw_html_inline_type_tag]
+			out << encode_varint(data.len)
+			out << data
+			return out
+		}
 	}
 }
 
@@ -625,11 +666,10 @@ fn encode_inline_sequence(nodes []InlineNode) []u8 {
 	return out
 }
 
-fn encode_u16(value u16) []u8 {
-	return [u8(value & 0xff), u8((value >> 8) & 0xff)]
-}
-
 fn encode_varint(value int) []u8 {
+	if value < 0 {
+		panic('binary codec cannot encode a negative integer: ${value}')
+	}
 	mut n := u64(value)
 	mut out := []u8{}
 	for {
@@ -734,6 +774,11 @@ fn (node BlockNode) normalized_bytes() []u8 {
 			}
 			return out
 		}
+		RawHtmlBlockNode {
+			mut out := 'raw_html:'.bytes()
+			out << node.html.bytes()
+			return out
+		}
 	}
 }
 
@@ -755,6 +800,9 @@ fn (item ListItemNode) normalized_bytes() []u8 {
 	out << item.level.str().bytes()
 	out << [u8(`:`)]
 	out << item.number.str().bytes()
+	out << [u8(`:`)]
+	out << bool_byte(item.is_task)
+	out << bool_byte(item.checked)
 	out << [u8(`:`)]
 	for child in item.children {
 		out << child.stable_id().bytes()
@@ -784,6 +832,13 @@ fn (node InlineNode) normalized_bytes() []u8 {
 			}
 			return out
 		}
+		StrikethroughNode {
+			mut out := 'strikethrough:'.bytes()
+			for child in node.children {
+				out << child.normalized_bytes()
+			}
+			return out
+		}
 		CodeSpanNode {
 			mut out := 'codespan:'.bytes()
 			out << normalize_code(node.text).bytes()
@@ -807,19 +862,49 @@ fn (node InlineNode) normalized_bytes() []u8 {
 			}
 			return out
 		}
+		SoftBreakNode {
+			return 'soft_break'.bytes()
+		}
+		HardBreakNode {
+			return 'hard_break'.bytes()
+		}
+		RawHtmlInlineNode {
+			mut out := 'raw_html_inline:'.bytes()
+			out << node.html.bytes()
+			return out
+		}
 	}
 }
 
 fn (node BlockNode) kind_name() string {
 	match node {
-		HeadingNode { return 'heading' }
-		ParagraphNode { return 'paragraph' }
-		BlockquoteNode { return 'blockquote' }
-		ListNode { return 'list' }
-		CodeBlockNode { return 'code_block' }
-		HorizontalRuleNode { return 'horizontal_rule' }
-		MetaNode { return 'meta' }
-		TableNode { return 'table' }
+		HeadingNode {
+			return 'heading'
+		}
+		ParagraphNode {
+			return 'paragraph'
+		}
+		BlockquoteNode {
+			return 'blockquote'
+		}
+		ListNode {
+			return 'list'
+		}
+		CodeBlockNode {
+			return 'code_block'
+		}
+		HorizontalRuleNode {
+			return 'horizontal_rule'
+		}
+		MetaNode {
+			return 'meta'
+		}
+		TableNode {
+			return 'table'
+		}
+		RawHtmlBlockNode {
+			return 'raw_html_block'
+		}
 	}
 }
 
@@ -881,35 +966,35 @@ fn diff_entries(previous []BlockManifestEntry, current []BlockManifestEntry, ind
 			previous_entry := previous_by_path[entry.path]
 			if previous_entry.id == entry.id {
 				diff << DiffEntry{
-					op:             .reused
-					id:             entry.id
-					kind:           chunk_kind(index, entry.id)
-					path:           entry.path
-					current_index:  entry.index
+					op: .reused
+					id: entry.id
+					kind: chunk_kind(index, entry.id)
+					path: entry.path
+					current_index: entry.index
 					previous_index: previous_entry.index
 				}
 			} else {
 				diff << DiffEntry{
-					op:             .removed
-					id:             previous_entry.id
-					kind:           previous_entry.kind
-					path:           previous_entry.path
+					op: .removed
+					id: previous_entry.id
+					kind: previous_entry.kind
+					path: previous_entry.path
 					previous_index: previous_entry.index
 				}
 				diff << DiffEntry{
-					op:            .added
-					id:            entry.id
-					kind:          chunk_kind(index, entry.id)
-					path:          entry.path
+					op: .added
+					id: entry.id
+					kind: chunk_kind(index, entry.id)
+					path: entry.path
 					current_index: entry.index
 				}
 			}
 		} else {
 			diff << DiffEntry{
-				op:            .added
-				id:            entry.id
-				kind:          chunk_kind(index, entry.id)
-				path:          entry.path
+				op: .added
+				id: entry.id
+				kind: chunk_kind(index, entry.id)
+				path: entry.path
 				current_index: entry.index
 			}
 		}
@@ -917,10 +1002,10 @@ fn diff_entries(previous []BlockManifestEntry, current []BlockManifestEntry, ind
 	for entry in previous {
 		if entry.path !in current_by_path {
 			diff << DiffEntry{
-				op:             .removed
-				id:             entry.id
-				kind:           entry.kind
-				path:           entry.path
+				op: .removed
+				id: entry.id
+				kind: entry.kind
+				path: entry.path
 				previous_index: entry.index
 			}
 		}
@@ -940,10 +1025,10 @@ fn filter_diff(entries []DiffEntry, op DiffOp) []DiffEntry {
 
 fn build_diff_summary(entries []DiffEntry) DiffSummary {
 	return DiffSummary{
-		added:   summarize_entries(entries, .added)
+		added: summarize_entries(entries, .added)
 		removed: summarize_entries(entries, .removed)
-		reused:  summarize_entries(entries, .reused)
-		lines:   summary_lines(entries)
+		reused: summarize_entries(entries, .reused)
+		lines: summary_lines(entries)
 	}
 }
 
@@ -957,8 +1042,8 @@ fn summarize_entries(entries []DiffEntry, op DiffOp) []DiffSummaryItem {
 		key := entry.kind
 		if key !in grouped {
 			grouped[key] = DiffSummaryItem{
-				op:    op
-				kind:  entry.kind
+				op: op
+				kind: entry.kind
 				count: 0
 				paths: []string{}
 			}

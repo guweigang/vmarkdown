@@ -1,14 +1,21 @@
 module vmarkdown
 
 #flag -I @VMODROOT/src/c
+
 #flag -I @VMODROOT/thirdparty/md4c/src
+
 #flag @VMODROOT/src/c/md4c_bridge.c
+
 #flag @VMODROOT/thirdparty/md4c/src/md4c.c
+
 #flag @VMODROOT/thirdparty/md4c/src/md4c-html.c
+
 #flag @VMODROOT/thirdparty/md4c/src/entity.c
 
 #include "md4c.h"
+
 #include "md4c-html.h"
+
 #include "md4c_bridge.h"
 
 @[typedef]
@@ -29,6 +36,13 @@ struct C.MD_BLOCK_OL_DETAIL {
 @[typedef]
 struct C.MD_BLOCK_H_DETAIL {
 	level u32
+}
+
+@[typedef]
+struct C.MD_BLOCK_LI_DETAIL {
+	is_task          int
+	task_mark        char
+	task_mark_offset u32
 }
 
 @[typedef]
@@ -64,4 +78,5 @@ struct C.MD_SPAN_IMG_DETAIL {
 }
 
 fn C.vmd_parse_to_v(text &char, size u32, flags u32, userdata voidptr) int
+
 fn C.md_html(input &char, input_size u32, process_output fn (&char, u32, voidptr), userdata voidptr, parser_flags u32, renderer_flags u32) int
