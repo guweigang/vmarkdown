@@ -19,6 +19,7 @@ One deliberate adjustment was made for production parsing: `ListItemNode.childre
 - `src/ast.v`: AST types
 - `src/parser.v`: md4c-backed parser and event builder
 - `src/walk.v`: public pre-order AST traversal and queries
+- `src/rewrite.v`: validated block and inline AST rewrite passes
 - `src/validate.v`: recursive AST invariant validation
 - `src/binary_codec.v`: bounded decoder for the versioned binary AST format
 - `src/serialize.v`: normalized stable IDs, chunk collection, and in-memory incremental ingest
@@ -225,6 +226,28 @@ for visit in doc.find_all(.heading) {
 
 This traversal contract is intended as the shared base for linters, document
 indexes, editor navigation, semantic transforms, and third-party renderers.
+
+### Validated AST rewrites
+
+Rewrite passes run children before their parents and can keep, replace, remove,
+or expand nodes. The resulting document is validated before it crosses back
+into rendering or persistence code:
+
+```v
+renamed := doc.rewrite_inlines(fn (visit vmarkdown.AstInlineRewrite) ![]vmarkdown.InlineNode {
+	if visit.node is vmarkdown.TextNode && visit.node.text == 'draft' {
+		return [vmarkdown.InlineNode(vmarkdown.TextNode{ text: 'final' })]
+	}
+	return [visit.node]
+})!
+```
+
+Use `rewrite_blocks` for structural block edits and `rewrite_inlines` for text,
+links, images, emphasis, and other inline content. Callback paths identify the
+original tree; newly returned nodes are not revisited during the same pass.
+Adjacent text nodes created by a rewrite are merged into canonical form before
+validation. Their source spans are combined only when the original ranges are
+contiguous; otherwise the merged node reports an unavailable span.
 
 ## Markdown Render
 

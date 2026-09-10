@@ -18,8 +18,14 @@ fn main() {
 		exit(1)
 	}
 	text_nodes := reparsed.find_all(.text)
+	rewritten := reparsed.rewrite_inlines(fn (visit vmarkdown.AstInlineRewrite) ![]vmarkdown.InlineNode {
+		return [visit.node]
+	}) or {
+		eprintln('benchmark identity rewrite failed: ${err}')
+		exit(1)
+	}
 	elapsed := time.since(started)
-	if doc.stable_id() != reparsed.stable_id() {
+	if doc.stable_id() != reparsed.stable_id() || reparsed.stable_id() != rewritten.stable_id() {
 		eprintln('benchmark document changed after Markdown round trip')
 		exit(1)
 	}
@@ -27,7 +33,7 @@ fn main() {
 		eprintln('benchmark traversal returned only ${text_nodes.len} text nodes')
 		exit(1)
 	}
-	println('${source.len} input bytes, ${doc.children.len} blocks, parse/render/reparse/query in ${elapsed.milliseconds()} ms')
+	println('${source.len} input bytes, ${doc.children.len} blocks, parse/render/reparse/query/rewrite in ${elapsed.milliseconds()} ms')
 	if os.getenv('CI').len > 0 && elapsed.milliseconds() > 15_000 {
 		eprintln('benchmark exceeded the 15000 ms CI smoke budget')
 		exit(1)
