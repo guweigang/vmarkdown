@@ -18,6 +18,7 @@ One deliberate adjustment was made for production parsing: `ListItemNode.childre
 
 - `src/ast.v`: AST types
 - `src/parser.v`: md4c-backed parser and event builder
+- `src/walk.v`: public pre-order AST traversal and queries
 - `src/validate.v`: recursive AST invariant validation
 - `src/binary_codec.v`: bounded decoder for the versioned binary AST format
 - `src/serialize.v`: normalized stable IDs, chunk collection, and in-memory incremental ingest
@@ -204,6 +205,27 @@ CI and release builds also compile
 accidental changes to the package-visible parser, renderer, codec, validation,
 encoding, and ingest signatures that same-module tests cannot detect.
 
+## AST traversal and queries
+
+`Document.walk()` visits the document and every block, list item, table row,
+table cell, and inline node in pre-order. Each `AstVisit` contains a concrete
+`AstWalkNode`, an `AstNodeKind`, a validator-compatible path, depth, and source
+span. Return `false` from the callback to stop immediately.
+
+For common indexed queries, `find_all()` returns matching visits:
+
+```v
+for visit in doc.find_all(.heading) {
+	if visit.node is vmarkdown.HeadingNode {
+		heading := visit.node as vmarkdown.HeadingNode
+		println('${visit.path}: level ${heading.level}')
+	}
+}
+```
+
+This traversal contract is intended as the shared base for linters, document
+indexes, editor navigation, semantic transforms, and third-party renderers.
+
 ## Markdown Render
 
 `to_markdown()` / `render_markdown()` render the AST back into normalized Markdown.
@@ -228,7 +250,7 @@ v test src/conformance_test.v
 ```
 
 The large-document smoke benchmark exercises parse, Markdown render, reparse,
-and structural identity over a deterministic generated document:
+AST query, and structural identity over a deterministic generated document:
 
 ```sh
 v run bench/roundtrip.v
