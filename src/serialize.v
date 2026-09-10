@@ -112,7 +112,7 @@ pub fn (mut store MemoryStore) ingest(markdown string) !IngestResult {
 }
 
 pub fn (mut store MemoryStore) ingest_document(doc Document) !IngestResult {
-	plan := make_ingest_plan(doc, store)
+	plan := plan_ingest_document_checked(doc, store)!
 	return commit_ingest_plan(mut store, plan)
 }
 
@@ -166,6 +166,14 @@ pub fn plan_ingest(markdown string, store ChunkStore) !IngestPlan {
 }
 
 pub fn plan_ingest_document(doc Document, store ChunkStore) IngestPlan {
+	return make_ingest_plan(doc, store)
+}
+
+// plan_ingest_document_checked validates application-assembled ASTs before
+// deriving stable IDs or binary chunks. Use plan_ingest_document only when the
+// document has already been validated or came directly from parse().
+pub fn plan_ingest_document_checked(doc Document, store ChunkStore) !IngestPlan {
+	doc.validate()!
 	return make_ingest_plan(doc, store)
 }
 

@@ -98,6 +98,36 @@ fn test_stable_id_normalizes_text_whitespace() {
 	assert BlockNode(left).stable_id() == BlockNode(right).stable_id()
 }
 
+fn test_ingest_document_rejects_invalid_ast_without_mutating_store() {
+	mut store := new_memory_store()
+	doc := Document{
+		children: [BlockNode(ListNode{
+			is_ordered: true
+			start: -1
+		})]
+	}
+	if _ := store.ingest_document(doc) {
+		assert false, 'invalid AST must not be ingested'
+	} else {
+		assert err.msg().contains('.start cannot be negative')
+	}
+	assert store.chunks.len == 0
+	assert store.roots.len == 0
+	assert store.last_root_id.len == 0
+}
+
+fn test_checked_ingest_planner_rejects_invalid_ast() {
+	store := new_memory_store()
+	doc := Document{
+		children: [BlockNode(HeadingNode{ level: 0 })]
+	}
+	if _ := plan_ingest_document_checked(doc, store) {
+		assert false, 'checked planner must reject invalid AST'
+	} else {
+		assert err.msg().contains('.level must be between 1 and 6')
+	}
+}
+
 fn test_nested_diff_uses_recursive_block_paths() {
 	mut store := new_memory_store()
 	store.ingest('- parent

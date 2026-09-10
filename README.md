@@ -18,6 +18,7 @@ One deliberate adjustment was made for production parsing: `ListItemNode.childre
 
 - `src/ast.v`: AST types
 - `src/parser.v`: md4c-backed parser and event builder
+- `src/validate.v`: recursive AST invariant validation
 - `src/binary_codec.v`: bounded decoder for the versioned binary AST format
 - `src/serialize.v`: normalized stable IDs, chunk collection, and in-memory incremental ingest
 - `src/render.v`: HTML, plain-text, and JSON renderers
@@ -167,6 +168,30 @@ sanitized by the AST parser.
 `render_html()` also preserves raw HTML through md4c and therefore returns
 unsanitized output. Sanitize the result before embedding Markdown from an
 untrusted source into a web page.
+
+## AST validation
+
+Parsed documents, standalone blocks, and standalone inline nodes expose
+`validate()!`. Validation is especially useful before encoding or rendering an
+AST assembled by application code:
+
+```v
+doc.validate()!
+bytes := doc.binary_encode()
+```
+
+The validator checks renderer and stable-ID invariants such as heading levels,
+canonical list levels and numbers, task state, table dimensions, metadata key
+collisions after normalization, adjacent or empty text nodes, non-empty
+emphasis containers, nested links, code-fence info lines, and source-span
+shape. Validation itself is bounded to one million nodes and 256 levels.
+
+`binary_decode()` validates the reconstructed AST before returning it, so a
+well-framed payload with invalid semantic state is rejected as an invalid
+binary AST. `MemoryStore.ingest_document()` applies the same check before
+writing chunks. Custom stores can use `plan_ingest_document_checked()` when
+planning ingestion of application-assembled ASTs; the original non-fallible
+planner remains available for already validated or parser-produced documents.
 
 ## Markdown Render
 
