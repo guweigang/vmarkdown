@@ -27,6 +27,23 @@ fn test_public_parse_render_and_codec_contract() {
 		return [visit.node]
 	}) or { panic(err) }
 	assert rewritten.to_markdown().starts_with('# renamed')
+	diagnostics := doc.lint([vmarkdown.LintRule{
+		id: 'contract.heading'
+		severity: .info
+		check: fn (visit vmarkdown.AstVisit) []vmarkdown.LintFinding {
+			if visit.kind == .heading {
+				return [vmarkdown.LintFinding{ message: 'heading found' }]
+			}
+			return []vmarkdown.LintFinding{}
+		}
+	}]) or { panic(err) }
+	assert diagnostics.len == 1
+	assert diagnostics[0].path == 'document.children[0]'
+	fixed := vmarkdown.apply_markdown_edits('draft', [vmarkdown.MarkdownTextEdit{
+		span: vmarkdown.SourceSpan{ start: 0, end: 5 }
+		replacement: 'final'
+	}]) or { panic(err) }
+	assert fixed == 'final'
 	assert doc.to_text() == 'API\n\ntext'
 	assert doc.to_json().contains('"type":"heading"')
 	assert doc.to_markdown().starts_with('# API')
