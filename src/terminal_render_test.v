@@ -70,7 +70,7 @@ fn test_render_terminal_link_and_image_placeholders() {
 						text: [InlineNode(TextNode{
 							text: 'docs'
 						})]
-						url:  'https://example.com'
+						url: 'https://example.com'
 					}),
 					InlineNode(TextNode{
 						text: ' '
@@ -145,4 +145,17 @@ fn test_render_terminal_json_diagram_code_block() {
 	assert out.contains('Parser')
 	assert out.contains('2025')
 	assert out.contains('Preview')
+}
+
+fn test_terminal_renders_task_state_breaks_and_raw_html() {
+	doc := parse('- [x] done\n\n~~gone~~  \nnext <kbd>key</kbd>\n\n<div>raw</div>\n') or {
+		panic(err)
+	}
+	out := doc.to_terminal_with_options(TerminalRenderOptions{
+		width: 80
+		color: false
+	})
+	assert out.contains('• [x] done')
+	assert out.contains('gone\nnext <kbd>key</kbd>')
+	assert out.contains('<div>raw</div>')
 }

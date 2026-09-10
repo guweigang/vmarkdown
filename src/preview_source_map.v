@@ -81,7 +81,7 @@ fn ast_markdown_source_blocks(markdown string) []MarkdownSourceBlock {
 	mut blocks := []MarkdownSourceBlock{cap: doc.children.len}
 	mut previous_end := -1
 	for node in doc.children {
-		span := block_source_span(node)
+		span := node.source_span()
 		mut start_line := -1
 		mut end_line := -1
 		if span.is_valid() && span.start < markdown.len {

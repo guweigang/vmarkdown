@@ -112,11 +112,14 @@ fn test_source_spans_are_utf8_byte_ranges() {
 	assert doc.span == SourceSpan{ start: 0, end: input.len }
 	heading := doc.children[0] as HeadingNode
 	assert heading.span == SourceSpan{ start: 2, end: 5 }
+	assert doc.children[0].source_span() == heading.span
+	assert heading.span.len() == 3
 	text := heading.children[0] as TextNode
 	assert text.span == SourceSpan{ start: 2, end: 5 }
 	paragraph := doc.children[1] as ParagraphNode
 	assert paragraph.children[1] is SoftBreakNode
 	assert (paragraph.children[1] as SoftBreakNode).span == SourceSpan{ start: 11, end: 12 }
+	assert paragraph.children[1].source_span() == SourceSpan{ start: 11, end: 12 }
 }
 
 fn test_binary_encoding_uses_protocol_type_tags() {

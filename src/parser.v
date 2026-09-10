@@ -189,7 +189,7 @@ fn (mut b Builder) pop_frame(expected FrameKind) !Frame {
 }
 
 fn (mut b Builder) append_block(node BlockNode) ! {
-	span := block_source_span(node)
+	span := node.source_span()
 	for i := b.frames.len - 1; i >= 0; i-- {
 		match b.frames[i].kind {
 			.document, .blockquote, .list_item {
@@ -215,7 +215,7 @@ fn (mut b Builder) append_list_item(item ListItemNode) ! {
 }
 
 fn (mut b Builder) append_inline(node InlineNode) ! {
-	span := inline_source_span(node)
+	span := node.source_span()
 	for i := b.frames.len - 1; i >= 0; i-- {
 		match b.frames[i].kind {
 			.heading, .paragraph, .emphasis, .strong, .strikethrough, .link, .image, .table_cell {
@@ -642,35 +642,6 @@ fn (mut b Builder) source_span_for(typ int, text &char, size int) SourceSpan {
 fn (mut b Builder) absorb_open_frames(span SourceSpan) {
 	for i in 0 .. b.frames.len {
 		b.frames[i].absorb_span(span)
-	}
-}
-
-fn block_source_span(node BlockNode) SourceSpan {
-	return match node {
-		BlockquoteNode { node.span }
-		CodeBlockNode { node.span }
-		HeadingNode { node.span }
-		HorizontalRuleNode { node.span }
-		ListNode { node.span }
-		MetaNode { node.span }
-		ParagraphNode { node.span }
-		RawHtmlBlockNode { node.span }
-		TableNode { node.span }
-	}
-}
-
-fn inline_source_span(node InlineNode) SourceSpan {
-	return match node {
-		CodeSpanNode { node.span }
-		EmphasisNode { node.span }
-		HardBreakNode { node.span }
-		ImageNode { node.span }
-		LinkNode { node.span }
-		RawHtmlInlineNode { node.span }
-		SoftBreakNode { node.span }
-		StrikethroughNode { node.span }
-		StrongNode { node.span }
-		TextNode { node.span }
 	}
 }
 

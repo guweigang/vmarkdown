@@ -80,7 +80,7 @@ fn test_render_markdown_wraps_complex_link_destinations() {
 						text: [InlineNode(TextNode{
 							text: 'docs'
 						})]
-						url:  'https://example.com/a(b c)'
+						url: 'https://example.com/a(b c)'
 					}),
 				]
 			}),
@@ -159,4 +159,20 @@ fn test_render_markdown_handles_multilevel_nested_lists() {
 	assert markdown.contains('- root')
 	assert markdown.contains('\n  - child')
 	assert markdown.contains('\n    - grandchild')
+}
+
+fn test_renderers_preserve_new_core_ast_semantics() {
+	doc := parse('- [x] done\n\n~~gone~~  \nnext <kbd>key</kbd>\n\n<div>raw</div>\n') or {
+		panic(err)
+	}
+	markdown := doc.to_markdown()
+	assert markdown.contains('- [x] done')
+	assert markdown.contains('~~gone~~  \nnext <kbd>key</kbd>')
+	assert markdown.contains('<div>raw</div>')
+	json := doc.to_json()
+	assert json.contains('"is_task":true,"checked":true')
+	assert json.contains('"type":"strikethrough"')
+	assert json.contains('"type":"hard_break"')
+	assert json.contains('"type":"raw_html_inline"')
+	assert json.contains('"type":"raw_html_block"')
 }

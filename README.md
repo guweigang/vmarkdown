@@ -135,6 +135,11 @@ source-bearing callback for that node. Preview block mapping uses these spans
 as its primary boundary source, with syntax scanning only as a fallback for
 source-less nodes such as thematic breaks.
 
+For container nodes, the span covers the source-bearing child content exposed
+by md4c; Markdown delimiters that do not produce callbacks may sit immediately
+outside the range. `BlockNode.source_span()` and `InlineNode.source_span()`
+provide uniform access without a sum-type match.
+
 Task state, strikethrough, soft breaks, and hard breaks have explicit AST
 representations. Raw HTML is represented by `RawHtmlBlockNode` and
 `RawHtmlInlineNode`; it is preserved verbatim and is neither interpreted nor

@@ -19,6 +19,10 @@ pub fn (span SourceSpan) is_valid() bool {
 	return span.start >= 0 && span.end >= span.start
 }
 
+pub fn (span SourceSpan) len() int {
+	return if span.is_valid() { span.end - span.start } else { 0 }
+}
+
 pub type BlockNode = BlockquoteNode
 	| CodeBlockNode
 	| HeadingNode
@@ -188,4 +192,33 @@ pub struct RawHtmlInlineNode {
 pub:
 	span SourceSpan = SourceSpan{ start: -1, end: -1 }
 	html string
+}
+
+pub fn (node BlockNode) source_span() SourceSpan {
+	return match node {
+		BlockquoteNode { node.span }
+		CodeBlockNode { node.span }
+		HeadingNode { node.span }
+		HorizontalRuleNode { node.span }
+		ListNode { node.span }
+		MetaNode { node.span }
+		ParagraphNode { node.span }
+		RawHtmlBlockNode { node.span }
+		TableNode { node.span }
+	}
+}
+
+pub fn (node InlineNode) source_span() SourceSpan {
+	return match node {
+		CodeSpanNode { node.span }
+		EmphasisNode { node.span }
+		HardBreakNode { node.span }
+		ImageNode { node.span }
+		LinkNode { node.span }
+		RawHtmlInlineNode { node.span }
+		SoftBreakNode { node.span }
+		StrikethroughNode { node.span }
+		StrongNode { node.span }
+		TextNode { node.span }
+	}
 }
