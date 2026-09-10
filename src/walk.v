@@ -19,6 +19,7 @@ pub enum AstNodeKind {
 	hard_break
 	image
 	link
+	wiki_link
 	raw_html_inline
 	soft_break
 	strikethrough
@@ -36,6 +37,7 @@ pub type AstWalkNode = BlockquoteNode
 	| HorizontalRuleNode
 	| ImageNode
 	| LinkNode
+	| WikiLinkNode
 	| ListItemNode
 	| ListNode
 	| MetaNode
@@ -214,6 +216,9 @@ fn walk_inline(node InlineNode, path string, depth int, visitor fn (AstVisit) bo
 		LinkNode {
 			return walk_inlines(node.text, '${path}.text', depth + 1, visitor)
 		}
+		WikiLinkNode {
+			return walk_inlines(node.text, '${path}.text', depth + 1, visitor)
+		}
 		ImageNode {
 			return walk_inlines(node.alt, '${path}.alt', depth + 1, visitor)
 		}
@@ -243,6 +248,7 @@ fn inline_kind(node InlineNode) AstNodeKind {
 		HardBreakNode { .hard_break }
 		ImageNode { .image }
 		LinkNode { .link }
+		WikiLinkNode { .wiki_link }
 		RawHtmlInlineNode { .raw_html_inline }
 		SoftBreakNode { .soft_break }
 		StrikethroughNode { .strikethrough }
@@ -272,6 +278,7 @@ fn inline_walk_node(node InlineNode) AstWalkNode {
 		HardBreakNode { AstWalkNode(node) }
 		ImageNode { AstWalkNode(node) }
 		LinkNode { AstWalkNode(node) }
+		WikiLinkNode { AstWalkNode(node) }
 		RawHtmlInlineNode { AstWalkNode(node) }
 		SoftBreakNode { AstWalkNode(node) }
 		StrikethroughNode { AstWalkNode(node) }

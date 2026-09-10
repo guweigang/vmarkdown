@@ -371,6 +371,15 @@ fn (r TerminalRenderer) inline_spans(nodes []InlineNode) []TerminalSpan {
 					styled: r.style_line(display, TerminalStyle{'link'})
 				}
 			}
+			WikiLinkNode {
+				label := r.render_inline_plain(node.text)
+				target := r.safe_text(node.target)
+				display := if target.len > 0 { '${label} ↗ ${target}' } else { label }
+				spans << TerminalSpan{
+					plain: display
+					styled: r.style_line(display, TerminalStyle{'link'})
+				}
+			}
 			ImageNode {
 				alt := r.render_inline_plain(node.alt)
 				display := if alt.len > 0 {

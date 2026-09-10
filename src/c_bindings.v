@@ -77,6 +77,11 @@ struct C.MD_SPAN_IMG_DETAIL {
 	title C.MD_ATTRIBUTE
 }
 
+@[typedef]
+struct C.MD_SPAN_WIKILINK_DETAIL {
+	target C.MD_ATTRIBUTE
+}
+
 fn C.vmd_parse_to_v(text &char, size u32, flags u32, userdata voidptr) int
 
 fn C.md_html(input &char, input_size u32, process_output fn (&char, u32, voidptr), userdata voidptr, parser_flags u32, renderer_flags u32) int

@@ -473,6 +473,7 @@ const strikethrough_type_tag = u8(0x26)
 const soft_break_type_tag = u8(0x27)
 const hard_break_type_tag = u8(0x28)
 const raw_html_inline_type_tag = u8(0x29)
+const wiki_link_type_tag = u8(0x2a)
 const binary_format_version = u8(1)
 
 pub fn (doc Document) binary_encode() []u8 {
@@ -646,6 +647,16 @@ pub fn (node InlineNode) binary_encode() []u8 {
 			mut out := [link_type_tag]
 			out << encode_varint(url_bytes.len)
 			out << url_bytes
+			out << encode_varint(text_bytes.len)
+			out << text_bytes
+			return out
+		}
+		WikiLinkNode {
+			target_bytes := normalize_text(node.target).bytes()
+			text_bytes := encode_inline_sequence(node.text)
+			mut out := [wiki_link_type_tag]
+			out << encode_varint(target_bytes.len)
+			out << target_bytes
 			out << encode_varint(text_bytes.len)
 			out << text_bytes
 			return out
@@ -866,6 +877,15 @@ fn (node InlineNode) normalized_bytes() []u8 {
 		LinkNode {
 			mut out := 'link:'.bytes()
 			out << normalize_text(node.url).bytes()
+			out << [u8(`:`)]
+			for child in node.text {
+				out << child.normalized_bytes()
+			}
+			return out
+		}
+		WikiLinkNode {
+			mut out := 'wiki_link:'.bytes()
+			out << normalize_text(node.target).bytes()
 			out << [u8(`:`)]
 			for child in node.text {
 				out << child.normalized_bytes()

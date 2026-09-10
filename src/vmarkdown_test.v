@@ -112,6 +112,26 @@ fn test_named_dialects_make_extension_behavior_explicit() {
 	assert table.body[0].cells[0].children[0] is StrikethroughNode
 }
 
+fn test_parse_wiki_links_as_typed_nodes_when_enabled() {
+	input := 'before [[docs|**Guide**]] after'
+	doc := parse_with_options(input, ParseOptions{
+		wiki_links: true
+	}) or { panic(err) }
+	paragraph := doc.children[0] as ParagraphNode
+	assert paragraph.children.len == 3
+	assert paragraph.children[1] is WikiLinkNode
+	wiki := paragraph.children[1] as WikiLinkNode
+	assert wiki.target == 'docs'
+	assert wiki.text.len == 1
+	assert wiki.text[0] is StrongNode
+	assert render_inline_text(wiki.text) == 'Guide'
+	assert wiki.span.is_valid()
+
+	default_doc := parse(input) or { panic(err) }
+	default_paragraph := default_doc.children[0] as ParagraphNode
+	assert !default_paragraph.children.any(it is WikiLinkNode)
+}
+
 fn test_parse_rejects_input_over_configured_byte_budget() {
 	if _ := parse_with_limits('12345', ParseOptions{}, ParseLimits{
 		max_input_bytes: 4

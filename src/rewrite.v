@@ -242,6 +242,13 @@ fn rewrite_inline(node InlineNode, path string, depth int, rewriter fn (AstInlin
 				url: node.url
 			})
 		}
+		WikiLinkNode {
+			InlineNode(WikiLinkNode{
+				span: node.span
+				text: rewrite_inline_nodes(node.text, '${path}.text', depth + 1, rewriter)!
+				target: node.target
+			})
+		}
 		ImageNode {
 			InlineNode(ImageNode{
 				span: node.span

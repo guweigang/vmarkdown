@@ -213,6 +213,9 @@ fn (node InlineNode) render_text_inline() string {
 		LinkNode {
 			return render_inline_text(node.text)
 		}
+		WikiLinkNode {
+			return render_inline_text(node.text)
+		}
 		ImageNode {
 			return render_inline_text(node.alt)
 		}
@@ -561,6 +564,9 @@ fn (node InlineNode) render_json_inline() string {
 		LinkNode {
 			return '{"type":"link","url":"${json_escape(node.url)}","text":${render_inline_json(node.text)}}'
 		}
+		WikiLinkNode {
+			return '{"type":"wiki_link","target":"${json_escape(node.target)}","text":${render_inline_json(node.text)}}'
+		}
 		ImageNode {
 			return '{"type":"image","url":"${json_escape(node.url)}","alt":${render_inline_json(node.alt)}}'
 		}
@@ -613,6 +619,14 @@ fn (node InlineNode) render_markdown_inline(emphasis_depth int) string {
 			}
 			return '[' + render_inline_markdown_depth(node.text, emphasis_depth) + '](' + markdown_link_destination(node.url) + ')'
 		}
+		WikiLinkNode {
+			target := markdown_wiki_target(node.target)
+			label := render_inline_markdown_depth(node.text, emphasis_depth)
+			if render_inline_text(node.text) == node.target {
+				return '[[' + target + ']]'
+			}
+			return '[[' + target + '|' + label + ']]'
+		}
 		ImageNode {
 			return '![' + render_inline_markdown_depth(node.alt, emphasis_depth) + '](' + markdown_link_destination(node.url) + ')'
 		}
@@ -626,6 +640,10 @@ fn (node InlineNode) render_markdown_inline(emphasis_depth int) string {
 			return node.html
 		}
 	}
+}
+
+fn markdown_wiki_target(target string) string {
+	return target.replace('\\', '\\\\').replace('|', '\\|').replace(']', '\\]')
 }
 
 fn json_escape(input string) string {

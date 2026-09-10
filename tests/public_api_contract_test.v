@@ -96,6 +96,19 @@ fn test_public_validation_error_contract() {
 	assert matched
 }
 
+fn test_public_wiki_link_contract() {
+	doc := vmarkdown.parse_with_options('[[docs|Guide]]', vmarkdown.ParseOptions{
+		wiki_links: true
+	}) or { panic(err) }
+	wikis := doc.find_all(.wiki_link)
+	assert wikis.len == 1
+	assert wikis[0].node is vmarkdown.WikiLinkNode
+	wiki := wikis[0].node as vmarkdown.WikiLinkNode
+	assert wiki.target == 'docs'
+	assert wiki.text.len == 1
+	vmarkdown.InlineNode(wiki).validate() or { panic(err) }
+}
+
 fn test_public_ingest_and_encoding_contract() {
 	file := vmarkdown.decode_markdown_bytes('hello'.bytes(), 'utf-8') or { panic(err) }
 	assert file.text == 'hello'

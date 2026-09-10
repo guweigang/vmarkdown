@@ -75,6 +75,32 @@ fn test_validation_rejects_unstable_inline_shapes() {
 	}
 }
 
+fn test_validation_rejects_invalid_and_nested_wiki_links() {
+	empty_target := InlineNode(WikiLinkNode{
+		target: '  '
+		text: [InlineNode(TextNode{ text: 'label' })]
+	})
+	if _ := empty_target.validate() {
+		assert false, 'empty wiki-link targets must fail validation'
+	} else {
+		assert err is AstValidationError
+		assert (err as AstValidationError).kind == .wiki_link_target
+	}
+
+	nested := InlineNode(LinkNode{
+		url: 'outer'
+		text: [InlineNode(WikiLinkNode{
+			target: 'inner'
+			text: [InlineNode(TextNode{ text: 'inner' })]
+		})]
+	})
+	if _ := nested.validate() {
+		assert false, 'wiki links nested inside links must fail validation'
+	} else {
+		assert (err as AstValidationError).kind == .nested_link
+	}
+}
+
 fn test_validation_rejects_metadata_key_collisions_and_multiline_info() {
 	metadata := Document{
 		children: [BlockNode(MetaNode{

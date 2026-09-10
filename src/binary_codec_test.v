@@ -26,6 +26,19 @@ fn test_binary_v1_round_trip_preserves_core_semantics() {
 	assert decoded.children[2] is RawHtmlBlockNode
 }
 
+fn test_binary_v1_round_trip_preserves_wiki_links() {
+	doc := parse_with_options('[[docs|**Guide**]]', ParseOptions{
+		wiki_links: true
+	}) or { panic(err) }
+	encoded := doc.binary_encode()
+	assert encoded.contains(wiki_link_type_tag)
+	decoded := binary_decode(encoded) or { panic(err) }
+	assert decoded.binary_encode() == encoded
+	wiki := decoded.find_all(.wiki_link)[0].node as WikiLinkNode
+	assert wiki.target == 'docs'
+	assert render_inline_text(wiki.text) == 'Guide'
+}
+
 fn test_binary_v1_varint_does_not_truncate_large_values() {
 	doc := Document{
 		children: [BlockNode(ListNode{

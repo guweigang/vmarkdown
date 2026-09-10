@@ -95,6 +95,35 @@ fn test_render_markdown_preserves_backslashes_in_link_destinations() {
 	assert doc.stable_id() == reparsed.stable_id()
 }
 
+fn test_render_wiki_link_text_json_and_normalized_markdown() {
+	doc := parse_with_options('[[docs|**Guide**]] and [[plain]]', ParseOptions{
+		wiki_links: true
+	}) or { panic(err) }
+	assert doc.to_text() == 'Guide and plain'
+	assert doc.to_json().contains('"type":"wiki_link","target":"docs"')
+	assert doc.to_markdown() == '[[docs|**Guide**]] and [[plain]]'
+	reparsed := parse_with_options(doc.to_markdown(), ParseOptions{
+		wiki_links: true
+	}) or { panic(err) }
+	assert reparsed.stable_id() == doc.stable_id()
+}
+
+fn test_render_wiki_link_escapes_target_delimiter() {
+	doc := Document{
+		children: [BlockNode(ParagraphNode{
+			children: [InlineNode(WikiLinkNode{
+				target: 'foo|bar'
+				text: [InlineNode(TextNode{ text: 'label' })]
+			})]
+		})]
+	}
+	assert doc.to_markdown() == '[[foo\\|bar|label]]'
+	reparsed := parse_with_options(doc.to_markdown(), ParseOptions{
+		wiki_links: true
+	}) or { panic(err) }
+	assert reparsed.stable_id() == doc.stable_id()
+}
+
 fn test_render_markdown_keeps_nested_list_structure_valid() {
 	doc := parse('- parent\n  - child\n') or { panic(err) }
 	markdown := doc.to_markdown()
