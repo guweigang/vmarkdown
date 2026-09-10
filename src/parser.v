@@ -219,6 +219,18 @@ fn (mut b Builder) append_inline(node InlineNode) ! {
 	for i := b.frames.len - 1; i >= 0; i-- {
 		match b.frames[i].kind {
 			.heading, .paragraph, .emphasis, .strong, .strikethrough, .link, .image, .table_cell {
+				if node is TextNode && b.frames[i].inlines.len > 0 {
+					last_index := b.frames[i].inlines.len - 1
+					last := b.frames[i].inlines[last_index]
+					if last is TextNode {
+						b.frames[i].inlines[last_index] = TextNode{
+							span: merge_source_spans(last.span, node.span)
+							text: last.text + node.text
+						}
+						b.frames[i].absorb_span(span)
+						return
+					}
+				}
 				b.frames[i].inlines << node
 				b.frames[i].absorb_span(span)
 				return
@@ -230,6 +242,19 @@ fn (mut b Builder) append_inline(node InlineNode) ! {
 		}
 	}
 	return error('no inline parent available for ${typeof(node).name}')
+}
+
+fn merge_source_spans(left SourceSpan, right SourceSpan) SourceSpan {
+	if !left.is_valid() {
+		return right
+	}
+	if !right.is_valid() {
+		return left
+	}
+	return SourceSpan{
+		start: min_int(left.start, right.start)
+		end: max_int(left.end, right.end)
+	}
 }
 
 fn (b &Builder) has_inline_parent() bool {

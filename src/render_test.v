@@ -89,6 +89,12 @@ fn test_render_markdown_wraps_complex_link_destinations() {
 	assert doc.to_markdown() == '[docs](<https://example.com/a(b c)>)'
 }
 
+fn test_render_markdown_preserves_backslashes_in_link_destinations() {
+	doc := parse('<https://example.com?find=\\*>') or { panic(err) }
+	reparsed := parse(doc.to_markdown()) or { panic(err) }
+	assert doc.stable_id() == reparsed.stable_id()
+}
+
 fn test_render_markdown_keeps_nested_list_structure_valid() {
 	doc := parse('- parent\n  - child\n') or { panic(err) }
 	markdown := doc.to_markdown()
@@ -159,6 +165,20 @@ fn test_render_markdown_handles_multilevel_nested_lists() {
 	assert markdown.contains('- root')
 	assert markdown.contains('\n  - child')
 	assert markdown.contains('\n    - grandchild')
+}
+
+fn test_render_markdown_escapes_text_that_would_become_structure_or_html() {
+	doc := Document{
+		children: [BlockNode(ParagraphNode{
+			children: [InlineNode(TextNode{
+				text: '1. text <br> # heading'
+			})]
+		})]
+	}
+	assert doc.to_markdown() == '1\\. text \\<br> # heading'
+	reparsed := parse(doc.to_markdown()) or { panic(err) }
+	assert reparsed.children.len == 1
+	assert reparsed.children[0] is ParagraphNode
 }
 
 fn test_renderers_preserve_new_core_ast_semantics() {

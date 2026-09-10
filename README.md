@@ -159,6 +159,30 @@ untrusted source into a web page.
 - The renderer is covered for nested lists, blockquotes, GFM tables, mixed list-item blocks,
   complex link/image destinations, and code span/code fence delimiter safety.
 
+## Conformance and performance baselines
+
+The test suite checks structural Markdown round trips against 690 vendored md4c
+examples: the CommonMark corpus plus tables, task lists, strikethrough,
+hard/soft breaks, and permissive autolinks. Each example must preserve its
+versioned `stable_id()` after parse, normalized Markdown render, and reparse.
+
+Run the conformance gate with:
+
+```sh
+v test src/conformance_test.v
+```
+
+The large-document smoke benchmark exercises parse, Markdown render, reparse,
+and structural identity over a deterministic generated document:
+
+```sh
+v run bench/roundtrip.v
+```
+
+CI allows a deliberately broad 15-second runtime budget so the check catches
+catastrophic regressions without treating shared-runner noise as a precise
+microbenchmark.
+
 ## HTML To Markdown
 
 `html_to_markdown()` parses HTML with V's `net.html` module and converts a supported HTML subset back into normalized Markdown.
