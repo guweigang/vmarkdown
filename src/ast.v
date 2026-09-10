@@ -127,6 +127,7 @@ pub type InlineNode = CodeSpanNode
 	| EmphasisNode
 	| HardBreakNode
 	| ImageNode
+	| LatexMathNode
 	| LinkNode
 	| RawHtmlInlineNode
 	| SoftBreakNode
@@ -163,6 +164,13 @@ pub struct CodeSpanNode {
 pub:
 	span SourceSpan = SourceSpan{ start: -1, end: -1 }
 	text string
+}
+
+pub struct LatexMathNode {
+pub:
+	span    SourceSpan = SourceSpan{ start: -1, end: -1 }
+	content string
+	display bool
 }
 
 pub struct LinkNode {
@@ -222,6 +230,7 @@ pub fn (node InlineNode) source_span() SourceSpan {
 		EmphasisNode { node.span }
 		HardBreakNode { node.span }
 		ImageNode { node.span }
+		LatexMathNode { node.span }
 		LinkNode { node.span }
 		RawHtmlInlineNode { node.span }
 		SoftBreakNode { node.span }

@@ -256,7 +256,7 @@ fn rewrite_inline(node InlineNode, path string, depth int, rewriter fn (AstInlin
 				url: node.url
 			})
 		}
-		CodeSpanNode, HardBreakNode, RawHtmlInlineNode, SoftBreakNode, TextNode {
+		CodeSpanNode, HardBreakNode, LatexMathNode, RawHtmlInlineNode, SoftBreakNode, TextNode {
 			node
 		}
 	}

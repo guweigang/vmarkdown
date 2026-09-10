@@ -362,6 +362,13 @@ fn (r TerminalRenderer) inline_spans(nodes []InlineNode) []TerminalSpan {
 					styled: r.style_line(' ${text} ', TerminalStyle{'codespan'})
 				}
 			}
+			LatexMathNode {
+				text := r.safe_text(node.content)
+				spans << TerminalSpan{
+					plain: text
+					styled: r.style_line(text, TerminalStyle{'math'})
+				}
+			}
 			LinkNode {
 				label := r.render_inline_plain(node.text)
 				url := r.safe_text(node.url)
@@ -567,6 +574,7 @@ fn (r TerminalRenderer) style_line(input string, style TerminalStyle) string {
 		'code_border' { term.bright_black(input) }
 		'code' { term.hex(0xa6da95, input) }
 		'codespan' { term.bg_rgb(42, 42, 48, term.hex(0xf5a97f, input)) }
+		'math' { term.hex(0x8bd5ca, input) }
 		'strong' { term.bold(input) }
 		'emphasis' { term.italic(term.hex(0xc6a0f6, input)) }
 		'strikethrough' { term.dim(input) }

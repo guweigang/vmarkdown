@@ -39,6 +39,19 @@ fn test_binary_v1_round_trip_preserves_wiki_links() {
 	assert render_inline_text(wiki.text) == 'Guide'
 }
 
+fn test_binary_v1_round_trip_preserves_latex_math() {
+	doc := parse_with_options(r'$$\int_a^b x dx$$', ParseOptions{
+		latex_math: true
+	}) or { panic(err) }
+	encoded := doc.binary_encode()
+	assert encoded.contains(latex_math_type_tag)
+	decoded := binary_decode(encoded) or { panic(err) }
+	assert decoded.binary_encode() == encoded
+	math := decoded.find_all(.latex_math)[0].node as LatexMathNode
+	assert math.content == r'\int_a^b x dx'
+	assert math.display
+}
+
 fn test_binary_v1_varint_does_not_truncate_large_values() {
 	doc := Document{
 		children: [BlockNode(ListNode{

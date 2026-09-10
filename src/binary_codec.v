@@ -337,6 +337,13 @@ fn (mut r BinaryReader) read_inline(container_end int, depth int) !InlineNode {
 		code_span_type_tag {
 			return InlineNode(CodeSpanNode{ text: r.read_string('code span')! })
 		}
+		latex_math_type_tag {
+			display := r.read_bool('LaTeX math display flag')!
+			return InlineNode(LatexMathNode{
+				content: r.read_string('LaTeX math content')!
+				display: display
+			})
+		}
 		link_type_tag {
 			url := r.read_string('link URL')!
 			end := r.read_sized_end('link text')!

@@ -15,6 +15,7 @@ pub enum AstNodeKind {
 	table_row
 	table_cell
 	code_span
+	latex_math
 	emphasis
 	hard_break
 	image
@@ -36,6 +37,7 @@ pub type AstWalkNode = BlockquoteNode
 	| HeadingNode
 	| HorizontalRuleNode
 	| ImageNode
+	| LatexMathNode
 	| LinkNode
 	| WikiLinkNode
 	| ListItemNode
@@ -222,7 +224,7 @@ fn walk_inline(node InlineNode, path string, depth int, visitor fn (AstVisit) bo
 		ImageNode {
 			return walk_inlines(node.alt, '${path}.alt', depth + 1, visitor)
 		}
-		CodeSpanNode, HardBreakNode, RawHtmlInlineNode, SoftBreakNode, TextNode {}
+		CodeSpanNode, HardBreakNode, LatexMathNode, RawHtmlInlineNode, SoftBreakNode, TextNode {}
 	}
 	return true
 }
@@ -247,6 +249,7 @@ fn inline_kind(node InlineNode) AstNodeKind {
 		EmphasisNode { .emphasis }
 		HardBreakNode { .hard_break }
 		ImageNode { .image }
+		LatexMathNode { .latex_math }
 		LinkNode { .link }
 		WikiLinkNode { .wiki_link }
 		RawHtmlInlineNode { .raw_html_inline }
@@ -277,6 +280,7 @@ fn inline_walk_node(node InlineNode) AstWalkNode {
 		EmphasisNode { AstWalkNode(node) }
 		HardBreakNode { AstWalkNode(node) }
 		ImageNode { AstWalkNode(node) }
+		LatexMathNode { AstWalkNode(node) }
 		LinkNode { AstWalkNode(node) }
 		WikiLinkNode { AstWalkNode(node) }
 		RawHtmlInlineNode { AstWalkNode(node) }

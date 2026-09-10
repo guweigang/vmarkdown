@@ -474,6 +474,7 @@ const soft_break_type_tag = u8(0x27)
 const hard_break_type_tag = u8(0x28)
 const raw_html_inline_type_tag = u8(0x29)
 const wiki_link_type_tag = u8(0x2a)
+const latex_math_type_tag = u8(0x2b)
 const binary_format_version = u8(1)
 
 pub fn (doc Document) binary_encode() []u8 {
@@ -637,6 +638,13 @@ pub fn (node InlineNode) binary_encode() []u8 {
 		CodeSpanNode {
 			data := normalize_code(node.text).bytes()
 			mut out := [code_span_type_tag]
+			out << encode_varint(data.len)
+			out << data
+			return out
+		}
+		LatexMathNode {
+			data := normalize_code(node.content).bytes()
+			mut out := [latex_math_type_tag, bool_u8(node.display)]
 			out << encode_varint(data.len)
 			out << data
 			return out
@@ -872,6 +880,13 @@ fn (node InlineNode) normalized_bytes() []u8 {
 		CodeSpanNode {
 			mut out := 'codespan:'.bytes()
 			out << normalize_code(node.text).bytes()
+			return out
+		}
+		LatexMathNode {
+			mut out := 'latex_math:'.bytes()
+			out << bool_byte(node.display)
+			out << [u8(`:`)]
+			out << normalize_code(node.content).bytes()
 			return out
 		}
 		LinkNode {

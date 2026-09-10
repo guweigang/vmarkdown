@@ -21,6 +21,7 @@ pub enum AstValidationErrorKind {
 	empty_inline_container
 	nested_link
 	wiki_link_target
+	latex_math_content
 }
 
 pub struct AstValidationError {
@@ -225,8 +226,28 @@ fn (mut validator AstValidator) validate_inline(node InlineNode, path string, de
 		ImageNode {
 			validator.validate_inlines(node.alt, '${path}.alt', depth + 1, inside_link)!
 		}
+		LatexMathNode {
+			if node.content.contains_any('\r\n') || contains_unescaped_dollar(node.content) {
+				return validation_error(.latex_math_content, '${path}.content', 'cannot contain a line break or unescaped dollar sign', node.span)
+			}
+		}
 		CodeSpanNode, SoftBreakNode, HardBreakNode, RawHtmlInlineNode {}
 	}
+}
+
+fn contains_unescaped_dollar(content string) bool {
+	mut backslashes := 0
+	for ch in content {
+		if ch == `\\` {
+			backslashes++
+			continue
+		}
+		if ch == `$` && backslashes % 2 == 0 {
+			return true
+		}
+		backslashes = 0
+	}
+	return false
 }
 
 fn validate_nonempty_inline_container(children []InlineNode, path string) ! {
