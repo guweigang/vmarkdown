@@ -102,6 +102,12 @@ markdown_from_html := vmarkdown.html_to_markdown(html)!
 terminal_view := vmarkdown.render_terminal(markdown)!
 ```
 
+The direct HTML renderer accepts only valid UTF-8 and defaults to a 64 MiB
+input limit and a 256 MiB accumulated-output limit. Untrusted-input services can
+tighten either budget with `render_html_with_limits()` and `HtmlRenderLimits`;
+zero is unbounded. Failures are exposed as `HtmlRenderError` with a stable
+`kind`, byte `offset` when available, md4c `native_code`, and `message`.
+
 The one-shot text, JSON, Markdown, HTML, and terminal renderers all accept
 parser options. This keeps opt-in extensions available without requiring an
 explicit parse step:

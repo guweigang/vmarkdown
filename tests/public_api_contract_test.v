@@ -115,6 +115,10 @@ fn test_public_parse_render_and_codec_contract() {
 		parser: options
 	}) or { panic(err) }
 	assert html.contains('<p>line</p>')
+	assert vmarkdown.render_html_with_limits('line', vmarkdown.HtmlRenderOptions{}, vmarkdown.HtmlRenderLimits{
+		max_input_bytes: 64
+		max_output_bytes: 64
+	}) or { panic(err) } == '<p>line</p>\n'
 }
 
 fn test_public_validation_error_contract() {
@@ -166,6 +170,21 @@ fn test_public_invalid_utf8_ast_error_contract() {
 		validation := err as vmarkdown.AstValidationError
 		assert validation.kind == .invalid_utf8
 		assert validation.path == 'inline.text'
+	}
+}
+
+fn test_public_html_render_error_contract() {
+	if _ := vmarkdown.render_html_with_limits('<>&', vmarkdown.HtmlRenderOptions{}, vmarkdown.HtmlRenderLimits{
+		max_output_bytes: 8
+	}) {
+		assert false, 'oversized HTML output must fail'
+	} else {
+		assert err is vmarkdown.HtmlRenderError
+		render_error := err as vmarkdown.HtmlRenderError
+		assert render_error.kind == .output_limit
+		assert render_error.offset == -1
+		assert render_error.native_code == 0
+		assert render_error.code() >= 6000
 	}
 }
 
