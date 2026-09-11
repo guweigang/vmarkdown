@@ -124,7 +124,12 @@ pub fn (doc Document) to_text() string {
 
 // to_text_checked validates an application-assembled AST before rendering.
 pub fn (doc Document) to_text_checked() !string {
-	doc.validate()!
+	return doc.to_text_checked_with_limits(AstValidationLimits{})
+}
+
+// to_text_checked_with_limits validates with caller-selected traversal limits.
+pub fn (doc Document) to_text_checked_with_limits(limits AstValidationLimits) !string {
+	doc.validate_with_limits(limits)!
 	return doc.render_text()
 }
 
@@ -147,7 +152,12 @@ pub fn (doc Document) to_json() string {
 
 // to_json_checked validates an application-assembled AST before rendering.
 pub fn (doc Document) to_json_checked() !string {
-	doc.validate()!
+	return doc.to_json_checked_with_limits(AstValidationLimits{})
+}
+
+// to_json_checked_with_limits validates with caller-selected traversal limits.
+pub fn (doc Document) to_json_checked_with_limits(limits AstValidationLimits) !string {
+	doc.validate_with_limits(limits)!
 	return doc.render_json()
 }
 
@@ -170,7 +180,12 @@ pub fn (doc Document) to_markdown() string {
 
 // to_markdown_checked validates an application-assembled AST before rendering.
 pub fn (doc Document) to_markdown_checked() !string {
-	doc.validate()!
+	return doc.to_markdown_checked_with_limits(AstValidationLimits{})
+}
+
+// to_markdown_checked_with_limits validates with caller-selected traversal limits.
+pub fn (doc Document) to_markdown_checked_with_limits(limits AstValidationLimits) !string {
+	doc.validate_with_limits(limits)!
 	return doc.render_markdown()
 }
 

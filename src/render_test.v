@@ -176,6 +176,13 @@ fn test_checked_document_renderers_match_trusted_fast_paths() {
 	assert doc.to_text_checked() or { panic(err) } == doc.to_text()
 	assert doc.to_json_checked() or { panic(err) } == doc.to_json()
 	assert doc.to_markdown_checked() or { panic(err) } == doc.to_markdown()
+	limits := AstValidationLimits{
+		max_nodes: 8
+		max_nesting_depth: 4
+	}
+	assert doc.to_text_checked_with_limits(limits) or { panic(err) } == doc.to_text()
+	assert doc.to_json_checked_with_limits(limits) or { panic(err) } == doc.to_json()
+	assert doc.to_markdown_checked_with_limits(limits) or { panic(err) } == doc.to_markdown()
 	assert doc.to_terminal_checked() or { panic(err) } == doc.to_terminal()
 	options := TerminalRenderOptions{
 		width: 40
@@ -184,6 +191,39 @@ fn test_checked_document_renderers_match_trusted_fast_paths() {
 	assert doc.to_terminal_checked_with_options(options) or {
 		panic(err)
 	} == doc.to_terminal_with_options(options)
+	assert doc.to_terminal_checked_with_limits(options, limits) or {
+		panic(err)
+	} == doc.to_terminal_with_options(options)
+}
+
+fn test_checked_document_renderers_enforce_validation_limits() {
+	doc := parse('text') or { panic(err) }
+	limits := AstValidationLimits{ max_nodes: 2 }
+	if _ := doc.to_text_checked_with_limits(limits) {
+		assert false, 'checked text rendering must enforce validation limits'
+	} else {
+		assert (err as AstValidationError).kind == .validation_limit
+	}
+	if _ := doc.to_json_checked_with_limits(limits) {
+		assert false, 'checked JSON rendering must enforce validation limits'
+	} else {
+		assert (err as AstValidationError).kind == .validation_limit
+	}
+	if _ := doc.to_markdown_checked_with_limits(limits) {
+		assert false, 'checked Markdown rendering must enforce validation limits'
+	} else {
+		assert (err as AstValidationError).kind == .validation_limit
+	}
+	if _ := doc.to_terminal_checked_with_limits(TerminalRenderOptions{}, limits) {
+		assert false, 'checked terminal rendering must enforce validation limits'
+	} else {
+		assert (err as AstValidationError).kind == .validation_limit
+	}
+	if _ := doc.to_text_checked_with_limits(AstValidationLimits{ max_nodes: -1 }) {
+		assert false, 'checked renderers must reject negative validation limits'
+	} else {
+		assert (err as AstValidationError).kind == .invalid_limits
+	}
 }
 
 fn test_checked_document_renderers_reject_invalid_ast() {

@@ -40,13 +40,19 @@ pub fn (doc Document) to_terminal() string {
 
 // to_terminal_checked validates an application-assembled AST before rendering.
 pub fn (doc Document) to_terminal_checked() !string {
-	return doc.to_terminal_checked_with_options(TerminalRenderOptions{})
+	return doc.to_terminal_checked_with_limits(TerminalRenderOptions{}, AstValidationLimits{})
 }
 
 // to_terminal_checked_with_options validates an application-assembled AST
 // before rendering it with caller-selected terminal behavior.
 pub fn (doc Document) to_terminal_checked_with_options(options TerminalRenderOptions) !string {
-	doc.validate()!
+	return doc.to_terminal_checked_with_limits(options, AstValidationLimits{})
+}
+
+// to_terminal_checked_with_limits validates with caller-selected traversal
+// limits before rendering with caller-selected terminal behavior.
+pub fn (doc Document) to_terminal_checked_with_limits(options TerminalRenderOptions, limits AstValidationLimits) !string {
+	doc.validate_with_limits(limits)!
 	return doc.to_terminal_with_options(options)
 }
 

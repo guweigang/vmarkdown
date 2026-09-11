@@ -95,6 +95,13 @@ fn test_public_parse_render_and_codec_contract() {
 	assert doc.to_json_checked() or { panic(err) } == doc.to_json()
 	assert doc.to_markdown().starts_with('# API')
 	assert doc.to_markdown_checked() or { panic(err) } == doc.to_markdown()
+	render_limits := vmarkdown.AstValidationLimits{
+		max_nodes: 16
+		max_nesting_depth: 8
+	}
+	assert doc.to_text_checked_with_limits(render_limits) or { panic(err) } == doc.to_text()
+	assert doc.to_json_checked_with_limits(render_limits) or { panic(err) } == doc.to_json()
+	assert doc.to_markdown_checked_with_limits(render_limits) or { panic(err) } == doc.to_markdown()
 	assert doc.to_terminal_with_options(vmarkdown.TerminalRenderOptions{
 		width: 80
 		color: false
@@ -103,6 +110,13 @@ fn test_public_parse_render_and_codec_contract() {
 		width: 80
 		color: false
 	}) or { panic(err) } == doc.to_terminal_with_options(vmarkdown.TerminalRenderOptions{
+		width: 80
+		color: false
+	})
+	assert doc.to_terminal_checked_with_limits(vmarkdown.TerminalRenderOptions{
+		width: 80
+		color: false
+	}, render_limits) or { panic(err) } == doc.to_terminal_with_options(vmarkdown.TerminalRenderOptions{
 		width: 80
 		color: false
 	})
