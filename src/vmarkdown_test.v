@@ -198,6 +198,13 @@ fn test_parse_rejects_ast_over_configured_node_budget() {
 	}
 }
 
+fn test_parse_node_budget_includes_document_root() {
+	doc := parse_with_limits('text', ParseOptions{}, ParseLimits{
+		max_nodes: 3
+	}) or { panic(err) }
+	assert doc.children.len == 1
+}
+
 fn test_parse_rejects_ast_over_configured_nesting_budget() {
 	if _ := parse_with_limits('> > nested', ParseOptions{}, ParseLimits{
 		max_nesting_depth: 2

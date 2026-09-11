@@ -37,6 +37,7 @@ pub fn binary_decode_with_limits(data []u8, limits BinaryDecodeLimits) !Document
 		pos: 6
 		limit: data.len
 		limits: limits
+		nodes: 1
 	}
 	body_end := reader.read_sized_end('document payload')!
 	mut children := []BlockNode{}
@@ -46,7 +47,10 @@ pub fn binary_decode_with_limits(data []u8, limits BinaryDecodeLimits) !Document
 	reader.require_end(body_end, 'document payload')!
 	reader.require_end(data.len, 'binary document')!
 	doc := Document{ children: children }
-	doc.validate() or { return error('invalid binary AST: ${err}') }
+	doc.validate_with_limits(AstValidationLimits{
+		max_nodes: limits.max_nodes
+		max_nesting_depth: limits.max_nesting_depth
+	}) or { return error('invalid binary AST: ${err}') }
 	return doc
 }
 

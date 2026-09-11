@@ -72,7 +72,12 @@ pub fn parse_with_limits(markdown string, options ParseOptions, limits ParseLimi
 	if rc != 0 {
 		return error(builder.error_message(rc))
 	}
-	return builder.finish()
+	doc := builder.finish()!
+	doc.validate_with_limits(AstValidationLimits{
+		max_nodes: limits.max_nodes
+		max_nesting_depth: limits.max_nesting_depth
+	})!
+	return doc
 }
 
 fn validate_parse_limits(limits ParseLimits) ! {

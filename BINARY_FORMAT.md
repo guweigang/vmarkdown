@@ -81,9 +81,9 @@ or node-count limits.
 
 The public decoder defaults to 64 MiB of input, one million decoded AST nodes,
 and 256 nesting levels. `binary_decode_with_limits()` can tighten or explicitly
-remove those transport budgets without changing the v1 bytes. The reconstructed
-document still passes the format-independent AST validator before it is
-returned.
+remove those budgets without changing the v1 bytes. The node count includes the
+root document. The reconstructed document passes the format-independent AST
+validator with the caller's same node and depth budgets before it is returned.
 
 After framing is decoded, the document must also satisfy the public AST
 validation contract. In particular, headings use levels 1 through 6; list
