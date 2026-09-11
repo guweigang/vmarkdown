@@ -195,8 +195,36 @@ fn test_ast_validation_rejects_negative_resource_limits() {
 		if _ := doc.validate_with_limits(limits) {
 			assert false, 'negative validation limits must fail'
 		} else {
+			assert err is AstValidationError
+			validation := err as AstValidationError
+			assert validation.kind == .invalid_limits
+			assert validation.path.starts_with('limits.')
 			assert err.msg().contains('cannot be negative')
 		}
+	}
+}
+
+fn test_negative_validation_limits_propagate_through_all_checked_boundaries() {
+	limits := AstValidationLimits{ max_nodes: -1 }
+	doc := Document{}
+	for operation in ['block', 'inline', 'binary'] {
+		if operation == 'block' {
+			BlockNode(ParagraphNode{}).validate_with_limits(limits) or {
+				assert (err as AstValidationError).kind == .invalid_limits
+				continue
+			}
+		} else if operation == 'inline' {
+			InlineNode(TextNode{ text: 'x' }).validate_with_limits(limits) or {
+				assert (err as AstValidationError).kind == .invalid_limits
+				continue
+			}
+		} else {
+			doc.binary_encode_checked_with_limits(limits) or {
+				assert (err as AstValidationError).kind == .invalid_limits
+				continue
+			}
+		}
+		assert false, '${operation} must reject negative validation limits'
 	}
 }
 

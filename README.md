@@ -269,7 +269,8 @@ Validation failures implement V's `IError` as the public
 `AstValidationError` type. Callers that need machine-readable diagnostics can
 type-match the error and inspect its stable `kind`, AST `path`, best available
 `span`, and human-readable `message`; `msg()` remains suitable for logs and
-command-line output.
+command-line output. Invalid `AstValidationLimits` use the same structured
+error with kind `invalid_limits` and a `limits.*` path.
 
 `binary_decode()` validates the reconstructed AST before returning it, so a
 well-framed payload with invalid semantic state is rejected as an invalid
