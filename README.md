@@ -96,6 +96,19 @@ markdown_from_html := vmarkdown.html_to_markdown(html)!
 terminal_view := vmarkdown.render_terminal(markdown)!
 ```
 
+The one-shot text, JSON, Markdown, HTML, and terminal renderers all accept
+parser options. This keeps opt-in extensions available without requiring an
+explicit parse step:
+
+```v
+options := vmarkdown.ParseOptions{ wiki_links: true, latex_math: true, underline: true }
+json := vmarkdown.render_json_with_options(markdown, options)!
+terminal := vmarkdown.render_terminal_with_options(markdown, vmarkdown.TerminalRenderOptions{
+	parser: options
+	width: 100
+})!
+```
+
 AST pretty printing:
 
 ```v

@@ -6,6 +6,7 @@ import encoding.utf8.east_asian
 
 pub struct TerminalRenderOptions {
 pub:
+	parser                     ParseOptions
 	width                      int
 	color                      bool = true
 	sanitize_control_sequences bool = true
@@ -25,7 +26,7 @@ pub fn render_terminal(markdown string) !string {
 }
 
 pub fn render_terminal_with_options(markdown string, options TerminalRenderOptions) !string {
-	return parse(markdown)!.to_terminal_with_options(options)
+	return parse_with_options(markdown, options.parser)!.to_terminal_with_options(options)
 }
 
 @[inline]

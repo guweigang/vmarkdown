@@ -50,7 +50,11 @@ pub fn (doc Document) to_text() string {
 }
 
 pub fn render_text(markdown string) !string {
-	return parse(markdown)!.render_text()
+	return render_text_with_options(markdown, ParseOptions{})
+}
+
+pub fn render_text_with_options(markdown string, options ParseOptions) !string {
+	return parse_with_options(markdown, options)!.render_text()
 }
 
 @[inline]
@@ -59,7 +63,11 @@ pub fn (doc Document) to_json() string {
 }
 
 pub fn render_json(markdown string) !string {
-	return parse(markdown)!.render_json()
+	return render_json_with_options(markdown, ParseOptions{})
+}
+
+pub fn render_json_with_options(markdown string, options ParseOptions) !string {
+	return parse_with_options(markdown, options)!.render_json()
 }
 
 @[inline]
@@ -68,7 +76,11 @@ pub fn (doc Document) to_markdown() string {
 }
 
 pub fn render_markdown(markdown string) !string {
-	return parse(markdown)!.render_markdown()
+	return render_markdown_with_options(markdown, ParseOptions{})
+}
+
+pub fn render_markdown_with_options(markdown string, options ParseOptions) !string {
+	return parse_with_options(markdown, options)!.render_markdown()
 }
 
 fn (doc Document) render_text() string {

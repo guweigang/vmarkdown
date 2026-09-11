@@ -61,6 +61,25 @@ fn test_public_parse_render_and_codec_contract() {
 		width: 80
 		color: false
 	}).contains('API')
+	parser_options := vmarkdown.ParseOptions{
+		wiki_links: true
+		latex_math: true
+		underline: true
+	}
+	assert vmarkdown.render_text_with_options('[[docs|Guide]]', parser_options) or {
+		panic(err)
+	} == 'Guide'
+	assert vmarkdown.render_json_with_options(r'$x$', parser_options) or {
+		panic(err)
+	}.contains('"type":"latex_math"')
+	assert vmarkdown.render_markdown_with_options('_text_', parser_options) or {
+		panic(err)
+	} == '_text_'
+	assert vmarkdown.render_terminal_with_options('[[docs|Guide]]', vmarkdown.TerminalRenderOptions{
+		parser: parser_options
+		width: 80
+		color: false
+	}) or { panic(err) } == 'Guide ↗ docs'
 
 	encoded := doc.binary_encode()
 	decoded := vmarkdown.binary_decode(encoded) or { panic(err) }

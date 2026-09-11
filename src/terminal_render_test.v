@@ -2,6 +2,15 @@ module vmarkdown
 
 import term
 
+fn test_one_shot_terminal_renderer_accepts_parser_options() {
+	out := render_terminal_with_options('[[docs|Guide]]', TerminalRenderOptions{
+		parser: ParseOptions{ wiki_links: true }
+		width: 80
+		color: false
+	}) or { panic(err) }
+	assert out == 'Guide ↗ docs'
+}
+
 fn test_render_terminal_basic_blocks() {
 	doc := parse('# Title\n\nParagraph with **strong** text.\n\n- alpha\n- beta\n') or {
 		panic(err)

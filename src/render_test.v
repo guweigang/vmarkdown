@@ -25,6 +25,21 @@ fn test_render_json() {
 	assert json.contains('"text":"Title"')
 }
 
+fn test_one_shot_renderers_accept_parser_options() {
+	options := ParseOptions{
+		wiki_links: true
+		latex_math: true
+		underline: true
+	}
+	input := r'[[docs|Guide]] $x^2$ _underlined_'
+	assert render_text_with_options(input, options) or { panic(err) } == 'Guide x^2 underlined'
+	json := render_json_with_options(input, options) or { panic(err) }
+	assert json.contains('"type":"wiki_link"')
+	assert json.contains('"type":"latex_math"')
+	assert json.contains('"type":"underline"')
+	assert render_markdown_with_options(input, options) or { panic(err) } == input
+}
+
 fn test_render_table_text_json_and_markdown() {
 	input := '| Name | Value |\n| :--- | ---: |\n| **alpha** | 10 |\n'
 	doc := parse(input) or { panic(err) }
