@@ -47,6 +47,12 @@ fn test_public_parse_render_and_codec_contract() {
 		return [visit.node]
 	}) or { panic(err) }
 	assert rewritten.to_markdown().starts_with('# renamed')
+	assert doc.rewrite_blocks_with_limits(vmarkdown.AstValidationLimits{
+		max_nodes: 16
+		max_nesting_depth: 8
+	}, fn (visit vmarkdown.AstBlockRewrite) ![]vmarkdown.BlockNode {
+		return [visit.node]
+	}) or { panic(err) }.stable_id() == doc.stable_id()
 	diagnostics := doc.lint([vmarkdown.LintRule{
 		id: 'contract.heading'
 		severity: .info
@@ -57,6 +63,10 @@ fn test_public_parse_render_and_codec_contract() {
 			return []vmarkdown.LintFinding{}
 		}
 	}]) or { panic(err) }
+	assert doc.lint_with_limits([]vmarkdown.LintRule{}, vmarkdown.AstValidationLimits{
+		max_nodes: 16
+		max_nesting_depth: 8
+	}) or { panic(err) } == []vmarkdown.LintDiagnostic{}
 	assert diagnostics.len == 1
 	assert diagnostics[0].path == 'document.children[0]'
 	assert vmarkdown.lint_markdown('# Good') or { panic(err) } == []vmarkdown.LintDiagnostic{}

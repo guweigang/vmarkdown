@@ -21,7 +21,11 @@ pub:
 // original tree, and replacement nodes are not visited again in the same pass.
 // The completed document is validated before it is returned.
 pub fn (doc Document) rewrite_blocks(rewriter fn (AstBlockRewrite) ![]BlockNode) !Document {
-	doc.validate()!
+	return doc.rewrite_blocks_with_limits(AstValidationLimits{}, rewriter)
+}
+
+pub fn (doc Document) rewrite_blocks_with_limits(limits AstValidationLimits, rewriter fn (AstBlockRewrite) ![]BlockNode) !Document {
+	doc.validate_with_limits(limits)!
 	mut children := []BlockNode{}
 	for index, child in doc.children {
 		children << rewrite_block(child, 'document.children[${index}]', 1, rewriter)!
@@ -30,7 +34,7 @@ pub fn (doc Document) rewrite_blocks(rewriter fn (AstBlockRewrite) ![]BlockNode)
 		span: doc.span
 		children: children
 	}
-	rewritten.validate()!
+	rewritten.validate_with_limits(limits)!
 	return rewritten
 }
 
@@ -39,7 +43,11 @@ pub fn (doc Document) rewrite_blocks(rewriter fn (AstBlockRewrite) ![]BlockNode)
 // it. Paths describe the original tree, and replacements are not revisited.
 // The completed document is validated before it is returned.
 pub fn (doc Document) rewrite_inlines(rewriter fn (AstInlineRewrite) ![]InlineNode) !Document {
-	doc.validate()!
+	return doc.rewrite_inlines_with_limits(AstValidationLimits{}, rewriter)
+}
+
+pub fn (doc Document) rewrite_inlines_with_limits(limits AstValidationLimits, rewriter fn (AstInlineRewrite) ![]InlineNode) !Document {
+	doc.validate_with_limits(limits)!
 	mut children := []BlockNode{cap: doc.children.len}
 	for index, child in doc.children {
 		children << rewrite_block_inlines(child, 'document.children[${index}]', 1, rewriter)!
@@ -48,7 +56,7 @@ pub fn (doc Document) rewrite_inlines(rewriter fn (AstInlineRewrite) ![]InlineNo
 		span: doc.span
 		children: children
 	}
-	rewritten.validate()!
+	rewritten.validate_with_limits(limits)!
 	return rewritten
 }
 

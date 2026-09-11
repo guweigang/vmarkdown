@@ -69,7 +69,11 @@ pub fn (err LintContractError) code() int {
 // lint runs rules in their declared order for every AST node in pre-order.
 // The document and rule contracts are validated before findings are returned.
 pub fn (doc Document) lint(rules []LintRule) ![]LintDiagnostic {
-	doc.validate()!
+	return doc.lint_with_limits(rules, AstValidationLimits{})
+}
+
+pub fn (doc Document) lint_with_limits(rules []LintRule, limits AstValidationLimits) ![]LintDiagnostic {
+	doc.validate_with_limits(limits)!
 	validate_lint_rules(rules)!
 	mut diagnostics := []LintDiagnostic{}
 	mut diagnostics_ref := &diagnostics
