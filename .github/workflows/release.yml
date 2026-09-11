@@ -140,7 +140,7 @@ jobs:
           ./dist/${{ matrix.binary }} ast README.md > /tmp/vmarkdown-ast.txt
 
       - name: Test preview editor in a real PTY
-        if: matrix.shell == 'bash'
+        if: matrix.artifact == 'vmarkdown-darwin-x64'
         shell: bash
         run: tests/e2e/preview_editor_pty_test.sh "./dist/${{ matrix.binary }}"
 
