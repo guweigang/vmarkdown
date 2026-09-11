@@ -50,6 +50,9 @@ One deliberate adjustment was made for production parsing: `ListItemNode.childre
 - `src/ascii_diagrams.v`: flow / graph ASCII renderers built on `ascii_layout`
 - `src/ascii_diagrams_tree_org.v`: tree and org-chart ASCII renderers
 - `src/ascii_diagrams_misc.v`: timeline, pipeline, state, journey, and git ASCII renderers
+- `src/mermaid_parser.v`: Mermaid syntax parsing across supported diagram families
+- `src/mermaid_render.v`: Mermaid dispatch and flow-graph ASCII rendering
+- `src/mermaid_render_families.v`: ASCII rendering for non-flow Mermaid diagram families
 - `src/diagram_ast.v`: shared lower-level diagram AST / IR
 - `src/diagram_schema.v`: internal JSON schema, validation, and decoding
 - `src/diagram_bridge.v`: Mermaid AST -> shared diagram AST bridge
