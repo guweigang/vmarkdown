@@ -245,12 +245,30 @@ pub fn (doc Document) stable_id() string {
 	return 'doc:' + hash_bytes(doc.binary_encode())
 }
 
+pub fn (doc Document) stable_id_checked() !string {
+	return doc.stable_id_checked_with_limits(AstValidationLimits{})
+}
+
+pub fn (doc Document) stable_id_checked_with_limits(limits AstValidationLimits) !string {
+	doc.validate_with_limits(limits)!
+	return doc.stable_id()
+}
+
 pub fn (doc Document) root_refs() []string {
 	mut refs := []string{cap: doc.children.len}
 	for child in doc.children {
 		refs << child.stable_id()
 	}
 	return refs
+}
+
+pub fn (doc Document) root_refs_checked() ![]string {
+	return doc.root_refs_checked_with_limits(AstValidationLimits{})
+}
+
+pub fn (doc Document) root_refs_checked_with_limits(limits AstValidationLimits) ![]string {
+	doc.validate_with_limits(limits)!
+	return doc.root_refs()
 }
 
 pub fn (doc Document) encode() []u8 {
@@ -273,6 +291,15 @@ pub fn (doc Document) binary_encode_checked_with_limits(limits AstValidationLimi
 
 pub fn (doc Document) semantic_stable_id() string {
 	return 'doc:' + hash_bytes(doc.normalized_bytes())
+}
+
+pub fn (doc Document) semantic_stable_id_checked() !string {
+	return doc.semantic_stable_id_checked_with_limits(AstValidationLimits{})
+}
+
+pub fn (doc Document) semantic_stable_id_checked_with_limits(limits AstValidationLimits) !string {
+	doc.validate_with_limits(limits)!
+	return doc.semantic_stable_id()
 }
 
 pub fn (doc Document) semantic_encode() []u8 {
@@ -311,6 +338,15 @@ pub fn (node BlockNode) stable_id() string {
 			return 'html:' + hash_bytes(encoded)
 		}
 	}
+}
+
+pub fn (node BlockNode) stable_id_checked() !string {
+	return node.stable_id_checked_with_limits(AstValidationLimits{})
+}
+
+pub fn (node BlockNode) stable_id_checked_with_limits(limits AstValidationLimits) !string {
+	node.validate_with_limits(limits)!
+	return node.stable_id()
 }
 
 pub fn (node BlockNode) encode() []u8 {
@@ -357,6 +393,15 @@ pub fn (node BlockNode) semantic_stable_id() string {
 			return 'html:' + hash_bytes(normalized)
 		}
 	}
+}
+
+pub fn (node BlockNode) semantic_stable_id_checked() !string {
+	return node.semantic_stable_id_checked_with_limits(AstValidationLimits{})
+}
+
+pub fn (node BlockNode) semantic_stable_id_checked_with_limits(limits AstValidationLimits) !string {
+	node.validate_with_limits(limits)!
+	return node.semantic_stable_id()
 }
 
 pub fn (node BlockNode) semantic_encode() []u8 {

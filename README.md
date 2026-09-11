@@ -151,6 +151,12 @@ There are now two encoding paths:
 - `semantic_stable_id()` / `semantic_encode()`
   Uses the older normalized semantic byte stream and is kept for comparison/debugging.
 
+For application-assembled ASTs, use `stable_id_checked()`,
+`semantic_stable_id_checked()`, and `root_refs_checked()` (or their
+`_with_limits` variants). Block nodes expose the same checked ID methods. These
+validate before deriving persistence keys; parser-produced or already validated
+ASTs may keep using the non-fallible fast paths above.
+
 Document encodings start with the `VMDA` magic and a format version. Version 1
 uses canonical unsigned varints for every length, count, and non-negative
 integer, so values cannot be silently truncated to 16 bits. Decode with

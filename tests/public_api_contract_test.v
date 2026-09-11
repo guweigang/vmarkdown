@@ -121,6 +121,13 @@ fn test_public_parse_render_and_codec_contract() {
 		max_nesting_depth: 16
 	}) or { panic(err) }
 	assert limited.stable_id() == doc.stable_id()
+	assert doc.stable_id_checked() or { panic(err) } == doc.stable_id()
+	assert doc.semantic_stable_id_checked() or { panic(err) } == doc.semantic_stable_id()
+	assert doc.root_refs_checked_with_limits(vmarkdown.AstValidationLimits{
+		max_nodes: 16
+		max_nesting_depth: 8
+	}) or { panic(err) } == doc.root_refs()
+	assert doc.children[0].stable_id_checked() or { panic(err) } == doc.children[0].stable_id()
 	html := vmarkdown.render_html_with_options('line', vmarkdown.HtmlRenderOptions{
 		parser: options
 	}) or { panic(err) }
