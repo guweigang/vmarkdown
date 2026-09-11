@@ -80,6 +80,9 @@ truncation, trailing bytes, non-normalized text, non-canonical metadata order,
 and documents beyond its published size, depth, or node-count limits. After
 structural and semantic validation, it re-encodes the AST and requires an exact
 byte match so every accepted v1 document has one canonical representation.
+Failures are exposed as `BinaryDecodeError`, with a stable category and the
+best available zero-based byte offset. Configuration and whole-AST semantic
+errors use offset `-1` because no single payload byte identifies the failure.
 
 The public decoder defaults to 64 MiB of input, one million decoded AST nodes,
 and 256 nesting levels. `binary_decode_with_limits()` can tighten or explicitly

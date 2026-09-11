@@ -474,3 +474,49 @@ fn ignore_binary_decode_result(data []u8) {
 		max_nesting_depth: 32
 	}) or { return }
 }
+
+fn test_binary_decode_returns_structured_error_kinds_and_offsets() {
+	assert_binary_decode_error([u8(`V`), `M`, `D`, `A`], .truncated, 4)
+	assert_binary_decode_error([u8(`X`), `M`, `D`, `A`, 0x01, 0x00, 0x00], .invalid_envelope, 0)
+	assert_binary_decode_error([u8(`V`), `M`, `D`, `X`, 0x01, 0x00, 0x00], .invalid_envelope, 3)
+	assert_binary_decode_error([u8(`V`), `M`, `D`, `A`, 0x01, 0x00, 0x80, 0x00], .invalid_varint, 7)
+	assert_binary_decode_error([u8(`V`), `M`, `D`, `A`, 0x01, 0x00, 0x01, 0xff], .unknown_tag, 7)
+	assert_binary_decode_error([u8(`V`), `M`, `D`, `A`, 0x01, 0x00, 0x05, 0x02, 0x03, 0x20, 0x01,
+		0xff], .invalid_utf8, 11)
+	assert_binary_decode_error([u8(`V`), `M`, `D`, `A`, 0x01, 0x00, 0x04, 0x03, 0x02, 0x00, 0x01], .invalid_value, 8)
+
+	noncanonical := [u8(`V`), `M`, `D`, `A`, 0x01, 0x00, 0x07, 0x02, 0x05, 0x20, 0x03, ` `, `a`,
+		` `]
+	assert_binary_decode_error(noncanonical, .non_canonical, 6)
+
+	invalid_ast := Document{
+		children: [BlockNode(ListNode{ start: 2 })]
+	}.binary_encode()
+	assert_binary_decode_error(invalid_ast, .invalid_ast, -1)
+}
+
+fn test_binary_decode_returns_structured_limit_errors() {
+	if _ := binary_decode_with_limits(Document{}.binary_encode(), BinaryDecodeLimits{
+		max_nodes: -1
+	}) {
+		assert false, 'negative limit must fail'
+	} else {
+		assert err is BinaryDecodeError
+		decode_error := err as BinaryDecodeError
+		assert decode_error.kind == .invalid_limits
+		assert decode_error.offset == -1
+		assert decode_error.code() >= 4000
+	}
+}
+
+fn assert_binary_decode_error(data []u8, kind BinaryDecodeErrorKind, offset int) {
+	if _ := binary_decode(data) {
+		assert false, 'binary payload must fail with ${kind}'
+	} else {
+		assert err is BinaryDecodeError
+		decode_error := err as BinaryDecodeError
+		assert decode_error.kind == kind
+		assert decode_error.offset == offset
+		assert decode_error.message == decode_error.msg()
+	}
+}

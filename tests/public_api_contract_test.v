@@ -140,6 +140,19 @@ fn test_public_validation_error_contract() {
 	assert matched
 }
 
+fn test_public_binary_decode_error_contract() {
+	if _ := vmarkdown.binary_decode([u8(`X`), `M`, `D`, `A`, 0x01, 0x00, 0x00]) {
+		assert false, 'invalid VMDA envelope must fail'
+	} else {
+		assert err is vmarkdown.BinaryDecodeError
+		decode_error := err as vmarkdown.BinaryDecodeError
+		assert decode_error.kind == .invalid_envelope
+		assert decode_error.offset == 0
+		assert decode_error.message.contains('expected VMDA')
+		assert decode_error.code() >= 4000
+	}
+}
+
 fn test_public_wiki_link_contract() {
 	doc := vmarkdown.parse_with_options('[[docs|Guide]]', vmarkdown.ParseOptions{
 		wiki_links: true
