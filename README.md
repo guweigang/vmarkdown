@@ -703,6 +703,7 @@ is left unchanged.
 - `G` jump to the bottom
 - `/` start search
 - `n` next match, `N` previous match
+- Mouse wheel scrolls; left click moves the cursor or activates visible footer/dialog controls
 - `?` toggle the help window
 - `i` enters Insert mode for the original Markdown source
 - `Esc` exits search input and clears search highlights

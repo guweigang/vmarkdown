@@ -37,8 +37,7 @@ fn test_build_mermaid_preview_markdown() {
 }
 
 fn test_build_diagram_preview_markdown() {
-	wrapped := build_diagram_preview_markdown('Dependency Diagram',
-		'[root] ─┬─▶ [preview] ┐\n        └─▶ [lexer]   ┴ ─▶ [parser]')
+	wrapped := build_diagram_preview_markdown('Dependency Diagram', '[root] ─┬─▶ [preview] ┐\n        └─▶ [lexer]   ┴ ─▶ [parser]')
 	assert wrapped.contains('# Dependency Diagram')
 	assert wrapped.contains('```text')
 	assert wrapped.contains('[root]')
@@ -88,8 +87,7 @@ fn test_render_diff_preview_terminal_empty() {
 }
 
 fn test_preview_header_and_footer_labels() {
-	header := term.strip_ansi(build_preview_header_line('/Users/guweigang/Source/vmarkdown/README.md',
-		.terminal, 42, 72))
+	header := term.strip_ansi(build_preview_header_line('/Users/guweigang/Source/vmarkdown/README.md', .terminal, 42, 72))
 	footer := term.strip_ansi(build_preview_footer_line(.terminal, 10, 20, 100, 200))
 	command := term.strip_ansi(build_preview_command_line('needle', false, '', 4, [
 		'needle',
@@ -114,11 +112,11 @@ fn test_preview_header_and_footer_labels() {
 }
 
 fn test_preview_header_and_footer_fit_width() {
-	header := term.strip_ansi(build_preview_header_line('/Users/guweigang/Source/vmarkdown/README.md',
-		.terminal, 99, 32))
+	header := term.strip_ansi(build_preview_header_line('/Users/guweigang/Source/vmarkdown/README.md', .terminal, 99, 32))
 	footer := term.strip_ansi(build_preview_footer_line(.terminal, 10, 20, 100, 32))
-	command := term.strip_ansi(pad_preview_line(build_preview_command_line('very-long-needle',
-		false, '', 0, ['very-long-needle']), 32))
+	command := term.strip_ansi(pad_preview_line(build_preview_command_line('very-long-needle', false, '', 0, [
+		'very-long-needle',
+	]), 32))
 	content :=
 		term.strip_ansi(clip_preview_content_line('This is a very long content line that should not wrap into the header row.', 32))
 	assert header.runes().len <= 32
@@ -156,17 +154,16 @@ fn test_preview_search_helpers() {
 	assert term.strip_ansi(highlight_preview_line('Beta keyword', 'keyword', false)).contains('Beta keyword')
 	assert highlight_preview_line('Beta keyword', 'keyword', true) != 'Beta keyword'
 	assert highlight_preview_match_segments('stable_id() / encode()', 'stable', true) != 'stable_id() / encode()'
-	assert term.strip_ansi(highlight_preview_match_segments('stable_id() / encode()', 'stable',
-		true)).contains('stable_id() / encode()')
+	assert term.strip_ansi(highlight_preview_match_segments('stable_id() / encode()', 'stable', true)).contains('stable_id() / encode()')
 }
 
 fn test_preview_search_backspace_removes_complete_unicode_rune() {
 	mut app := PreviewApp{
 		search_active: true
-		search_query:  '中文a'
+		search_query: '中文a'
 	}
 	backspace := &tui.Event{
-		typ:  .key_down
+		typ: .key_down
 		code: .backspace
 	}
 	app.handle_search_input(backspace)
@@ -181,7 +178,7 @@ fn test_preview_normal_non_d_key_clears_pending_delete() {
 	}
 	app.editor.pending_key = 'd'
 	preview_event(&tui.Event{
-		typ:  .key_down
+		typ: .key_down
 		code: .question_mark
 	}, voidptr(&app))
 	assert app.editor.pending_key == ''
@@ -191,12 +188,12 @@ fn test_preview_normal_non_d_key_clears_pending_delete() {
 fn test_editor_normal_nonmatching_key_clears_pending_operator() {
 	mut app := PreviewApp{
 		editing: true
-		editor:  new_markdown_editor('one two')
+		editor: new_markdown_editor('one two')
 	}
 	app.editor.mode = .normal
 	app.editor.pending_key = 'd'
 	app.handle_editor_normal_input(&tui.Event{
-		typ:  .key_down
+		typ: .key_down
 		code: .w
 	})
 	assert app.editor.pending_key == ''
@@ -206,7 +203,7 @@ fn test_editor_normal_nonmatching_key_clears_pending_operator() {
 fn test_preview_dismiss_search() {
 	mut app := PreviewApp{
 		search_active: true
-		search_query:  'stable'
+		search_query: 'stable'
 		search_status: ''
 		current_match: 3
 	}
@@ -247,12 +244,12 @@ fn test_preview_edit_entry_starts_in_insert_mode() {
 fn test_escape_returns_to_editor_normal_without_moving_cursor() {
 	mut app := PreviewApp{
 		editing: true
-		editor:  new_markdown_editor('jjjj')
+		editor: new_markdown_editor('jjjj')
 	}
 	app.editor.mode = .insert
 	app.editor.cursor_x = 4
 	event := &tui.Event{
-		typ:  .key_down
+		typ: .key_down
 		code: .escape
 	}
 	app.handle_editor_insert_input(event)
@@ -268,16 +265,16 @@ fn test_one_preview_insert_session_undoes_as_one_change() {
 	app.start_editing()
 	for text in ['a', 'b', 'c'] {
 		app.handle_editor_insert_input(&tui.Event{
-			typ:  .key_down
+			typ: .key_down
 			utf8: text
 		})
 	}
 	app.handle_editor_insert_input(&tui.Event{
-		typ:  .key_down
+		typ: .key_down
 		code: .escape
 	})
 	app.handle_editor_normal_input(&tui.Event{
-		typ:  .key_down
+		typ: .key_down
 		code: .u
 	})
 	assert app.editor.text() == 'before'
@@ -286,12 +283,12 @@ fn test_one_preview_insert_session_undoes_as_one_change() {
 fn test_editor_normal_undo_still_works() {
 	mut app := PreviewApp{
 		editing: true
-		editor:  new_markdown_editor('before')
+		editor: new_markdown_editor('before')
 	}
 	app.editor.insert_text('after')
 	app.editor.mode = .normal
 	event := &tui.Event{
-		typ:  .key_down
+		typ: .key_down
 		code: .u
 	}
 	app.handle_editor_normal_input(event)
@@ -301,9 +298,9 @@ fn test_editor_normal_undo_still_works() {
 fn test_preview_normal_undo_refreshes_current_view_after_switching_modes() {
 	mut app := PreviewApp{
 		markdown: '# Before\n'
-		doc:      parse('# Before\n') or { panic(err) }
-		editor:   new_markdown_editor('# Before\n')
-		mode:     .html
+		doc: parse('# Before\n') or { panic(err) }
+		editor: new_markdown_editor('# Before\n')
+		mode: .html
 	}
 	app.editor.cursor_x = app.editor.current_line().runes().len
 	app.editor.insert_text(' changed')
@@ -336,9 +333,9 @@ fn test_editor_status_line_is_compact() {
 fn test_editor_preview_restores_the_original_preview_scroll() {
 	mut app := PreviewApp{
 		markdown: '# Title\n'
-		doc:      parse('# Title\n') or { panic(err) }
-		editor:   new_markdown_editor('# Changed\n')
-		scroll:   12
+		doc: parse('# Title\n') or { panic(err) }
+		editor: new_markdown_editor('# Changed\n')
+		scroll: 12
 	}
 	app.start_editing()
 	app.scroll = 3
@@ -360,10 +357,10 @@ fn test_preview_editor_save_and_return_to_rendered_view() {
 		os.rm(path) or {}
 	}
 	mut app := PreviewApp{
-		markdown:    '# Before\n'
-		doc:         parse('# Before\n') or { panic(err) }
+		markdown: '# Before\n'
+		doc: parse('# Before\n') or { panic(err) }
 		source_path: path
-		editor:      new_markdown_editor('# Before\n')
+		editor: new_markdown_editor('# Before\n')
 	}
 	app.editor.cursor_y = 1
 	app.editor.insert_text('After')
@@ -385,10 +382,10 @@ fn test_preview_save_detects_external_change_and_force_overwrites() {
 		os.rm(path) or {}
 	}
 	mut app := PreviewApp{
-		markdown:    '# Original\n'
-		doc:         parse('# Original\n') or { panic(err) }
+		markdown: '# Original\n'
+		doc: parse('# Original\n') or { panic(err) }
 		source_path: path
-		editor:      new_markdown_editor('# Original\n')
+		editor: new_markdown_editor('# Original\n')
 	}
 	app.editor.cursor_x = app.editor.current_line().runes().len
 	app.editor.insert_text(' local')
@@ -409,14 +406,14 @@ fn test_preview_editor_preserves_gbk_encoding_on_save() {
 	}
 	source := read_markdown_file(path) or { panic(err) }
 	mut app := PreviewApp{
-		markdown:        source.text
-		doc:             parse(source.text) or { panic(err) }
-		source_path:     path
+		markdown: source.text
+		doc: parse(source.text) or { panic(err) }
+		source_path: path
 		source_encoding: source.encoding
-		source_bom:      source.bom
-		source_raw:      source.raw.clone()
-		source_loaded:   true
-		editor:          new_markdown_editor(source.text)
+		source_bom: source.bom
+		source_raw: source.raw.clone()
+		source_loaded: true
+		editor: new_markdown_editor(source.text)
 	}
 	app.editor.cursor_x = app.editor.current_line().runes().len
 	app.editor.insert_text(' OK')
@@ -434,13 +431,13 @@ fn test_preview_editor_rejects_unrepresentable_gbk_text() {
 	}
 	source := read_markdown_file(path) or { panic(err) }
 	mut app := PreviewApp{
-		markdown:        source.text
-		doc:             parse(source.text) or { panic(err) }
-		source_path:     path
+		markdown: source.text
+		doc: parse(source.text) or { panic(err) }
+		source_path: path
 		source_encoding: source.encoding
-		source_raw:      source.raw.clone()
-		source_loaded:   true
-		editor:          new_markdown_editor(source.text)
+		source_raw: source.raw.clone()
+		source_loaded: true
+		editor: new_markdown_editor(source.text)
 	}
 	app.editor.cursor_x = app.editor.current_line().runes().len
 	app.editor.insert_text('😀')
@@ -491,7 +488,7 @@ fn test_preview_q_requests_confirmation_for_unsaved_buffer() {
 	assert lines.join('\n').contains('no writable file')
 
 	cancel := &tui.Event{
-		typ:  .key_down
+		typ: .key_down
 		code: .escape
 	}
 	app.handle_quit_confirm_input(cancel)
@@ -525,7 +522,7 @@ fn test_preview_redraw_starts_dirty_and_can_be_consumed() {
 	app.needs_redraw = false
 	assert !app.needs_redraw
 	event := &tui.Event{
-		typ:  .key_down
+		typ: .key_down
 		code: .question_mark
 	}
 	preview_event(event, voidptr(&app))
@@ -550,15 +547,15 @@ fn test_preview_scroll_helpers() {
 
 fn test_preview_current_line_index() {
 	app := PreviewApp{
-		lines:         ['a', 'b', 'c']
-		scroll:        1
-		view_cursor:   1
+		lines: ['a', 'b', 'c']
+		scroll: 1
+		view_cursor: 1
 		current_match: -1
 	}
 	assert app.current_line_index() == 1
 	app2 := PreviewApp{
-		lines:         ['a', 'b', 'c']
-		scroll:        1
+		lines: ['a', 'b', 'c']
+		scroll: 1
 		current_match: 2
 	}
 	assert app2.current_line_index() == 2
@@ -566,9 +563,9 @@ fn test_preview_current_line_index() {
 
 fn test_preview_mode_switch_preserves_cursor_and_viewport() {
 	mut app := PreviewApp{
-		mode:          .terminal
-		scroll:        12
-		view_cursor:   17
+		mode: .terminal
+		scroll: 12
+		view_cursor: 17
 		view_cursor_x: 9
 	}
 	app.set_mode(.html)
@@ -594,11 +591,11 @@ fn test_preview_mode_switch_tracks_same_markdown_block() {
 	markdown := source_lines.join('\n')
 	mut app := PreviewApp{
 		markdown: markdown
-		doc:      parse(markdown) or { panic(err) }
-		editor:   new_markdown_editor(markdown)
-		mode:     .markdown
-		tui:      &tui.Context{
-			window_width:  80
+		doc: parse(markdown) or { panic(err) }
+		editor: new_markdown_editor(markdown)
+		mode: .markdown
+		tui: &tui.Context{
+			window_width: 80
 			window_height: 24
 		}
 	}
@@ -618,9 +615,9 @@ fn test_preview_mode_switch_tracks_same_markdown_block() {
 
 fn test_preview_normal_hl_moves_horizontal_cursor() {
 	mut app := PreviewApp{
-		lines:           ['abcdef']
-		view_cursor:     0
-		view_cursor_x:   3
+		lines: ['abcdef']
+		view_cursor: 0
+		view_cursor_x: 3
 		source_cursor_x: 3
 	}
 	app.move_normal_cursor_horizontal(-1)
@@ -634,26 +631,26 @@ fn test_preview_normal_hl_moves_horizontal_cursor() {
 fn test_preview_normal_word_and_delete_commands_edit_source() {
 	markdown := 'one two\nthree'
 	mut app := PreviewApp{
-		markdown:     markdown
-		doc:          parse(markdown) or { panic(err) }
-		editor:       new_markdown_editor(markdown)
-		mode:         .markdown
-		lines:        ['one two', 'three']
+		markdown: markdown
+		doc: parse(markdown) or { panic(err) }
+		editor: new_markdown_editor(markdown)
+		mode: .markdown
+		lines: ['one two', 'three']
 		line_sources: [
 			PreviewLineSource{
-				start_line:  0
-				end_line:    0
+				start_line: 0
+				end_line: 0
 				source_line: 0
 			},
 			PreviewLineSource{
-				start_line:  1
-				end_line:    1
+				start_line: 1
+				end_line: 1
 				source_line: 1
 			},
 		]
-		view_cursor:  0
-		tui:          &tui.Context{
-			window_width:  80
+		view_cursor: 0
+		tui: &tui.Context{
+			window_width: 80
 			window_height: 24
 		}
 	}
@@ -664,13 +661,13 @@ fn test_preview_normal_word_and_delete_commands_edit_source() {
 	app.lines = app.editor.lines.clone()
 	app.line_sources = [
 		PreviewLineSource{
-			start_line:  0
-			end_line:    0
+			start_line: 0
+			end_line: 0
 			source_line: 0
 		},
 		PreviewLineSource{
-			start_line:  1
-			end_line:    1
+			start_line: 1
+			end_line: 1
 			source_line: 1
 		},
 	]
@@ -684,21 +681,21 @@ fn test_preview_delete_uses_exact_rendered_source_column() {
 	markdown := '# Hello'
 	columns, exact := build_preview_source_columns(markdown, '<h1>Hello</h1>', .html)
 	mut app := PreviewApp{
-		markdown:      markdown
-		doc:           parse(markdown) or { panic(err) }
-		editor:        new_markdown_editor(markdown)
-		mode:          .html
-		lines:         ['<h1>Hello</h1>']
-		line_sources:  [
+		markdown: markdown
+		doc: parse(markdown) or { panic(err) }
+		editor: new_markdown_editor(markdown)
+		mode: .html
+		lines: ['<h1>Hello</h1>']
+		line_sources: [
 			PreviewLineSource{
-				start_line:     0
-				end_line:       0
-				source_line:    0
+				start_line: 0
+				end_line: 0
+				source_line: 0
 				source_columns: columns
-				exact_columns:  exact
+				exact_columns: exact
 			},
 		]
-		view_cursor:   0
+		view_cursor: 0
 		view_cursor_x: 4
 	}
 	app.delete_normal_source_char()
@@ -709,24 +706,155 @@ fn test_preview_delete_refuses_render_only_column() {
 	markdown := '# Hello'
 	columns, exact := build_preview_source_columns(markdown, '<h1>Hello</h1>', .html)
 	mut app := PreviewApp{
-		markdown:      markdown
-		doc:           parse(markdown) or { panic(err) }
-		editor:        new_markdown_editor(markdown)
-		mode:          .html
-		lines:         ['<h1>Hello</h1>']
-		line_sources:  [
+		markdown: markdown
+		doc: parse(markdown) or { panic(err) }
+		editor: new_markdown_editor(markdown)
+		mode: .html
+		lines: ['<h1>Hello</h1>']
+		line_sources: [
 			PreviewLineSource{
-				start_line:     0
-				end_line:       0
-				source_line:    0
+				start_line: 0
+				end_line: 0
+				source_line: 0
 				source_columns: columns
-				exact_columns:  exact
+				exact_columns: exact
 			},
 		]
-		view_cursor:   0
+		view_cursor: 0
 		view_cursor_x: 0
 	}
 	app.delete_normal_source_char()
 	assert app.editor.text() == markdown
 	assert app.search_status.contains('no source character')
+}
+
+fn test_preview_footer_mouse_hit_targets_views_and_actions() {
+	plain := build_preview_footer_left_plain()
+	for key, marker in {
+		'1': '[1] terminal'
+		'2': '[2] markdown'
+		'3': '[3] html'
+		'4': '[4] ast'
+		'i': '[i] insert'
+		'?': '[?] help'
+		'q': '[q] quit'
+	} {
+		start := plain.index(marker) or { panic('missing footer marker ${marker}') }
+		actual := preview_footer_key_at(start + 1) or { panic('no hit for ${marker}') }
+		assert actual == key
+	}
+}
+
+fn test_preview_mouse_click_positions_editor_on_wide_character() {
+	mut app := PreviewApp{
+		editing: true
+		editor: new_markdown_editor('a界b')
+		lines: ['a界b']
+		tui: &tui.Context{
+			window_width: 80
+			window_height: 24
+		}
+	}
+	gutter := app.line_number_gutter_width()
+	app.handle_preview_content_click(gutter + 2, 2)
+	assert app.editor.cursor_y == 0
+	assert app.editor.cursor_x == 1
+	app.handle_preview_content_click(gutter + 3, 2)
+	assert app.editor.cursor_x == 2
+}
+
+fn test_preview_mouse_scroll_moves_normal_cursor() {
+	mut app := PreviewApp{
+		lines: []string{len: 12, init: 'line ${index}'}
+		view_cursor: 6
+		tui: &tui.Context{
+			window_width: 80
+			window_height: 8
+		}
+	}
+	app.handle_preview_mouse_scroll(.up)
+	assert app.view_cursor == 3
+	app.handle_preview_mouse_scroll(.down)
+	assert app.view_cursor == 6
+}
+
+fn test_preview_mouse_click_closes_help() {
+	mut app := PreviewApp{
+		show_help: true
+		tui: &tui.Context{
+			window_width: 80
+			window_height: 24
+		}
+	}
+	app.handle_preview_mouse_event(&tui.Event{
+		typ: .mouse_down
+		button: .left
+		x: 10
+		y: 10
+	})
+	assert !app.show_help
+}
+
+fn test_preview_quit_confirmation_mouse_hit_targets_cancel() {
+	mut editor := new_markdown_editor('before')
+	editor.insert_text('after')
+	app := &PreviewApp{
+		editor: editor
+		tui: &tui.Context{
+			window_width: 100
+			window_height: 30
+		}
+	}
+	lines := app.quit_confirm_lines()
+	width := min_int(preview_help_width(lines), app.tui.window_width)
+	left := (app.tui.window_width - width) / 2
+	top := (app.tui.window_height - (lines.len + 2)) / 2
+	marker_start := lines.last().index('[Esc] Cancel') or { panic('missing cancel action') }
+	action := app.quit_confirm_action_at(left + 1 + marker_start, top + lines.len) or {
+		panic('cancel action was not hit')
+	}
+	assert action == 'esc'
+}
+
+fn test_preview_mouse_position_survives_view_switches_on_wrapped_text() {
+	markdown := 'alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima mike november'
+	mut app := PreviewApp{
+		markdown: markdown
+		doc: parse(markdown) or { panic(err) }
+		editor: new_markdown_editor(markdown)
+		mode: .terminal
+		tui: &tui.Context{
+			window_width: 32
+			window_height: 20
+		}
+	}
+	app.ensure_lines()
+	mut target_line := -1
+	mut target_column := -1
+	for line_index, source in app.line_sources {
+		if line_index == 0 || source.source_line != 0 {
+			continue
+		}
+		for column, exact in source.exact_columns {
+			if exact {
+				target_line = line_index
+				target_column = column
+				break
+			}
+		}
+		if target_line >= 0 {
+			break
+		}
+	}
+	assert target_line > 0
+	assert target_column >= 0
+	app.handle_preview_content_click(app.line_number_gutter_width() + target_column, target_line + 2)
+	expected_source_column := app.source_cursor_x
+	assert expected_source_column > 0
+	for mode in [PreviewMode.markdown, .html, .ast, .terminal] {
+		app.set_mode(mode)
+		app.ensure_lines()
+		assert app.line_sources[app.view_cursor].source_line == 0
+		assert source_column_at(app.line_sources[app.view_cursor], app.view_cursor_x) == expected_source_column, 'mode ${mode}'
+	}
 }

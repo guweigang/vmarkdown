@@ -49,6 +49,7 @@ fn preview_with_markdown_file(source MarkdownFile, mode PreviewMode, source_labe
 		frame_fn: preview_frame
 		hide_cursor: true
 		capture_events: true
+		mouse_enabled: true
 		window_title: 'vmarkdown preview'
 	)
 	app.tui.run()!
@@ -70,6 +71,7 @@ pub fn preview_terminal_buffer(rendered string, source_label string) ! {
 		frame_fn: preview_frame
 		hide_cursor: true
 		capture_events: true
+		mouse_enabled: true
 		window_title: 'vmarkdown preview'
 	)
 	app.tui.run()!
@@ -244,6 +246,11 @@ mut:
 
 fn preview_event(e &tui.Event, x voidptr) {
 	mut app := unsafe { &PreviewApp(x) }
+	if e.typ == .mouse_down || e.typ == .mouse_scroll {
+		app.needs_redraw = true
+		app.handle_preview_mouse_event(e)
+		return
+	}
 	if e.typ == .key_down || e.typ == .resized {
 		app.needs_redraw = true
 	}
@@ -546,7 +553,7 @@ fn (mut app PreviewApp) prepare_source_reposition() {
 }
 
 fn (mut app PreviewApp) reposition_from_source() {
-	app.view_cursor = find_preview_line_for_source(app.line_sources, app.source_cursor_line)
+	app.view_cursor = find_preview_line_for_source_position(app.line_sources, app.source_cursor_line, app.source_cursor_x)
 	if app.view_cursor >= 0 && app.view_cursor < app.line_sources.len {
 		app.view_cursor_x = preview_column_for_source(app.line_sources[app.view_cursor], app.source_cursor_x)
 	} else {

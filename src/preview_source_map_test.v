@@ -112,3 +112,24 @@ fn test_preview_line_map_selects_matching_source_line_in_list_block() {
 	assert sources[1].source_line == 1
 	assert source_column_at(sources[1], 2) == 2
 }
+
+fn test_preview_line_map_uses_source_column_for_wrapped_line() {
+	sources := [
+		PreviewLineSource{
+			start_line: 4
+			end_line: 4
+			source_line: 4
+			source_columns: [0, 1, 2, 3]
+			exact_columns: [true, true, true, true]
+		},
+		PreviewLineSource{
+			start_line: 4
+			end_line: 4
+			source_line: 4
+			source_columns: [4, 5, 6, 7]
+			exact_columns: [true, true, true, true]
+		},
+	]
+	assert find_preview_line_for_source_position(sources, 4, 1) == 0
+	assert find_preview_line_for_source_position(sources, 4, 6) == 1
+}
