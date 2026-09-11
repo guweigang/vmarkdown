@@ -728,6 +728,12 @@ println(result.added.len)
 println(result.reused.len)
 ```
 
+`ingest_with_options()` enables parser extensions for the in-memory pipeline.
+`ingest_with_limits()` and `plan_ingest_with_limits()` carry `ParseLimits`
+through parsing and pre-persistence AST validation. For application-assembled
+documents, `ingest_document_with_limits()` and
+`plan_ingest_document_checked_with_limits()` accept `AstValidationLimits`.
+
 ## Verification
 
 Useful checks while iterating on render/layout behavior:

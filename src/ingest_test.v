@@ -128,6 +128,39 @@ fn test_checked_ingest_planner_rejects_invalid_ast() {
 	}
 }
 
+fn test_ingest_pipeline_accepts_options_and_limits() {
+	mut store := new_memory_store()
+	result := store.ingest_with_limits('[[docs|Guide]]', ParseOptions{
+		wiki_links: true
+	}, ParseLimits{
+		max_input_bytes: 64
+		max_nodes: 8
+		max_nesting_depth: 4
+	}) or { panic(err) }
+	assert result.root_id.len > 0
+	assert result.chunks.len > 0
+	plan := plan_ingest_with_options('[[docs|Guide]]', store, ParseOptions{
+		wiki_links: true
+	}) or { panic(err) }
+	assert plan.root_id == result.root_id
+}
+
+fn test_ingest_limits_fail_before_mutating_store() {
+	mut store := new_memory_store()
+	if _ := store.ingest_with_limits('text', ParseOptions{}, ParseLimits{ max_nodes: 2 }) {
+		assert false
+	} else {
+		assert (err as MarkdownParseError).kind == .resource_limit
+	}
+	assert store.chunks.len == 0
+	if _ := store.ingest_document_with_limits(Document{}, AstValidationLimits{ max_nodes: -1 }) {
+		assert false
+	} else {
+		assert (err as AstValidationError).kind == .invalid_limits
+	}
+	assert store.chunks.len == 0
+}
+
 fn test_nested_diff_uses_recursive_block_paths() {
 	mut store := new_memory_store()
 	store.ingest('- parent

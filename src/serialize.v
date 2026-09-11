@@ -108,11 +108,27 @@ pub fn new_memory_store() MemoryStore {
 }
 
 pub fn (mut store MemoryStore) ingest(markdown string) !IngestResult {
-	return store.ingest_document(parse(markdown)!)
+	return store.ingest_with_limits(markdown, ParseOptions{}, ParseLimits{})
+}
+
+pub fn (mut store MemoryStore) ingest_with_options(markdown string, options ParseOptions) !IngestResult {
+	return store.ingest_with_limits(markdown, options, ParseLimits{})
+}
+
+pub fn (mut store MemoryStore) ingest_with_limits(markdown string, options ParseOptions, limits ParseLimits) !IngestResult {
+	doc := parse_with_limits(markdown, options, limits)!
+	return store.ingest_document_with_limits(doc, AstValidationLimits{
+		max_nodes: limits.max_nodes
+		max_nesting_depth: limits.max_nesting_depth
+	})
 }
 
 pub fn (mut store MemoryStore) ingest_document(doc Document) !IngestResult {
-	plan := plan_ingest_document_checked(doc, store)!
+	return store.ingest_document_with_limits(doc, AstValidationLimits{})
+}
+
+pub fn (mut store MemoryStore) ingest_document_with_limits(doc Document, limits AstValidationLimits) !IngestResult {
+	plan := plan_ingest_document_checked_with_limits(doc, store, limits)!
 	return commit_ingest_plan(mut store, plan)
 }
 
@@ -162,7 +178,19 @@ pub fn (store &MemoryStore) root_manifest(root_id string) ?[]BlockManifestEntry 
 }
 
 pub fn plan_ingest(markdown string, store ChunkStore) !IngestPlan {
-	return make_ingest_plan(parse(markdown)!, store)
+	return plan_ingest_with_limits(markdown, store, ParseOptions{}, ParseLimits{})
+}
+
+pub fn plan_ingest_with_options(markdown string, store ChunkStore, options ParseOptions) !IngestPlan {
+	return plan_ingest_with_limits(markdown, store, options, ParseLimits{})
+}
+
+pub fn plan_ingest_with_limits(markdown string, store ChunkStore, options ParseOptions, limits ParseLimits) !IngestPlan {
+	doc := parse_with_limits(markdown, options, limits)!
+	return plan_ingest_document_checked_with_limits(doc, store, AstValidationLimits{
+		max_nodes: limits.max_nodes
+		max_nesting_depth: limits.max_nesting_depth
+	})
 }
 
 pub fn plan_ingest_document(doc Document, store ChunkStore) IngestPlan {
@@ -173,7 +201,11 @@ pub fn plan_ingest_document(doc Document, store ChunkStore) IngestPlan {
 // deriving stable IDs or binary chunks. Use plan_ingest_document only when the
 // document has already been validated or came directly from parse().
 pub fn plan_ingest_document_checked(doc Document, store ChunkStore) !IngestPlan {
-	doc.validate()!
+	return plan_ingest_document_checked_with_limits(doc, store, AstValidationLimits{})
+}
+
+pub fn plan_ingest_document_checked_with_limits(doc Document, store ChunkStore, limits AstValidationLimits) !IngestPlan {
+	doc.validate_with_limits(limits)!
 	return make_ingest_plan(doc, store)
 }
 
