@@ -27,8 +27,15 @@ pub fn lint_markdown(source string) ![]LintDiagnostic {
 }
 
 pub fn lint_markdown_with_options(source string, options ParseOptions) ![]LintDiagnostic {
-	doc := parse_with_options(source, options)!
-	mut diagnostics := doc.lint(recommended_lint_rules())!
+	return lint_markdown_with_limits(source, options, ParseLimits{})
+}
+
+pub fn lint_markdown_with_limits(source string, options ParseOptions, limits ParseLimits) ![]LintDiagnostic {
+	doc := parse_with_limits(source, options, limits)!
+	mut diagnostics := doc.lint_with_limits(recommended_lint_rules(), AstValidationLimits{
+		max_nodes: limits.max_nodes
+		max_nesting_depth: limits.max_nesting_depth
+	})!
 	diagnostics << trailing_whitespace_diagnostics(source)
 	return diagnostics
 }

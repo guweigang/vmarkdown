@@ -70,6 +70,11 @@ fn test_public_parse_render_and_codec_contract() {
 	assert diagnostics.len == 1
 	assert diagnostics[0].path == 'document.children[0]'
 	assert vmarkdown.lint_markdown('# Good') or { panic(err) } == []vmarkdown.LintDiagnostic{}
+	assert vmarkdown.lint_markdown_with_limits('# Good', vmarkdown.ParseOptions{}, vmarkdown.ParseLimits{
+		max_input_bytes: 64
+		max_nodes: 8
+		max_nesting_depth: 4
+	}) or { panic(err) } == []vmarkdown.LintDiagnostic{}
 	assert vmarkdown.recommended_lint_rules().len == 3
 	fixed := vmarkdown.apply_markdown_edits('draft', [vmarkdown.MarkdownTextEdit{
 		span: vmarkdown.SourceSpan{ start: 0, end: 5 }
