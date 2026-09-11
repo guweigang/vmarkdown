@@ -363,6 +363,8 @@ contiguous; otherwise the merged node reports an unavailable span.
 caller-selected `AstValidationLimits` budget both before and after the
 transformation. `lint_with_limits()` provides the same control for lint
 pipelines; the existing methods retain the default validation budget.
+`lint_markdown_with_limits()` carries `ParseLimits` through both parsing and
+AST lint validation for one-shot source linting.
 
 ### Lint diagnostics and fixes
 

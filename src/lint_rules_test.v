@@ -31,3 +31,22 @@ fn test_lint_markdown_reports_and_fixes_trailing_whitespace() {
 	]
 	assert apply_lint_fixes(source, diagnostics) or { panic(err) } == 'first\r\nsecond\nthird'
 }
+
+fn test_lint_markdown_with_limits_threads_the_pipeline_budget() {
+	assert lint_markdown_with_limits('# Good', ParseOptions{}, ParseLimits{
+		max_input_bytes: 64
+		max_nodes: 8
+		max_nesting_depth: 4
+	}) or { panic(err) } == []LintDiagnostic{}
+	if _ := lint_markdown_with_limits('text', ParseOptions{}, ParseLimits{ max_nodes: 2 }) {
+		assert false
+	} else {
+		assert err is MarkdownParseError
+		assert (err as MarkdownParseError).kind == .resource_limit
+	}
+	if _ := lint_markdown_with_limits('text', ParseOptions{}, ParseLimits{ max_nodes: -1 }) {
+		assert false
+	} else {
+		assert (err as MarkdownParseError).kind == .invalid_limits
+	}
+}
