@@ -122,6 +122,12 @@ pub fn (doc Document) to_text() string {
 	return doc.render_text()
 }
 
+// to_text_checked validates an application-assembled AST before rendering.
+pub fn (doc Document) to_text_checked() !string {
+	doc.validate()!
+	return doc.render_text()
+}
+
 pub fn render_text(markdown string) !string {
 	return render_text_with_options(markdown, ParseOptions{})
 }
@@ -135,6 +141,12 @@ pub fn (doc Document) to_json() string {
 	return doc.render_json()
 }
 
+// to_json_checked validates an application-assembled AST before rendering.
+pub fn (doc Document) to_json_checked() !string {
+	doc.validate()!
+	return doc.render_json()
+}
+
 pub fn render_json(markdown string) !string {
 	return render_json_with_options(markdown, ParseOptions{})
 }
@@ -145,6 +157,12 @@ pub fn render_json_with_options(markdown string, options ParseOptions) !string {
 
 @[inline]
 pub fn (doc Document) to_markdown() string {
+	return doc.render_markdown()
+}
+
+// to_markdown_checked validates an application-assembled AST before rendering.
+pub fn (doc Document) to_markdown_checked() !string {
+	doc.validate()!
 	return doc.render_markdown()
 }
 

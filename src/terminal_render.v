@@ -34,6 +34,18 @@ pub fn (doc Document) to_terminal() string {
 	return doc.to_terminal_with_options(TerminalRenderOptions{})
 }
 
+// to_terminal_checked validates an application-assembled AST before rendering.
+pub fn (doc Document) to_terminal_checked() !string {
+	return doc.to_terminal_checked_with_options(TerminalRenderOptions{})
+}
+
+// to_terminal_checked_with_options validates an application-assembled AST
+// before rendering it with caller-selected terminal behavior.
+pub fn (doc Document) to_terminal_checked_with_options(options TerminalRenderOptions) !string {
+	doc.validate()!
+	return doc.to_terminal_with_options(options)
+}
+
 pub fn (doc Document) to_terminal_with_options(options TerminalRenderOptions) string {
 	width := terminal_width(options)
 	color := options.color && term.can_show_color_on_stdout()
