@@ -33,6 +33,13 @@ fn test_public_parse_render_and_codec_contract() {
 		return visit.kind != .hard_break
 	})
 	assert visited_paths.len > headings.len
+	assert doc.walk_checked(fn (visit vmarkdown.AstVisit) bool {
+		return visit.kind != .hard_break
+	}) or { panic(err) }
+	assert doc.find_all_checked_with_limits(.heading, vmarkdown.AstValidationLimits{
+		max_nodes: 16
+		max_nesting_depth: 8
+	}) or { panic(err) }.len == 1
 	rewritten := doc.rewrite_inlines(fn (visit vmarkdown.AstInlineRewrite) ![]vmarkdown.InlineNode {
 		if visit.node is vmarkdown.TextNode && visit.node.text == 'API' {
 			return [vmarkdown.InlineNode(vmarkdown.TextNode{ text: 'renamed' })]

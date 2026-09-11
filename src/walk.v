@@ -86,6 +86,16 @@ pub fn (doc Document) walk(visitor fn (AstVisit) bool) bool {
 	return true
 }
 
+// walk_checked validates an application-assembled AST before traversal.
+pub fn (doc Document) walk_checked(visitor fn (AstVisit) bool) !bool {
+	return doc.walk_checked_with_limits(AstValidationLimits{}, visitor)
+}
+
+pub fn (doc Document) walk_checked_with_limits(limits AstValidationLimits, visitor fn (AstVisit) bool) !bool {
+	doc.validate_with_limits(limits)!
+	return doc.walk(visitor)
+}
+
 // find_all returns pre-order value snapshots whose kind matches the requested
 // kind.
 pub fn (doc Document) find_all(kind AstNodeKind) []AstVisit {
@@ -98,6 +108,16 @@ pub fn (doc Document) find_all(kind AstNodeKind) []AstVisit {
 		return true
 	})
 	return matches
+}
+
+// find_all_checked validates an application-assembled AST before querying it.
+pub fn (doc Document) find_all_checked(kind AstNodeKind) ![]AstVisit {
+	return doc.find_all_checked_with_limits(kind, AstValidationLimits{})
+}
+
+pub fn (doc Document) find_all_checked_with_limits(kind AstNodeKind, limits AstValidationLimits) ![]AstVisit {
+	doc.validate_with_limits(limits)!
+	return doc.find_all(kind)
 }
 
 fn walk_block(node BlockNode, path string, depth int, visitor fn (AstVisit) bool) bool {

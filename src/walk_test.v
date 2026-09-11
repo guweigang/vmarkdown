@@ -47,6 +47,45 @@ fn test_find_all_returns_typed_matching_visits() {
 	assert links[1].path.ends_with('.children[2]')
 }
 
+fn test_checked_traversal_matches_valid_fast_paths() {
+	doc := parse('# one\n\ntext') or { panic(err) }
+	mut checked_paths := []string{}
+	mut checked_paths_ref := &checked_paths
+	completed := doc.walk_checked(fn [mut checked_paths_ref] (visit AstVisit) bool {
+		checked_paths_ref << visit.path
+		return true
+	}) or { panic(err) }
+	assert completed
+	mut fast_paths := []string{}
+	mut fast_paths_ref := &fast_paths
+	doc.walk(fn [mut fast_paths_ref] (visit AstVisit) bool {
+		fast_paths_ref << visit.path
+		return true
+	})
+	assert checked_paths == fast_paths
+	assert doc.find_all_checked_with_limits(.text, AstValidationLimits{
+		max_nodes: 16
+		max_nesting_depth: 8
+	}) or { panic(err) } == doc.find_all(.text)
+	assert doc.find_all_checked(.heading) or { panic(err) } == doc.find_all(.heading)
+}
+
+fn test_checked_traversal_rejects_invalid_ast_and_limits() {
+	doc := Document{ children: [BlockNode(HeadingNode{ level: 0 })] }
+	if _ := doc.walk_checked(fn (visit AstVisit) bool {
+		return true
+	}) {
+		assert false
+	} else {
+		assert (err as AstValidationError).kind == .heading_level
+	}
+	if _ := doc.find_all_checked_with_limits(.heading, AstValidationLimits{ max_nodes: -1 }) {
+		assert false
+	} else {
+		assert (err as AstValidationError).kind == .invalid_limits
+	}
+}
+
 fn test_walk_and_rewrite_descend_into_wiki_link_labels() {
 	doc := parse_with_options('[[docs|old]]', ParseOptions{
 		wiki_links: true
