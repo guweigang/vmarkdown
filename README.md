@@ -39,6 +39,8 @@ One deliberate adjustment was made for production parsing: `ListItemNode.childre
 - `src/ingest.v`: chunk storage and ingest planning
 - `src/ingest_diff.v`: ingest manifest diffing and summaries
 - `src/render.v`: HTML, plain-text, and JSON renderers
+- `src/preview.v`: interactive preview lifecycle, state, drawing, and search
+- `src/preview_editor_ui.v`: preview editor input, persistence, and cursor rendering
 - `src/ascii_layout.v`: reusable terminal layout primitives
 - `src/ascii_diagrams.v`: flow / graph ASCII renderers built on `ascii_layout`
 - `src/ascii_diagrams_tree_org.v`: tree and org-chart ASCII renderers
