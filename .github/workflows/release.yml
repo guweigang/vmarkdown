@@ -89,9 +89,9 @@ jobs:
 
       - name: Setup V
         if: matrix.shell == 'bash'
-        uses: vlang/setup-v@v1.4
+        uses: vlang/setup-v@v1.7
         with:
-          check-latest: true
+          version-file: .v-version
 
       - name: Install V compiler (MSVC)
         if: matrix.shell == 'powershell'
@@ -99,7 +99,8 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $installRoot = Join-Path $env:RUNNER_TEMP "vlang"
-          git clone --depth 1 https://github.com/vlang/v.git $installRoot
+          $vVersion = (Get-Content .v-version -Raw).Trim()
+          git clone --depth 1 --branch $vVersion https://github.com/vlang/v.git $installRoot
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Push-Location $installRoot
           cmd /c makev.bat -msvc
