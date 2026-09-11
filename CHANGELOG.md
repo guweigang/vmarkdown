@@ -8,7 +8,7 @@ still refine public APIs with migration notes in this file.
 
 No user-facing changes yet.
 
-## [0.1.0] - 2026-09-11
+## [0.1.0] - 2026-09-12
 
 This release establishes the first documented library contract for the typed,
 source-aware Markdown engine. It contains all changes made after `v0.0.6`.
@@ -25,6 +25,9 @@ source-aware Markdown engine. It contains all changes made after `v0.0.6`.
   validation, decoding, rendering, transformations, linting, and ingest.
 - External-module API contract tests and a 723-example structural conformance
   gate covering CommonMark, GFM features, and supported md4c extensions.
+- Mouse-wheel navigation and clickable view tabs in the interactive terminal
+  preview, with real-PTY regression coverage.
+- A static project website describing the library and terminal editor.
 
 ### Changed
 

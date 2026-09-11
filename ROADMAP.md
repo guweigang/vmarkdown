@@ -38,7 +38,7 @@ the public surface symmetrical.
 
 - Publish the accumulated parser, AST, conformance, safety, and persistence work.
 - Document user-visible changes, compatibility guarantees, and the VMDA format.
-- Ship reproducible macOS and Windows artifacts with project and third-party
+- Ship tested macOS and Windows artifacts with project and third-party
   licenses.
 - Treat the public API contract and conformance suites as release gates.
 

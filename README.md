@@ -13,6 +13,33 @@ terminal diagrams are application layers built on that core. See
 for release history. The persisted AST format is documented separately in
 [BINARY_FORMAT.md](BINARY_FORMAT.md).
 
+## Install and run
+
+For the command-line tool, download the archive for your platform from the
+[GitHub Releases](https://github.com/guweigang/vmarkdown/releases) page, unpack
+it, and verify the binary before use:
+
+```sh
+./vmarkdown --version
+./vmarkdown --help
+```
+
+Windows archives contain `vmarkdown.exe`. Release archives also include the
+changelog, roadmap, VMDA format specification, and license notices.
+
+To use or develop the V library from source, check out the desired release tag
+and run the tests and example from the repository root:
+
+```sh
+git clone --branch v0.1.0 https://github.com/guweigang/vmarkdown.git
+cd vmarkdown
+v test src
+v run examples/basic.v
+```
+
+The repository's `v.mod` maps the `vmarkdown` module to `src`, so examples and
+local consumers can use `import vmarkdown` as shown below.
+
 ## Why this shape
 
 The public AST follows the DSL direction from your sketch:
