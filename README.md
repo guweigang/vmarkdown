@@ -324,6 +324,11 @@ for visit in doc.find_all(.heading) {
 }
 ```
 
+Application-assembled documents can use `walk_checked()` and
+`find_all_checked()` (or their `_with_limits` variants) to validate before the
+recursive traversal begins. Parser-produced or already validated documents may
+continue using `walk()` and `find_all()` directly.
+
 This traversal contract is intended as the shared base for linters, document
 indexes, editor navigation, semantic transforms, and third-party renderers.
 
