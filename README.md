@@ -38,7 +38,8 @@ One deliberate adjustment was made for production parsing: `ListItemNode.childre
 - `src/binary_encode.v`: canonical VMDA binary encoding
 - `src/ingest.v`: chunk storage and ingest planning
 - `src/ingest_diff.v`: ingest manifest diffing and summaries
-- `src/render.v`: HTML, plain-text, and JSON renderers
+- `src/render.v`: plain-text, JSON, and normalized Markdown renderers
+- `src/render_html.v`: bounded direct HTML rendering through md4c-html
 - `src/preview.v`: interactive preview lifecycle and state transitions
 - `src/preview_chrome.v`: preview drawing, chrome formatting, and overlays
 - `src/preview_editor_ui.v`: preview editor input, persistence, and cursor rendering
