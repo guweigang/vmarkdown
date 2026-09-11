@@ -145,6 +145,20 @@ integer, so values cannot be silently truncated to 16 bits. Decode with
 `vmarkdown.binary_decode(bytes)!`. The complete contract and tag table are in
 [`BINARY_FORMAT.md`](BINARY_FORMAT.md).
 
+Binary decoding uses the same default budgets as text parsing: 64 MiB, one
+million AST nodes, and 256 nesting levels. Untrusted-data callers can tighten
+them without changing the wire format:
+
+```v
+doc := vmarkdown.binary_decode_with_limits(bytes, vmarkdown.BinaryDecodeLimits{
+	max_input_bytes: 1024 * 1024
+	max_nodes: 100_000
+	max_nesting_depth: 64
+})!
+```
+
+A binary decode limit set to `0` is unbounded. Negative limits are rejected.
+
 Current block tags are:
 
 - `HeadingNode`: `0x01` + `level (u8)` + `content_len (varint)` + encoded inline data

@@ -86,6 +86,12 @@ fn test_public_parse_render_and_codec_contract() {
 	assert decoded.stable_id() == doc.stable_id()
 	assert decoded.encode() == encoded
 	assert decoded.semantic_encode().len > 0
+	limited := vmarkdown.binary_decode_with_limits(encoded, vmarkdown.BinaryDecodeLimits{
+		max_input_bytes: 1024
+		max_nodes: 32
+		max_nesting_depth: 16
+	}) or { panic(err) }
+	assert limited.stable_id() == doc.stable_id()
 	html := vmarkdown.render_html_with_options('line', vmarkdown.HtmlRenderOptions{
 		parser: options
 	}) or { panic(err) }

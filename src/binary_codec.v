@@ -2,16 +2,26 @@ module vmarkdown
 
 import encoding.utf8
 
-const max_binary_size = 64 * 1024 * 1024
-const max_binary_nodes = 1_000_000
-const max_binary_depth = 256
+pub struct BinaryDecodeLimits {
+pub:
+	max_input_bytes   int = 64 * 1024 * 1024
+	max_nodes         int = 1_000_000
+	max_nesting_depth int = 256
+}
 
 // binary_decode decodes the versioned VMDA binary format. Source spans are
 // intentionally absent from the wire format because they are parse-location
 // metadata, not semantic content.
 pub fn binary_decode(data []u8) !Document {
-	if data.len > max_binary_size {
-		return error('binary document exceeds ${max_binary_size} bytes')
+	return binary_decode_with_limits(data, BinaryDecodeLimits{})
+}
+
+// binary_decode_with_limits decodes VMDA with caller-selected resource
+// budgets. A zero limit is unbounded; negative limits are rejected.
+pub fn binary_decode_with_limits(data []u8, limits BinaryDecodeLimits) !Document {
+	validate_binary_decode_limits(limits)!
+	if limits.max_input_bytes > 0 && data.len > limits.max_input_bytes {
+		return error('binary document exceeds ${limits.max_input_bytes} bytes')
 	}
 	if data.len < 7 || data[0] != `V` || data[1] != `M` || data[2] != `D` || data[3] != `A` {
 		return error('invalid binary document magic; expected VMDA')
@@ -26,6 +36,7 @@ pub fn binary_decode(data []u8) !Document {
 		data: data
 		pos: 6
 		limit: data.len
+		limits: limits
 	}
 	body_end := reader.read_sized_end('document payload')!
 	mut children := []BlockNode{}
@@ -39,8 +50,21 @@ pub fn binary_decode(data []u8) !Document {
 	return doc
 }
 
+fn validate_binary_decode_limits(limits BinaryDecodeLimits) ! {
+	if limits.max_input_bytes < 0 {
+		return error('max_input_bytes cannot be negative')
+	}
+	if limits.max_nodes < 0 {
+		return error('max_nodes cannot be negative')
+	}
+	if limits.max_nesting_depth < 0 {
+		return error('max_nesting_depth cannot be negative')
+	}
+}
+
 struct BinaryReader {
-	data []u8
+	data   []u8
+	limits BinaryDecodeLimits
 mut:
 	pos   int
 	limit int
@@ -70,8 +94,9 @@ fn (mut r BinaryReader) read_varint(label string) !int {
 			if byte_count > 1 && byte == 0 {
 				return error('${label} uses a non-canonical varint')
 			}
-			if value > u64(max_binary_size) && label.contains('length') {
-				return error('${label} exceeds ${max_binary_size}')
+			if r.limits.max_input_bytes > 0 && value > u64(r.limits.max_input_bytes)
+				&& label.contains('length') {
+				return error('${label} exceeds ${r.limits.max_input_bytes}')
 			}
 			if value > u64(0x7fff_ffff_ffff_ffff) {
 				return error('${label} exceeds supported integer range')
@@ -115,12 +140,12 @@ fn (mut r BinaryReader) require_end(expected int, label string) ! {
 }
 
 fn (mut r BinaryReader) count_node(depth int) ! {
-	if depth > max_binary_depth {
-		return error('binary AST exceeds maximum depth ${max_binary_depth}')
+	if r.limits.max_nesting_depth > 0 && depth > r.limits.max_nesting_depth {
+		return error('binary AST exceeds maximum depth ${r.limits.max_nesting_depth}')
 	}
 	r.nodes++
-	if r.nodes > max_binary_nodes {
-		return error('binary AST exceeds maximum node count ${max_binary_nodes}')
+	if r.limits.max_nodes > 0 && r.nodes > r.limits.max_nodes {
+		return error('binary AST exceeds maximum node count ${r.limits.max_nodes}')
 	}
 }
 
@@ -223,8 +248,11 @@ fn (mut r BinaryReader) read_block(container_end int, depth int) !BlockNode {
 
 fn (mut r BinaryReader) read_count(label string) !int {
 	value := r.read_varint(label)!
-	if value > max_binary_nodes {
-		return error('${label} exceeds ${max_binary_nodes}')
+	if r.limits.max_nodes > 0 && value > r.limits.max_nodes {
+		return error('${label} exceeds ${r.limits.max_nodes}')
+	}
+	if value > r.limit - r.pos {
+		return error('${label} ${value} exceeds remaining payload capacity ${r.limit - r.pos}')
 	}
 	return value
 }
