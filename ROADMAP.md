@@ -40,8 +40,6 @@ the public surface symmetrical.
 - Document user-visible changes, compatibility guarantees, and the VMDA format.
 - Ship reproducible macOS and Windows artifacts with project and third-party
   licenses.
-- Pin the supported V compiler baseline in `.v-version` and validate it across
-  the release matrix.
 - Treat the public API contract and conformance suites as release gates.
 
 ### 0.2 — Package boundaries

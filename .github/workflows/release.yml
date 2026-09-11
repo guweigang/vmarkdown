@@ -23,7 +23,7 @@ jobs:
       tag: ${{ steps.vmod.outputs.tag }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: Read version from v.mod
         id: vmod
@@ -63,9 +63,7 @@ jobs:
             archive: vmarkdown-darwin-x64.tar.gz
             shell: bash
             v_cc: clang
-          # V's MSVC bootstrap currently targets Visual Studio 2022. Pin the
-          # runner so a windows-latest image upgrade cannot break releases.
-          - os: windows-2022
+          - os: windows-latest
             artifact: vmarkdown-windows-x64
             binary: vmarkdown.exe
             archive: vmarkdown-windows-x64.zip
@@ -79,7 +77,7 @@ jobs:
         run: git config --global core.autocrlf false
 
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: Setup MSVC
         if: matrix.os == 'windows-latest'
@@ -89,9 +87,9 @@ jobs:
 
       - name: Setup V
         if: matrix.shell == 'bash'
-        uses: vlang/setup-v@v1.7
+        uses: vlang/setup-v@v1.4
         with:
-          version-file: .v-version
+          check-latest: true
 
       - name: Install V compiler (MSVC)
         if: matrix.shell == 'powershell'
@@ -99,8 +97,7 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $installRoot = Join-Path $env:RUNNER_TEMP "vlang"
-          $vVersion = (Get-Content .v-version -Raw).Trim()
-          git clone --depth 1 --branch $vVersion https://github.com/vlang/v.git $installRoot
+          git clone --depth 1 https://github.com/vlang/v.git $installRoot
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Push-Location $installRoot
           cmd /c makev.bat -msvc
@@ -141,7 +138,7 @@ jobs:
           ./dist/${{ matrix.binary }} ast README.md > /tmp/vmarkdown-ast.txt
 
       - name: Test preview editor in a real PTY
-        if: matrix.artifact == 'vmarkdown-darwin-x64'
+        if: matrix.shell == 'bash'
         shell: bash
         run: tests/e2e/preview_editor_pty_test.sh "./dist/${{ matrix.binary }}"
 

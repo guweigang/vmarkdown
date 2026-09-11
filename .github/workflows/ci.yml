@@ -20,12 +20,12 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: Setup V
-        uses: vlang/setup-v@v1.7
+        uses: vlang/setup-v@v1.4
         with:
-          version-file: .v-version
+          check-latest: true
 
       - name: Verify formatting
         run: v fmt -verify src cmd examples bench tests/public_api_contract_test.v

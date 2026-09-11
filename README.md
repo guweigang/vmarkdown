@@ -748,10 +748,6 @@ documents, `ingest_document_with_limits()` and
 
 ## Verification
 
-CI and release builds use the V version pinned in `.v-version`. Update that
-file deliberately and validate the full release matrix before changing the
-supported compiler baseline.
-
 Useful checks while iterating on render/layout behavior:
 
 ```sh
