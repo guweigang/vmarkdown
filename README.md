@@ -34,7 +34,10 @@ One deliberate adjustment was made for production parsing: `ListItemNode.childre
 - `src/source_index.v`: public UTF-8 byte-offset to source-coordinate mapping
 - `src/validate.v`: recursive AST invariant validation
 - `src/binary_codec.v`: bounded decoder for the versioned binary AST format
-- `src/serialize.v`: normalized stable IDs, chunk collection, and in-memory incremental ingest
+- `src/identity.v`: stable IDs and semantic encoding
+- `src/binary_encode.v`: canonical VMDA binary encoding
+- `src/ingest.v`: chunk storage and ingest planning
+- `src/ingest_diff.v`: ingest manifest diffing and summaries
 - `src/render.v`: HTML, plain-text, and JSON renderers
 - `src/ascii_layout.v`: reusable terminal layout primitives
 - `src/ascii_diagrams.v`: flow / graph ASCII renderers built on `ascii_layout`
