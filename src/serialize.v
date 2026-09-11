@@ -261,7 +261,13 @@ pub fn (doc Document) encode() []u8 {
 // encoding it as a complete VMDA document. Parser-produced documents are
 // already valid and may continue to use binary_encode() directly.
 pub fn (doc Document) binary_encode_checked() ![]u8 {
-	doc.validate()!
+	return doc.binary_encode_checked_with_limits(AstValidationLimits{})
+}
+
+// binary_encode_checked_with_limits validates with caller-selected traversal
+// budgets before encoding a complete VMDA document.
+pub fn (doc Document) binary_encode_checked_with_limits(limits AstValidationLimits) ![]u8 {
+	doc.validate_with_limits(limits)!
 	return doc.binary_encode()
 }
 

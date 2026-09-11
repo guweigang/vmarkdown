@@ -337,6 +337,10 @@ fn test_binary_decode_supports_tighter_resource_limits() {
 	} else {
 		assert err.msg().contains('maximum node count 1')
 	}
+	exact := binary_decode_with_limits(data, BinaryDecodeLimits{
+		max_nodes: 3
+	}) or { panic(err) }
+	assert exact.binary_encode() == data
 	if _ := binary_decode_with_limits(data, BinaryDecodeLimits{
 		max_nesting_depth: 1
 	}) {

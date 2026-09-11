@@ -1,7 +1,10 @@
 module vmarkdown
 
-const max_ast_validation_nodes = 1_000_000
-const max_ast_validation_depth = 256
+pub struct AstValidationLimits {
+pub:
+	max_nodes         int = 1_000_000
+	max_nesting_depth int = 256
+}
 
 pub enum AstValidationErrorKind {
 	validation_limit
@@ -41,6 +44,7 @@ pub fn (err AstValidationError) code() int {
 }
 
 struct AstValidator {
+	limits AstValidationLimits
 mut:
 	nodes int
 }
@@ -48,7 +52,14 @@ mut:
 // validate checks structural invariants required by the stable binary format
 // and normalized Markdown renderer.
 pub fn (doc Document) validate() ! {
-	mut validator := AstValidator{}
+	return doc.validate_with_limits(AstValidationLimits{})
+}
+
+// validate_with_limits checks a document with caller-selected traversal
+// budgets. A zero limit is unbounded; negative limits are rejected.
+pub fn (doc Document) validate_with_limits(limits AstValidationLimits) ! {
+	validate_ast_validation_limits(limits)!
+	mut validator := AstValidator{ limits: limits }
 	validator.count('document', 0)!
 	validate_source_span(doc.span, 'document.span')!
 	for index, child in doc.children {
@@ -58,23 +69,46 @@ pub fn (doc Document) validate() ! {
 
 // validate checks a standalone block and all of its descendants.
 pub fn (node BlockNode) validate() ! {
-	mut validator := AstValidator{}
+	return node.validate_with_limits(AstValidationLimits{})
+}
+
+// validate_with_limits checks a standalone block with caller-selected
+// traversal budgets.
+pub fn (node BlockNode) validate_with_limits(limits AstValidationLimits) ! {
+	validate_ast_validation_limits(limits)!
+	mut validator := AstValidator{ limits: limits }
 	validator.validate_block(node, 'block', 0, 0)!
 }
 
 // validate checks a standalone inline node and all of its descendants.
 pub fn (node InlineNode) validate() ! {
-	mut validator := AstValidator{}
+	return node.validate_with_limits(AstValidationLimits{})
+}
+
+// validate_with_limits checks a standalone inline node with caller-selected
+// traversal budgets.
+pub fn (node InlineNode) validate_with_limits(limits AstValidationLimits) ! {
+	validate_ast_validation_limits(limits)!
+	mut validator := AstValidator{ limits: limits }
 	validator.validate_inline(node, 'inline', 0, false)!
 }
 
+fn validate_ast_validation_limits(limits AstValidationLimits) ! {
+	if limits.max_nodes < 0 {
+		return error('max_nodes cannot be negative')
+	}
+	if limits.max_nesting_depth < 0 {
+		return error('max_nesting_depth cannot be negative')
+	}
+}
+
 fn (mut validator AstValidator) count(path string, depth int) ! {
-	if depth > max_ast_validation_depth {
-		return validation_error(.validation_limit, path, 'exceeds maximum AST depth ${max_ast_validation_depth}', SourceSpan{})
+	if validator.limits.max_nesting_depth > 0 && depth > validator.limits.max_nesting_depth {
+		return validation_error(.validation_limit, path, 'exceeds maximum AST depth ${validator.limits.max_nesting_depth}', SourceSpan{})
 	}
 	validator.nodes++
-	if validator.nodes > max_ast_validation_nodes {
-		return validation_error(.validation_limit, path, 'exceeds maximum AST node count ${max_ast_validation_nodes}', SourceSpan{})
+	if validator.limits.max_nodes > 0 && validator.nodes > validator.limits.max_nodes {
+		return validation_error(.validation_limit, path, 'exceeds maximum AST node count ${validator.limits.max_nodes}', SourceSpan{})
 	}
 }
 

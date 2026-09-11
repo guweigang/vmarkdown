@@ -155,6 +155,51 @@ fn test_binary_decode_rejects_semantically_invalid_ast() {
 	}
 }
 
+fn test_ast_validation_supports_configurable_resource_limits() {
+	doc := Document{
+		children: [BlockNode(ParagraphNode{
+			children: [InlineNode(TextNode{ text: 'text' })]
+		})]
+	}
+	doc.validate_with_limits(AstValidationLimits{
+		max_nodes: 3
+		max_nesting_depth: 2
+	}) or { panic(err) }
+	doc.validate_with_limits(AstValidationLimits{
+		max_nodes: 0
+		max_nesting_depth: 0
+	}) or { panic(err) }
+
+	if _ := doc.validate_with_limits(AstValidationLimits{ max_nodes: 2 }) {
+		assert false, 'document root must count toward the node budget'
+	} else {
+		assert err is AstValidationError
+		assert err.kind == .validation_limit
+		assert err.msg().contains('maximum AST node count 2')
+	}
+	if _ := doc.validate_with_limits(AstValidationLimits{ max_nesting_depth: 1 }) {
+		assert false, 'deep AST must exceed the configured depth budget'
+	} else {
+		assert err is AstValidationError
+		assert err.kind == .validation_limit
+		assert err.msg().contains('maximum AST depth 1')
+	}
+}
+
+fn test_ast_validation_rejects_negative_resource_limits() {
+	doc := Document{}
+	for limits in [
+		AstValidationLimits{ max_nodes: -1 },
+		AstValidationLimits{ max_nesting_depth: -1 },
+	] {
+		if _ := doc.validate_with_limits(limits) {
+			assert false, 'negative validation limits must fail'
+		} else {
+			assert err.msg().contains('cannot be negative')
+		}
+	}
+}
+
 fn document_validation_error(doc Document) string {
 	doc.validate() or { return err.msg() }
 	return ''

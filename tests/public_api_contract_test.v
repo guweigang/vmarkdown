@@ -10,9 +10,22 @@ fn test_public_parse_render_and_codec_contract() {
 		max_nesting_depth: 16
 	}) or { panic(err) }
 	doc.validate() or { panic(err) }
+	doc.validate_with_limits(vmarkdown.AstValidationLimits{
+		max_nodes: 16
+		max_nesting_depth: 8
+	}) or { panic(err) }
+	doc.children[0].validate_with_limits(vmarkdown.AstValidationLimits{
+		max_nodes: 8
+		max_nesting_depth: 4
+	}) or { panic(err) }
 	headings := doc.find_all(.heading)
 	assert headings.len == 1
 	assert headings[0].node is vmarkdown.HeadingNode
+	heading := headings[0].node as vmarkdown.HeadingNode
+	heading.children[0].validate_with_limits(vmarkdown.AstValidationLimits{
+		max_nodes: 4
+		max_nesting_depth: 2
+	}) or { panic(err) }
 	mut visited_paths := []string{}
 	mut visited_paths_ref := &visited_paths
 	assert doc.walk(fn [mut visited_paths_ref] (visit vmarkdown.AstVisit) bool {
@@ -84,6 +97,10 @@ fn test_public_parse_render_and_codec_contract() {
 	encoded := doc.binary_encode()
 	checked_encoded := doc.binary_encode_checked() or { panic(err) }
 	assert checked_encoded == encoded
+	assert doc.binary_encode_checked_with_limits(vmarkdown.AstValidationLimits{
+		max_nodes: 16
+		max_nesting_depth: 8
+	}) or { panic(err) } == encoded
 	decoded := vmarkdown.binary_decode(encoded) or { panic(err) }
 	assert decoded.stable_id() == doc.stable_id()
 	assert decoded.encode() == encoded

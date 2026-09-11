@@ -222,13 +222,28 @@ bytes := doc.binary_encode_checked()!
 by application code: it returns `AstValidationError` instead of allowing an
 invalid integer or enum to reach the non-fallible low-level encoder. Documents
 returned by the parser are already validated and may use `binary_encode()`
-directly.
+directly. `binary_encode_checked_with_limits()` accepts `AstValidationLimits`
+for pipelines with a different trusted-document budget.
 
 The validator checks renderer and stable-ID invariants such as heading levels,
 canonical list levels and numbers, task state, table dimensions, metadata key
 collisions after normalization, adjacent or empty text nodes, non-empty
 emphasis containers, nested links, code-fence info lines, and source-span
-shape. Validation itself is bounded to one million nodes and 256 levels.
+shape. Validation itself defaults to one million nodes and 256 levels. Custom
+AST pipelines can use the same zero-is-unbounded convention as parsing and
+binary decoding:
+
+```v
+doc.validate_with_limits(vmarkdown.AstValidationLimits{
+	max_nodes: 100_000
+	max_nesting_depth: 64
+})!
+```
+
+The node budget consistently includes the root `Document`. Parsing, binary
+decoding, validation, and checked binary encoding share the same defaults and
+the same zero-is-unbounded convention; binary decoding and validation also use
+the same semantic AST node and depth accounting.
 
 Validation failures implement V's `IError` as the public
 `AstValidationError` type. Callers that need machine-readable diagnostics can
