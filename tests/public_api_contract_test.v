@@ -115,11 +115,26 @@ fn test_public_parse_render_and_codec_contract() {
 	assert vmarkdown.render_markdown_with_options('_text_', parser_options) or {
 		panic(err)
 	} == '_text_'
+	assert vmarkdown.render_text_with_limits('text', parser_options, vmarkdown.ParseLimits{
+		max_input_bytes: 64
+		max_nodes: 8
+		max_nesting_depth: 4
+	}) or { panic(err) } == 'text'
+	assert vmarkdown.render_json_with_limits('text', parser_options, vmarkdown.ParseLimits{
+		max_nodes: 8
+	}) or { panic(err) }.contains('"type":"text"')
+	assert vmarkdown.render_markdown_with_limits('text', parser_options, vmarkdown.ParseLimits{
+		max_nodes: 8
+	}) or { panic(err) } == 'text'
 	assert vmarkdown.render_terminal_with_options('[[docs|Guide]]', vmarkdown.TerminalRenderOptions{
 		parser: parser_options
 		width: 80
 		color: false
 	}) or { panic(err) } == 'Guide ↗ docs'
+	assert vmarkdown.render_terminal_with_limits('text', vmarkdown.TerminalRenderOptions{
+		width: 80
+		color: false
+	}, vmarkdown.ParseLimits{ max_nodes: 8 }) or { panic(err) } == 'text'
 
 	encoded := doc.binary_encode()
 	checked_encoded := doc.binary_encode_checked() or { panic(err) }

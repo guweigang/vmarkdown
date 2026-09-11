@@ -133,7 +133,11 @@ pub fn render_text(markdown string) !string {
 }
 
 pub fn render_text_with_options(markdown string, options ParseOptions) !string {
-	return parse_with_options(markdown, options)!.render_text()
+	return render_text_with_limits(markdown, options, ParseLimits{})
+}
+
+pub fn render_text_with_limits(markdown string, options ParseOptions, limits ParseLimits) !string {
+	return parse_with_limits(markdown, options, limits)!.render_text()
 }
 
 @[inline]
@@ -152,7 +156,11 @@ pub fn render_json(markdown string) !string {
 }
 
 pub fn render_json_with_options(markdown string, options ParseOptions) !string {
-	return parse_with_options(markdown, options)!.render_json()
+	return render_json_with_limits(markdown, options, ParseLimits{})
+}
+
+pub fn render_json_with_limits(markdown string, options ParseOptions, limits ParseLimits) !string {
+	return parse_with_limits(markdown, options, limits)!.render_json()
 }
 
 @[inline]
@@ -171,7 +179,11 @@ pub fn render_markdown(markdown string) !string {
 }
 
 pub fn render_markdown_with_options(markdown string, options ParseOptions) !string {
-	return parse_with_options(markdown, options)!.render_markdown()
+	return render_markdown_with_limits(markdown, options, ParseLimits{})
+}
+
+pub fn render_markdown_with_limits(markdown string, options ParseOptions, limits ParseLimits) !string {
+	return parse_with_limits(markdown, options, limits)!.render_markdown()
 }
 
 fn (doc Document) render_text() string {
