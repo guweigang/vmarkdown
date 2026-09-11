@@ -152,6 +152,14 @@ fn test_public_validation_error_contract() {
 		}
 	}
 	assert matched
+	if _ := invalid.validate_with_limits(vmarkdown.AstValidationLimits{ max_nodes: -1 }) {
+		assert false, 'negative validation limits must fail'
+	} else {
+		assert err is vmarkdown.AstValidationError
+		validation := err as vmarkdown.AstValidationError
+		assert validation.kind == .invalid_limits
+		assert validation.path == 'limits.max_nodes'
+	}
 }
 
 fn test_public_markdown_parse_error_contract() {

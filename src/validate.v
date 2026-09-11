@@ -28,6 +28,7 @@ pub enum AstValidationErrorKind {
 	wiki_link_target
 	latex_math_content
 	invalid_utf8
+	invalid_limits
 }
 
 pub struct AstValidationError {
@@ -98,10 +99,10 @@ pub fn (node InlineNode) validate_with_limits(limits AstValidationLimits) ! {
 
 fn validate_ast_validation_limits(limits AstValidationLimits) ! {
 	if limits.max_nodes < 0 {
-		return error('max_nodes cannot be negative')
+		return validation_error(.invalid_limits, 'limits.max_nodes', 'cannot be negative', SourceSpan{})
 	}
 	if limits.max_nesting_depth < 0 {
-		return error('max_nesting_depth cannot be negative')
+		return validation_error(.invalid_limits, 'limits.max_nesting_depth', 'cannot be negative', SourceSpan{})
 	}
 }
 
