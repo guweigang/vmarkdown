@@ -339,10 +339,11 @@ produce exit status 1.
 
 ## Conformance and performance baselines
 
-The test suite checks structural Markdown round trips against 690 vendored md4c
+The test suite checks structural Markdown round trips against 723 vendored md4c
 examples: the CommonMark corpus plus tables, task lists, strikethrough,
-hard/soft breaks, and permissive autolinks. Each example must preserve its
-versioned `stable_id()` after parse, normalized Markdown render, and reparse.
+hard/soft breaks, permissive autolinks, wiki links, LaTeX math, and underline.
+Each example must preserve its versioned `stable_id()` after parse, normalized
+Markdown render, and reparse.
 
 Run the conformance gate with:
 

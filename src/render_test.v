@@ -124,6 +124,20 @@ fn test_render_wiki_link_escapes_target_delimiter() {
 	assert reparsed.stable_id() == doc.stable_id()
 }
 
+fn test_render_table_preserves_wiki_link_delimiters() {
+	input := '| A | B |\n| --- | --- |\n| [[foo|*bar*|baz]] | end |\n'
+	doc := parse_with_options(input, ParseOptions{
+		wiki_links: true
+	}) or { panic(err) }
+	markdown := doc.to_markdown()
+	assert markdown.contains('[[foo|*bar*|baz]]')
+	assert !markdown.contains(r'[[foo\|')
+	reparsed := parse_with_options(markdown, ParseOptions{
+		wiki_links: true
+	}) or { panic(err) }
+	assert reparsed.stable_id() == doc.stable_id()
+}
+
 fn test_render_latex_math_text_json_terminal_and_markdown() {
 	input := r'$a+b=c$ and $$\int_a^b x dx$$'
 	doc := parse_with_options(input, ParseOptions{
