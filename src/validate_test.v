@@ -200,6 +200,73 @@ fn test_ast_validation_rejects_negative_resource_limits() {
 	}
 }
 
+fn test_ast_validation_rejects_invalid_utf8_in_every_string_field() {
+	invalid := [u8(0xff)].bytestr()
+	for node in [
+		BlockNode(CodeBlockNode{ lang: invalid }),
+		BlockNode(CodeBlockNode{ content: invalid }),
+		BlockNode(RawHtmlBlockNode{ html: invalid }),
+		BlockNode(MetaNode{
+			data: {
+				invalid: 'value'
+			}
+		}),
+		BlockNode(MetaNode{
+			data: {
+				'key': invalid
+			}
+		}),
+	] {
+		assert_invalid_utf8_error(node)
+	}
+	for node in [
+		InlineNode(TextNode{ text: invalid }),
+		InlineNode(LinkNode{ url: invalid }),
+		InlineNode(WikiLinkNode{ target: invalid }),
+		InlineNode(ImageNode{ url: invalid }),
+		InlineNode(LatexMathNode{ content: invalid }),
+		InlineNode(CodeSpanNode{ text: invalid }),
+		InlineNode(RawHtmlInlineNode{ html: invalid }),
+	] {
+		assert_invalid_utf8_inline_error(node)
+	}
+}
+
+fn test_checked_binary_encode_rejects_invalid_utf8_without_replacement() {
+	invalid := [u8(0xff)].bytestr()
+	doc := Document{
+		children: [BlockNode(ParagraphNode{
+			children: [InlineNode(TextNode{ text: invalid })]
+		})]
+	}
+	if _ := doc.binary_encode_checked() {
+		assert false, 'checked encoding must reject invalid UTF-8'
+	} else {
+		assert err is AstValidationError
+		validation := err as AstValidationError
+		assert validation.kind == .invalid_utf8
+		assert validation.path == 'document.children[0].children[0].text'
+	}
+}
+
+fn assert_invalid_utf8_error(node BlockNode) {
+	if _ := node.validate() {
+		assert false, 'invalid UTF-8 block field must fail validation'
+	} else {
+		assert err is AstValidationError
+		assert (err as AstValidationError).kind == .invalid_utf8
+	}
+}
+
+fn assert_invalid_utf8_inline_error(node InlineNode) {
+	if _ := node.validate() {
+		assert false, 'invalid UTF-8 inline field must fail validation'
+	} else {
+		assert err is AstValidationError
+		assert (err as AstValidationError).kind == .invalid_utf8
+	}
+}
+
 fn document_validation_error(doc Document) string {
 	doc.validate() or { return err.msg() }
 	return ''

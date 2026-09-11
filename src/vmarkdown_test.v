@@ -184,6 +184,8 @@ fn test_parse_rejects_input_over_configured_byte_budget() {
 	}) {
 		assert false, 'oversized Markdown input must fail'
 	} else {
+		assert err is MarkdownParseError
+		assert (err as MarkdownParseError).kind == .resource_limit
 		assert err.msg().contains('maximum size 4 bytes')
 	}
 }
@@ -194,6 +196,10 @@ fn test_parse_rejects_ast_over_configured_node_budget() {
 	}) {
 		assert false, 'Markdown over the node budget must fail'
 	} else {
+		assert err is MarkdownParseError
+		parse_error := err as MarkdownParseError
+		assert parse_error.kind == .resource_limit
+		assert parse_error.native_code != 0
 		assert err.msg().contains('maximum node count 2')
 	}
 }
@@ -211,6 +217,8 @@ fn test_parse_rejects_ast_over_configured_nesting_budget() {
 	}) {
 		assert false, 'deeply nested Markdown must fail'
 	} else {
+		assert err is MarkdownParseError
+		assert (err as MarkdownParseError).kind == .resource_limit
 		assert err.msg().contains('maximum nesting depth 2')
 	}
 }
@@ -221,8 +229,36 @@ fn test_parse_rejects_negative_limits() {
 	}) {
 		assert false, 'negative parse limits must fail'
 	} else {
+		assert err is MarkdownParseError
+		parse_error := err as MarkdownParseError
+		assert parse_error.kind == .invalid_limits
+		assert parse_error.offset == -1
+		assert parse_error.native_code == 0
 		assert err.msg() == 'max_nodes cannot be negative'
 	}
+}
+
+fn test_parse_rejects_invalid_utf8_with_exact_byte_offset() {
+	for input, expected_offset in {
+		[u8(0xff), u8(`a`)].bytestr():   0
+		[u8(`a`), 0xe2, 0x82].bytestr(): 1
+		[u8(0xc0), 0x80].bytestr():      0
+	} {
+		if _ := parse(input) {
+			assert false, 'invalid UTF-8 Markdown must fail'
+		} else {
+			assert err is MarkdownParseError
+			parse_error := err as MarkdownParseError
+			assert parse_error.kind == .invalid_utf8
+			assert parse_error.offset == expected_offset
+			assert parse_error.native_code == 0
+			assert parse_error.message.contains('byte ${expected_offset}')
+			assert parse_error.code() >= 5000
+		}
+	}
+
+	valid := parse('�') or { panic(err) }
+	assert valid.to_text() == '�'
 }
 
 fn test_parse_preserves_inline_raw_html_without_treating_it_as_text() {

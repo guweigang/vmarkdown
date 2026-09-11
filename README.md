@@ -79,6 +79,12 @@ doc := vmarkdown.parse_with_limits(markdown, vmarkdown.ParseOptions{}, vmarkdown
 
 A limit set to `0` is unbounded. Negative limits are rejected.
 
+Markdown input must be valid UTF-8. Parse failures implement V's `IError` as
+the public `MarkdownParseError` type. Callers can type-match it and inspect its
+stable `kind`, byte `offset` when available, underlying parser `native_code`,
+and human-readable `message`. Error kinds distinguish invalid limits, input and
+resource limits, invalid UTF-8, native parser failures, and invalid parser ASTs.
+
 Run the bundled example with:
 
 ```sh
@@ -229,9 +235,11 @@ The validator checks renderer and stable-ID invariants such as heading levels,
 canonical list levels and numbers, task state, table dimensions, metadata key
 collisions after normalization, adjacent or empty text nodes, non-empty
 emphasis containers, nested links, code-fence info lines, and source-span
-shape. Validation itself defaults to one million nodes and 256 levels. Custom
-AST pipelines can use the same zero-is-unbounded convention as parsing and
-binary decoding:
+shape. Every application-supplied string field must also contain valid UTF-8,
+so checked encoding cannot silently replace malformed bytes and change the
+persisted semantics or stable ID. Validation itself defaults to one million
+nodes and 256 levels. Custom AST pipelines can use the same zero-is-unbounded
+convention as parsing and binary decoding:
 
 ```v
 doc.validate_with_limits(vmarkdown.AstValidationLimits{
