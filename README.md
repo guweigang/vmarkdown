@@ -174,6 +174,8 @@ Current block tags are:
 Notes on stability:
 
 - Plain text is normalized by collapsing repeated whitespace and trimming edges.
+- Inline-sequence edges are trimmed as a whole; a space between inline nodes is
+  significant and prevents spaced and unspaced content from sharing an ID.
 - Code text keeps internal spacing but normalizes newlines to `\n`.
 - Structural changes change IDs.
 - Source spans are deliberately excluded from encoding and stable IDs.
@@ -213,8 +215,14 @@ AST assembled by application code:
 
 ```v
 doc.validate()!
-bytes := doc.binary_encode()
+bytes := doc.binary_encode_checked()!
 ```
+
+`binary_encode_checked()` is the safe persistence boundary for an AST assembled
+by application code: it returns `AstValidationError` instead of allowing an
+invalid integer or enum to reach the non-fallible low-level encoder. Documents
+returned by the parser are already validated and may use `binary_encode()`
+directly.
 
 The validator checks renderer and stable-ID invariants such as heading levels,
 canonical list levels and numbers, task state, table dimensions, metadata key

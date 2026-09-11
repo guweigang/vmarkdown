@@ -37,6 +37,7 @@ fn test_supported_commonmark_corpus_has_stable_structural_round_trip() {
 			original.validate() or {
 				panic('${example.fixture} example ${example.number}: invalid parsed AST: ${err}')
 			}
+			assert_binary_round_trip(original, example)
 			normalized := original.to_markdown()
 			reparsed := parse_with_dialect(normalized, dialect) or {
 				panic('${example.fixture} example ${example.number}: normalized parse failed: ${err}')
@@ -81,6 +82,7 @@ fn test_supported_extension_corpora_have_stable_structural_round_trip() {
 			original.validate() or {
 				panic('${example.fixture} example ${example.number}: invalid parsed AST: ${err}')
 			}
+			assert_binary_round_trip(original, example)
 			normalized := original.to_markdown()
 			reparsed := parse_with_options(normalized, fixture.options) or {
 				panic('${example.fixture} example ${example.number}: normalized parse failed: ${err}')
@@ -93,6 +95,17 @@ fn test_supported_extension_corpora_have_stable_structural_round_trip() {
 		}
 	}
 	assert checked == 33
+}
+
+fn assert_binary_round_trip(doc Document, example MarkdownSpecExample) {
+	encoded := doc.binary_encode_checked() or {
+		panic('${example.fixture} example ${example.number}: binary encode failed: ${err}')
+	}
+	decoded := binary_decode(encoded) or {
+		panic('${example.fixture} example ${example.number}: binary decode failed: ${err}')
+	}
+	assert decoded.binary_encode() == encoded, '${example.fixture} example ${example.number} changed after binary round trip'
+	assert decoded.stable_id() == doc.stable_id(), '${example.fixture} example ${example.number} changed stable ID after binary round trip'
 }
 
 fn load_markdown_spec_examples(path string, fixture string) ![]MarkdownSpecExample {
