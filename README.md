@@ -230,6 +230,12 @@ doc.validate()!
 bytes := doc.binary_encode_checked()!
 ```
 
+Application-assembled documents also have checked rendering counterparts:
+`to_text_checked()`, `to_json_checked()`, `to_markdown_checked()`,
+`to_terminal_checked()`, and `to_terminal_checked_with_options()`. They return
+`AstValidationError` before producing output. The established non-fallible
+methods remain the fast path for parser-produced or already validated ASTs.
+
 `binary_encode_checked()` is the safe persistence boundary for an AST assembled
 by application code: it returns `AstValidationError` instead of allowing an
 invalid integer or enum to reach the non-fallible low-level encoder. Documents

@@ -131,6 +131,54 @@ fn test_document_to_markdown() {
 	assert markdown.contains('> quote')
 }
 
+fn test_checked_document_renderers_match_trusted_fast_paths() {
+	doc := parse('# Title\n\ntext') or { panic(err) }
+	assert doc.to_text_checked() or { panic(err) } == doc.to_text()
+	assert doc.to_json_checked() or { panic(err) } == doc.to_json()
+	assert doc.to_markdown_checked() or { panic(err) } == doc.to_markdown()
+	assert doc.to_terminal_checked() or { panic(err) } == doc.to_terminal()
+	options := TerminalRenderOptions{
+		width: 40
+		color: false
+	}
+	assert doc.to_terminal_checked_with_options(options) or {
+		panic(err)
+	} == doc.to_terminal_with_options(options)
+}
+
+fn test_checked_document_renderers_reject_invalid_ast() {
+	invalid := Document{
+		children: [BlockNode(HeadingNode{ level: 0 })]
+	}
+	if _ := invalid.to_text_checked() {
+		assert false, 'checked text rendering must reject an invalid AST'
+	} else {
+		assert_checked_render_validation_error(err)
+	}
+	if _ := invalid.to_json_checked() {
+		assert false, 'checked JSON rendering must reject an invalid AST'
+	} else {
+		assert_checked_render_validation_error(err)
+	}
+	if _ := invalid.to_markdown_checked() {
+		assert false, 'checked Markdown rendering must reject an invalid AST'
+	} else {
+		assert_checked_render_validation_error(err)
+	}
+	if _ := invalid.to_terminal_checked() {
+		assert false, 'checked terminal rendering must reject an invalid AST'
+	} else {
+		assert_checked_render_validation_error(err)
+	}
+}
+
+fn assert_checked_render_validation_error(err IError) {
+	assert err is AstValidationError
+	validation := err as AstValidationError
+	assert validation.kind == .heading_level
+	assert validation.path == 'document.children[0].level'
+}
+
 fn test_render_markdown_uses_safe_code_span_delimiter() {
 	doc := Document{
 		children: [

@@ -68,12 +68,22 @@ fn test_public_parse_render_and_codec_contract() {
 	assert located[0].has_range
 	assert located[0].range.start.line == 1
 	assert doc.to_text() == 'API\n\ntext'
+	assert doc.to_text_checked() or { panic(err) } == doc.to_text()
 	assert doc.to_json().contains('"type":"heading"')
+	assert doc.to_json_checked() or { panic(err) } == doc.to_json()
 	assert doc.to_markdown().starts_with('# API')
+	assert doc.to_markdown_checked() or { panic(err) } == doc.to_markdown()
 	assert doc.to_terminal_with_options(vmarkdown.TerminalRenderOptions{
 		width: 80
 		color: false
 	}).contains('API')
+	assert doc.to_terminal_checked_with_options(vmarkdown.TerminalRenderOptions{
+		width: 80
+		color: false
+	}) or { panic(err) } == doc.to_terminal_with_options(vmarkdown.TerminalRenderOptions{
+		width: 80
+		color: false
+	})
 	parser_options := vmarkdown.ParseOptions{
 		wiki_links: true
 		latex_math: true
