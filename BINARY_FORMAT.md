@@ -76,8 +76,10 @@ buggy encoder for affected documents are intentionally replaced.
 
 The v1 decoder rejects incorrect magic or versions, non-canonical or
 overflowing varints, invalid UTF-8, unknown tags, invalid flags/enums,
-truncation, trailing bytes, and documents beyond its published size, depth,
-or node-count limits.
+truncation, trailing bytes, non-normalized text, non-canonical metadata order,
+and documents beyond its published size, depth, or node-count limits. After
+structural and semantic validation, it re-encodes the AST and requires an exact
+byte match so every accepted v1 document has one canonical representation.
 
 The public decoder defaults to 64 MiB of input, one million decoded AST nodes,
 and 256 nesting levels. `binary_decode_with_limits()` can tighten or explicitly

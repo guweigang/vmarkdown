@@ -415,3 +415,62 @@ fn test_binary_v1_rejects_invalid_envelopes_and_payloads() {
 		assert false, 'non-canonical varint must fail'
 	}
 }
+
+fn test_binary_v1_rejects_noncanonical_text_and_metadata_order() {
+	noncanonical_text := [u8(`V`), `M`, `D`, `A`, 0x01, 0x00, 0x07, 0x02, 0x05, 0x20, 0x03, ` `,
+		`a`, ` `]
+	if _ := binary_decode(noncanonical_text) {
+		assert false, 'text must be normalized at the complete inline sequence boundary'
+	} else {
+		assert err.msg().contains('non-canonical binary document at byte')
+	}
+
+	unsorted_metadata := [u8(`V`), `M`, `D`, `A`, 0x01, 0x00, 0x0a, 0x04, 0x02, 0x01, `b`, 0x01,
+		`2`, 0x01, `a`, 0x01, `1`]
+	if _ := binary_decode(unsorted_metadata) {
+		assert false, 'metadata entries must use canonical sorted-key order'
+	} else {
+		assert err.msg().contains('non-canonical binary document at byte')
+	}
+}
+
+fn test_binary_decode_handles_deterministic_adversarial_payloads_without_panicking() {
+	doc := parse('# Title\n\n> *alpha* **beta** [link](https://example.com)\n\n- [x] task\n\n| a | b |\n|:-|--:|\n| c | d |\n') or {
+		panic(err)
+	}
+	encoded := doc.binary_encode_checked() or { panic(err) }
+	mut cases := 0
+	for end in 0 .. encoded.len {
+		ignore_binary_decode_result(encoded[..end])
+		cases++
+	}
+	for index in 0 .. encoded.len {
+		for bit in 0 .. 8 {
+			mut mutated := encoded.clone()
+			mutated[index] ^= u8(1 << bit)
+			ignore_binary_decode_result(mutated)
+			cases++
+		}
+	}
+	mut seed := u64(0x9e37_79b9_7f4a_7c15)
+	for case_index in 0 .. 10_000 {
+		seed = seed * 6364136223846793005 + 1442695040888963407
+		length := int((seed >> 32) % 129)
+		mut data := []u8{len: length}
+		for index in 0 .. length {
+			seed = seed * 6364136223846793005 + u64(case_index + 1)
+			data[index] = u8(seed >> 56)
+		}
+		ignore_binary_decode_result(data)
+		cases++
+	}
+	assert cases > 10_000
+}
+
+fn ignore_binary_decode_result(data []u8) {
+	_ := binary_decode_with_limits(data, BinaryDecodeLimits{
+		max_input_bytes: 4096
+		max_nodes: 256
+		max_nesting_depth: 32
+	}) or { return }
+}
