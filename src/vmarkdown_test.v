@@ -284,6 +284,45 @@ fn test_source_spans_are_utf8_byte_ranges() {
 	assert paragraph.children[1].source_span() == SourceSpan{ start: 11, end: 12 }
 }
 
+fn test_checked_identity_methods_match_valid_fast_paths() {
+	doc := parse('# Title\n\ntext') or { panic(err) }
+	assert doc.stable_id_checked() or { panic(err) } == doc.stable_id()
+	assert doc.semantic_stable_id_checked() or { panic(err) } == doc.semantic_stable_id()
+	assert doc.root_refs_checked() or { panic(err) } == doc.root_refs()
+	block := doc.children[0]
+	assert block.stable_id_checked() or { panic(err) } == block.stable_id()
+	assert block.semantic_stable_id_checked() or { panic(err) } == block.semantic_stable_id()
+}
+
+fn test_checked_identity_methods_reject_invalid_ast_and_limits() {
+	doc := Document{ children: [BlockNode(HeadingNode{ level: 0 })] }
+	if _ := doc.stable_id_checked() {
+		assert false
+	} else {
+		assert (err as AstValidationError).kind == .heading_level
+	}
+	if _ := doc.root_refs_checked() {
+		assert false
+	} else {
+		assert (err as AstValidationError).kind == .heading_level
+	}
+	if _ := doc.semantic_stable_id_checked() {
+		assert false
+	} else {
+		assert (err as AstValidationError).kind == .heading_level
+	}
+	if _ := BlockNode(HeadingNode{ level: 0 }).stable_id_checked() {
+		assert false
+	} else {
+		assert (err as AstValidationError).kind == .heading_level
+	}
+	if _ := doc.stable_id_checked_with_limits(AstValidationLimits{ max_nodes: -1 }) {
+		assert false
+	} else {
+		assert (err as AstValidationError).kind == .invalid_limits
+	}
+}
+
 fn test_binary_encoding_uses_protocol_type_tags() {
 	heading := HeadingNode{
 		level: 2
