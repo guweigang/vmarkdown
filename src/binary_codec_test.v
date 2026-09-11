@@ -229,6 +229,41 @@ fn test_binary_v1_round_trip_preserves_core_semantics() {
 	assert decoded.children[2] is RawHtmlBlockNode
 }
 
+fn test_binary_v1_preserves_canonical_whitespace_between_inline_nodes() {
+	doc := parse('*a*  **b**') or { panic(err) }
+	encoded := doc.binary_encode_checked() or { panic(err) }
+	decoded := binary_decode(encoded) or { panic(err) }
+
+	assert decoded.to_text() == 'a b'
+	assert decoded.binary_encode() == encoded
+	assert encoded == [u8(`V`), `M`, `D`, `A`, 0x01, 0x00, 0x0f, 0x02, 0x0d, 0x21, 0x03, 0x20, 0x01,
+		`a`, 0x20, 0x01, ` `, 0x22, 0x03, 0x20, 0x01, `b`]
+}
+
+fn test_binary_v1_stable_id_distinguishes_semantic_inline_spacing() {
+	spaced := parse('a **b**') or { panic(err) }
+	compact := parse('a**b**') or { panic(err) }
+	repeated := parse('a  **b**') or { panic(err) }
+
+	assert spaced.stable_id() != compact.stable_id()
+	assert spaced.stable_id() == repeated.stable_id()
+}
+
+fn test_binary_encode_checked_rejects_invalid_ast_without_panicking() {
+	doc := Document{
+		children: [BlockNode(ListNode{
+			is_ordered: true
+			start: -1
+		})]
+	}
+	if _ := doc.binary_encode_checked() {
+		assert false, 'checked binary encoding must reject invalid ASTs'
+	} else {
+		assert err is AstValidationError
+		assert err.msg().contains('.start cannot be negative')
+	}
+}
+
 fn test_binary_v1_round_trip_preserves_wiki_links() {
 	doc := parse_with_options('[[docs|**Guide**]]', ParseOptions{
 		wiki_links: true

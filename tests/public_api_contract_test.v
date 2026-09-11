@@ -82,6 +82,8 @@ fn test_public_parse_render_and_codec_contract() {
 	}) or { panic(err) } == 'Guide ↗ docs'
 
 	encoded := doc.binary_encode()
+	checked_encoded := doc.binary_encode_checked() or { panic(err) }
+	assert checked_encoded == encoded
 	decoded := vmarkdown.binary_decode(encoded) or { panic(err) }
 	assert decoded.stable_id() == doc.stable_id()
 	assert decoded.encode() == encoded

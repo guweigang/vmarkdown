@@ -8,6 +8,9 @@ Every document starts with the ASCII magic `VMDA`, followed by version byte
 `0x01`, the document tag `0x00`, a canonical unsigned LEB128 payload length,
 and the block sequence. Integers, counts, and byte lengths are canonical
 unsigned LEB128 values; negative values cannot be encoded. Strings are UTF-8.
+Within each inline sequence, whitespace runs in text nodes collapse to one ASCII
+space. Only whitespace at the two outer boundaries of the complete sequence is
+trimmed; a space between text and another inline record remains significant.
 
 Block tags are `01` heading, `02` paragraph, `03` list, `04` metadata, `05`
 blockquote, `06` code block, `07` horizontal rule, `08` table, and `09` raw
@@ -58,10 +61,18 @@ A table row is `cell_count:varint` followed by cells. Each cell is
 default, `01` left, `02` center, and `03` right.
 
 The byte-for-byte golden fixtures in `src/binary_codec_test.v` cover every v1
-tag and both LaTeX math flag values. Changing any fixture requires either
+tag, both LaTeX math flag values, and significant whitespace between inline
+records. Changing any fixture requires either
 demonstrating that the implementation had violated this document or assigning
 a new format version; synchronized encoder/decoder changes alone are not
 sufficient.
+
+The original v1 encoder trimmed every text record independently. That could
+erase significant spaces between inline records, produce empty text records
+that the v1 decoder correctly rejected, and give spaced and unspaced documents
+the same ID. Treating only the complete inline sequence boundaries as trim
+boundaries corrects that v1 implementation bug. Stable IDs produced by the
+buggy encoder for affected documents are intentionally replaced.
 
 The v1 decoder rejects incorrect magic or versions, non-canonical or
 overflowing varints, invalid UTF-8, unknown tags, invalid flags/enums,

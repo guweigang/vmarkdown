@@ -257,6 +257,14 @@ pub fn (doc Document) encode() []u8 {
 	return doc.binary_encode()
 }
 
+// binary_encode_checked validates an application-assembled AST before
+// encoding it as a complete VMDA document. Parser-produced documents are
+// already valid and may continue to use binary_encode() directly.
+pub fn (doc Document) binary_encode_checked() ![]u8 {
+	doc.validate()!
+	return doc.binary_encode()
+}
+
 pub fn (doc Document) semantic_stable_id() string {
 	return 'doc:' + hash_bytes(doc.normalized_bytes())
 }
@@ -705,10 +713,28 @@ pub fn (node InlineNode) binary_encode() []u8 {
 
 fn encode_inline_sequence(nodes []InlineNode) []u8 {
 	mut out := []u8{}
-	for node in nodes {
-		child := node.binary_encode()
+	for index, node in nodes {
+		child := if node is TextNode {
+			encode_text_node(node, index == 0, index == nodes.len - 1)
+		} else {
+			node.binary_encode()
+		}
+		if child.len == 0 {
+			continue
+		}
 		out << child
 	}
+	return out
+}
+
+fn encode_text_node(node TextNode, trim_left bool, trim_right bool) []u8 {
+	data := normalize_inline_text(node.text, trim_left, trim_right).bytes()
+	if data.len == 0 {
+		return []u8{}
+	}
+	mut out := [text_type_tag]
+	out << encode_varint(data.len)
+	out << data
 	return out
 }
 
@@ -978,6 +1004,21 @@ fn (node BlockNode) kind_name() string {
 }
 
 fn normalize_text(input string) string {
+	return collapse_text_whitespace(input).trim_space()
+}
+
+fn normalize_inline_text(input string, trim_left bool, trim_right bool) string {
+	mut normalized := collapse_text_whitespace(input)
+	if trim_left && normalized.starts_with(' ') {
+		normalized = normalized[1..]
+	}
+	if trim_right && normalized.ends_with(' ') {
+		normalized = normalized[..normalized.len - 1]
+	}
+	return normalized
+}
+
+fn collapse_text_whitespace(input string) string {
 	mut sb := strings.new_builder(input.len)
 	mut last_space := false
 	for r in input.runes() {
@@ -991,7 +1032,7 @@ fn normalize_text(input string) string {
 		sb.write_rune(r)
 		last_space = false
 	}
-	return sb.str().trim_space()
+	return sb.str()
 }
 
 fn is_space_rune(r rune) bool {
