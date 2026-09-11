@@ -51,7 +51,21 @@ pub fn binary_decode_with_limits(data []u8, limits BinaryDecodeLimits) !Document
 		max_nodes: limits.max_nodes
 		max_nesting_depth: limits.max_nesting_depth
 	}) or { return error('invalid binary AST: ${err}') }
+	canonical := doc.binary_encode()
+	if canonical != data {
+		return error('non-canonical binary document at byte ${first_different_byte(data, canonical)}')
+	}
 	return doc
+}
+
+fn first_different_byte(left []u8, right []u8) int {
+	common := if left.len < right.len { left.len } else { right.len }
+	for index in 0 .. common {
+		if left[index] != right[index] {
+			return index
+		}
+	}
+	return common
 }
 
 fn validate_binary_decode_limits(limits BinaryDecodeLimits) ! {

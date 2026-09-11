@@ -28,6 +28,14 @@ fn main() {
 		eprintln('benchmark lint failed: ${err}')
 		exit(1)
 	}
+	encoded := rewritten.binary_encode_checked() or {
+		eprintln('benchmark binary encode failed: ${err}')
+		exit(1)
+	}
+	decoded := vmarkdown.binary_decode(encoded) or {
+		eprintln('benchmark binary decode failed: ${err}')
+		exit(1)
+	}
 	index := vmarkdown.new_source_index(normalized) or {
 		eprintln('benchmark source indexing failed: ${err}')
 		exit(1)
@@ -37,8 +45,9 @@ fn main() {
 		exit(1)
 	}
 	elapsed := time.since(started)
-	if doc.stable_id() != reparsed.stable_id() || reparsed.stable_id() != rewritten.stable_id() {
-		eprintln('benchmark document changed after Markdown round trip')
+	if doc.stable_id() != reparsed.stable_id() || reparsed.stable_id() != rewritten.stable_id()
+		|| rewritten.stable_id() != decoded.stable_id() {
+		eprintln('benchmark document changed after semantic or binary round trip')
 		exit(1)
 	}
 	if text_nodes.len < 2048 {
@@ -53,7 +62,7 @@ fn main() {
 		eprintln('benchmark source lookup returned an invalid line')
 		exit(1)
 	}
-	println('${source.len} input bytes, ${doc.children.len} blocks, parse/render/reparse/query/rewrite/lint/index in ${elapsed.milliseconds()} ms')
+	println('${source.len} input bytes, ${doc.children.len} blocks, parse/render/reparse/query/rewrite/lint/index/binary round trip in ${elapsed.milliseconds()} ms')
 	if os.getenv('CI').len > 0 && elapsed.milliseconds() > 15_000 {
 		eprintln('benchmark exceeded the 15000 ms CI smoke budget')
 		exit(1)

@@ -253,10 +253,13 @@ command-line output.
 
 `binary_decode()` validates the reconstructed AST before returning it, so a
 well-framed payload with invalid semantic state is rejected as an invalid
-binary AST. `MemoryStore.ingest_document()` applies the same check before
-writing chunks. Custom stores can use `plan_ingest_document_checked()` when
-planning ingestion of application-assembled ASTs; the original non-fallible
-planner remains available for already validated or parser-produced documents.
+binary AST. It also requires the decoded AST to re-encode to the exact input
+bytes, rejecting alternative representations such as non-normalized text or
+unsorted metadata. `MemoryStore.ingest_document()` applies the same semantic
+check before writing chunks. Custom stores can use
+`plan_ingest_document_checked()` when planning ingestion of
+application-assembled ASTs; the original non-fallible planner remains
+available for already validated or parser-produced documents.
 
 CI and release builds also compile
 `tests/public_api_contract_test.v` as an external module. This catches
