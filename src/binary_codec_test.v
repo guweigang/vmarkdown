@@ -281,6 +281,68 @@ fn test_binary_v1_varint_does_not_truncate_large_values() {
 	assert list.start == 70_000
 }
 
+fn test_binary_decode_supports_tighter_resource_limits() {
+	data := Document{
+		children: [BlockNode(ParagraphNode{
+			children: [InlineNode(TextNode{ text: 'hi' })]
+		})]
+	}.binary_encode()
+
+	if _ := binary_decode_with_limits(data, BinaryDecodeLimits{
+		max_input_bytes: data.len - 1
+	}) {
+		assert false, 'binary data over the configured byte budget must fail'
+	} else {
+		assert err.msg().contains('exceeds ${data.len - 1} bytes')
+	}
+	if _ := binary_decode_with_limits(data, BinaryDecodeLimits{
+		max_nodes: 1
+	}) {
+		assert false, 'binary AST over the configured node budget must fail'
+	} else {
+		assert err.msg().contains('maximum node count 1')
+	}
+	if _ := binary_decode_with_limits(data, BinaryDecodeLimits{
+		max_nesting_depth: 1
+	}) {
+		assert false, 'binary AST over the configured depth budget must fail'
+	} else {
+		assert err.msg().contains('maximum depth 1')
+	}
+	decoded := binary_decode_with_limits(data, BinaryDecodeLimits{
+		max_input_bytes: 0
+		max_nodes: 0
+		max_nesting_depth: 0
+	}) or { panic(err) }
+	assert decoded.binary_encode() == data
+}
+
+fn test_binary_decode_rejects_negative_resource_limits() {
+	data := Document{}.binary_encode()
+	for limits in [
+		BinaryDecodeLimits{ max_input_bytes: -1 },
+		BinaryDecodeLimits{ max_nodes: -1 },
+		BinaryDecodeLimits{ max_nesting_depth: -1 },
+	] {
+		if _ := binary_decode_with_limits(data, limits) {
+			assert false, 'negative binary decode limits must fail'
+		} else {
+			assert err.msg().contains('cannot be negative')
+		}
+	}
+}
+
+fn test_unbounded_node_limit_does_not_allow_impossible_count_allocation() {
+	data := [u8(`V`), `M`, `D`, `A`, 0x01, 0x00, 0x04, 0x03, 0x00, 0x64, 0x01]
+	if _ := binary_decode_with_limits(data, BinaryDecodeLimits{
+		max_nodes: 0
+	}) {
+		assert false, 'impossible collection counts must fail before allocation'
+	} else {
+		assert err.msg().contains('exceeds remaining payload capacity')
+	}
+}
+
 fn test_binary_v1_rejects_invalid_envelopes_and_payloads() {
 	valid := Document{}.binary_encode()
 

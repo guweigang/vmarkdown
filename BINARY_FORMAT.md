@@ -68,6 +68,12 @@ overflowing varints, invalid UTF-8, unknown tags, invalid flags/enums,
 truncation, trailing bytes, and documents beyond its published size, depth,
 or node-count limits.
 
+The public decoder defaults to 64 MiB of input, one million decoded AST nodes,
+and 256 nesting levels. `binary_decode_with_limits()` can tighten or explicitly
+remove those transport budgets without changing the v1 bytes. The reconstructed
+document still passes the format-independent AST validator before it is
+returned.
+
 After framing is decoded, the document must also satisfy the public AST
 validation contract. In particular, headings use levels 1 through 6; list
 levels, numbers, starts, and task state are canonical; tables have one header
