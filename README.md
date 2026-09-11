@@ -157,6 +157,12 @@ For application-assembled ASTs, use `stable_id_checked()`,
 validate before deriving persistence keys; parser-produced or already validated
 ASTs may keep using the non-fallible fast paths above.
 
+The same boundary is available for raw bytes through `encode_checked()` and
+`semantic_encode_checked()` on documents, blocks, and inline nodes. Their
+`_with_limits` variants accept `AstValidationLimits`. Standalone list items are
+validated and encoded through their containing `ListNode`, because list level
+and numbering invariants require parent context.
+
 Document encodings start with the `VMDA` magic and a format version. Version 1
 uses canonical unsigned varints for every length, count, and non-negative
 integer, so values cannot be silently truncated to 16 bits. Decode with

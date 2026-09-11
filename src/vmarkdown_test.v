@@ -323,6 +323,33 @@ fn test_checked_identity_methods_reject_invalid_ast_and_limits() {
 	}
 }
 
+fn test_checked_encode_methods_match_valid_fast_paths() {
+	doc := parse('# Title') or { panic(err) }
+	block := doc.children[0]
+	inline := (block as HeadingNode).children[0]
+	assert doc.encode_checked() or { panic(err) } == doc.encode()
+	assert doc.semantic_encode_checked() or { panic(err) } == doc.semantic_encode()
+	assert block.encode_checked() or { panic(err) } == block.encode()
+	assert block.semantic_encode_checked() or { panic(err) } == block.semantic_encode()
+	assert inline.encode_checked() or { panic(err) } == inline.encode()
+	assert inline.semantic_encode_checked() or { panic(err) } == inline.semantic_encode()
+}
+
+fn test_checked_node_encode_methods_reject_invalid_ast() {
+	block := BlockNode(HeadingNode{ level: 0 })
+	if _ := block.encode_checked() {
+		assert false
+	} else {
+		assert (err as AstValidationError).kind == .heading_level
+	}
+	inline := InlineNode(TextNode{ text: [u8(0xff)].bytestr() })
+	if _ := inline.semantic_encode_checked() {
+		assert false
+	} else {
+		assert (err as AstValidationError).kind == .invalid_utf8
+	}
+}
+
 fn test_binary_encoding_uses_protocol_type_tags() {
 	heading := HeadingNode{
 		level: 2
