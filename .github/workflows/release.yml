@@ -63,7 +63,9 @@ jobs:
             archive: vmarkdown-darwin-x64.tar.gz
             shell: bash
             v_cc: clang
-          - os: windows-latest
+          # V's MSVC bootstrap currently targets Visual Studio 2022. Pin the
+          # runner so a windows-latest image upgrade cannot break releases.
+          - os: windows-2022
             artifact: vmarkdown-windows-x64
             binary: vmarkdown.exe
             archive: vmarkdown-windows-x64.zip
