@@ -2,7 +2,16 @@
 
 ![vmarkdown brand](assets/vmarkdown_brand.png)
 
-`vmarkdown` is a V wrapper around [md4c](https://github.com/mity/md4c) that builds a typed Markdown AST instead of only streaming HTML.
+`vmarkdown` is a source-aware Markdown engine for V. It wraps
+[md4c](https://github.com/mity/md4c) with a typed AST, validation, traversal,
+rewrites, linting, stable identities, and multiple renderers.
+
+The library-facing Markdown pipeline is the project core. The bundled CLI,
+interactive preview, legacy file encodings, Mermaid support, and generic
+terminal diagrams are application layers built on that core. See
+[ROADMAP.md](ROADMAP.md) for the product boundary and [CHANGELOG.md](CHANGELOG.md)
+for release history. The persisted AST format is documented separately in
+[BINARY_FORMAT.md](BINARY_FORMAT.md).
 
 ## Why this shape
 

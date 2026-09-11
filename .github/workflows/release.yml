@@ -155,7 +155,7 @@ jobs:
         run: |
           mkdir -p "release/${{ matrix.artifact }}"
           cp "dist/${{ matrix.binary }}" "release/${{ matrix.artifact }}/"
-          cp README.md "release/${{ matrix.artifact }}/"
+          cp README.md CHANGELOG.md ROADMAP.md BINARY_FORMAT.md LICENSE THIRD_PARTY_NOTICES.md "release/${{ matrix.artifact }}/"
           tar -C release -czf "${{ matrix.archive }}" "${{ matrix.artifact }}"
 
       - name: Package Windows archive
@@ -164,7 +164,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path "release\${{ matrix.artifact }}" | Out-Null
           Copy-Item "dist\${{ matrix.binary }}" "release\${{ matrix.artifact }}\"
-          Copy-Item README.md "release\${{ matrix.artifact }}\"
+          Copy-Item README.md, CHANGELOG.md, ROADMAP.md, BINARY_FORMAT.md, LICENSE, THIRD_PARTY_NOTICES.md "release\${{ matrix.artifact }}\"
           Compress-Archive -Path "release\${{ matrix.artifact }}" -DestinationPath "${{ matrix.archive }}" -Force
 
       - name: Upload workflow artifact
@@ -195,6 +195,8 @@ jobs:
           target_commitish: ${{ github.sha }}
           body: |
             vmarkdown ${{ needs.metadata.outputs.version }}
+
+            See CHANGELOG.md in the source tree and release archives for the user-facing changes.
 
             Built from GitHub Actions run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           files: |
