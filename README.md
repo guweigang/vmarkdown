@@ -252,6 +252,9 @@ Application-assembled documents also have checked rendering counterparts:
 `to_terminal_checked()`, and `to_terminal_checked_with_options()`. They return
 `AstValidationError` before producing output. The established non-fallible
 methods remain the fast path for parser-produced or already validated ASTs.
+Each checked renderer also has a `_with_limits` variant accepting
+`AstValidationLimits`; terminal rendering accepts both `TerminalRenderOptions`
+and the validation limits.
 
 `binary_encode_checked()` is the safe persistence boundary for an AST assembled
 by application code: it returns `AstValidationError` instead of allowing an
