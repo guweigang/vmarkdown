@@ -128,6 +128,11 @@ fn test_public_parse_render_and_codec_contract() {
 		max_nesting_depth: 8
 	}) or { panic(err) } == doc.root_refs()
 	assert doc.children[0].stable_id_checked() or { panic(err) } == doc.children[0].stable_id()
+	assert doc.encode_checked() or { panic(err) } == doc.encode()
+	assert doc.semantic_encode_checked() or { panic(err) } == doc.semantic_encode()
+	assert doc.children[0].encode_checked() or { panic(err) } == doc.children[0].encode()
+	heading_inline := (doc.children[0] as vmarkdown.HeadingNode).children[0]
+	assert heading_inline.semantic_encode_checked() or { panic(err) } == heading_inline.semantic_encode()
 	html := vmarkdown.render_html_with_options('line', vmarkdown.HtmlRenderOptions{
 		parser: options
 	}) or { panic(err) }

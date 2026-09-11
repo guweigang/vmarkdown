@@ -275,6 +275,14 @@ pub fn (doc Document) encode() []u8 {
 	return doc.binary_encode()
 }
 
+pub fn (doc Document) encode_checked() ![]u8 {
+	return doc.binary_encode_checked()
+}
+
+pub fn (doc Document) encode_checked_with_limits(limits AstValidationLimits) ![]u8 {
+	return doc.binary_encode_checked_with_limits(limits)
+}
+
 // binary_encode_checked validates an application-assembled AST before
 // encoding it as a complete VMDA document. Parser-produced documents are
 // already valid and may continue to use binary_encode() directly.
@@ -304,6 +312,15 @@ pub fn (doc Document) semantic_stable_id_checked_with_limits(limits AstValidatio
 
 pub fn (doc Document) semantic_encode() []u8 {
 	return doc.normalized_bytes()
+}
+
+pub fn (doc Document) semantic_encode_checked() ![]u8 {
+	return doc.semantic_encode_checked_with_limits(AstValidationLimits{})
+}
+
+pub fn (doc Document) semantic_encode_checked_with_limits(limits AstValidationLimits) ![]u8 {
+	doc.validate_with_limits(limits)!
+	return doc.semantic_encode()
 }
 
 pub fn (node BlockNode) stable_id() string {
@@ -353,12 +370,30 @@ pub fn (node BlockNode) encode() []u8 {
 	return node.binary_encode()
 }
 
+pub fn (node BlockNode) encode_checked() ![]u8 {
+	return node.encode_checked_with_limits(AstValidationLimits{})
+}
+
+pub fn (node BlockNode) encode_checked_with_limits(limits AstValidationLimits) ![]u8 {
+	node.validate_with_limits(limits)!
+	return node.encode()
+}
+
 pub fn (item ListItemNode) encode() []u8 {
 	return item.binary_encode()
 }
 
 pub fn (node InlineNode) encode() []u8 {
 	return node.binary_encode()
+}
+
+pub fn (node InlineNode) encode_checked() ![]u8 {
+	return node.encode_checked_with_limits(AstValidationLimits{})
+}
+
+pub fn (node InlineNode) encode_checked_with_limits(limits AstValidationLimits) ![]u8 {
+	node.validate_with_limits(limits)!
+	return node.encode()
 }
 
 pub fn (node BlockNode) semantic_stable_id() string {
@@ -408,12 +443,30 @@ pub fn (node BlockNode) semantic_encode() []u8 {
 	return node.normalized_bytes()
 }
 
+pub fn (node BlockNode) semantic_encode_checked() ![]u8 {
+	return node.semantic_encode_checked_with_limits(AstValidationLimits{})
+}
+
+pub fn (node BlockNode) semantic_encode_checked_with_limits(limits AstValidationLimits) ![]u8 {
+	node.validate_with_limits(limits)!
+	return node.semantic_encode()
+}
+
 pub fn (item ListItemNode) semantic_encode() []u8 {
 	return item.normalized_bytes()
 }
 
 pub fn (node InlineNode) semantic_encode() []u8 {
 	return node.normalized_bytes()
+}
+
+pub fn (node InlineNode) semantic_encode_checked() ![]u8 {
+	return node.semantic_encode_checked_with_limits(AstValidationLimits{})
+}
+
+pub fn (node InlineNode) semantic_encode_checked_with_limits(limits AstValidationLimits) ![]u8 {
+	node.validate_with_limits(limits)!
+	return node.semantic_encode()
 }
 
 pub fn (doc Document) str() string {
