@@ -1,7 +1,7 @@
 Module {
 	name: 'vmarkdown'
-	description: 'A V wrapper around md4c with a typed Markdown AST.'
-	version: '0.0.6'
+	description: 'A source-aware Markdown engine for V with a typed AST.'
+	version: '0.1.0'
 	base_url: 'src'
 	license: 'MIT'
 }
