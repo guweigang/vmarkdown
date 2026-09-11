@@ -261,6 +261,13 @@ check before writing chunks. Custom stores can use
 application-assembled ASTs; the original non-fallible planner remains
 available for already validated or parser-produced documents.
 
+Decode failures implement `IError` as the public `BinaryDecodeError` type.
+Callers can match its stable `kind`, inspect the best available zero-based byte
+`offset` (`-1` when no single input byte applies), and retain `message`/`msg()`
+for logs. Error kinds distinguish invalid limits, resource limits, envelopes,
+truncation, varints, UTF-8, tags, values, framing, semantic AST failures, and
+non-canonical documents.
+
 CI and release builds also compile
 `tests/public_api_contract_test.v` as an external module. This catches
 accidental changes to the package-visible parser, renderer, codec, validation,

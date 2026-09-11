@@ -9,6 +9,35 @@ pub:
 	max_nesting_depth int = 256
 }
 
+pub enum BinaryDecodeErrorKind {
+	invalid_limits
+	resource_limit
+	invalid_envelope
+	truncated
+	invalid_varint
+	invalid_utf8
+	unknown_tag
+	invalid_value
+	invalid_framing
+	invalid_ast
+	non_canonical
+}
+
+pub struct BinaryDecodeError {
+pub:
+	kind    BinaryDecodeErrorKind
+	offset  int = -1
+	message string
+}
+
+pub fn (err BinaryDecodeError) msg() string {
+	return err.message
+}
+
+pub fn (err BinaryDecodeError) code() int {
+	return 4000 + int(err.kind)
+}
+
 // binary_decode decodes the versioned VMDA binary format. Source spans are
 // intentionally absent from the wire format because they are parse-location
 // metadata, not semantic content.
@@ -21,16 +50,24 @@ pub fn binary_decode(data []u8) !Document {
 pub fn binary_decode_with_limits(data []u8, limits BinaryDecodeLimits) !Document {
 	validate_binary_decode_limits(limits)!
 	if limits.max_input_bytes > 0 && data.len > limits.max_input_bytes {
-		return error('binary document exceeds ${limits.max_input_bytes} bytes')
+		return binary_decode_error(.resource_limit, -1, 'binary document exceeds ${limits.max_input_bytes} bytes')
 	}
-	if data.len < 7 || data[0] != `V` || data[1] != `M` || data[2] != `D` || data[3] != `A` {
-		return error('invalid binary document magic; expected VMDA')
+	if data.len < 4 {
+		return binary_decode_error(.truncated, data.len, 'truncated binary document header at byte ${data.len}')
+	}
+	magic := [u8(`V`), `M`, `D`, `A`]
+	if data[..4] != magic {
+		offset := first_different_byte(data[..4], magic)
+		return binary_decode_error(.invalid_envelope, offset, 'invalid binary document magic; expected VMDA')
+	}
+	if data.len < 7 {
+		return binary_decode_error(.truncated, data.len, 'truncated binary document header at byte ${data.len}')
 	}
 	if data[4] != binary_format_version {
-		return error('unsupported binary document version ${data[4]}')
+		return binary_decode_error(.invalid_envelope, 4, 'unsupported binary document version ${data[4]}')
 	}
 	if data[5] != document_type_tag {
-		return error('invalid binary document root tag ${data[5]}')
+		return binary_decode_error(.invalid_envelope, 5, 'invalid binary document root tag ${data[5]}')
 	}
 	mut reader := BinaryReader{
 		data: data
@@ -50,10 +87,11 @@ pub fn binary_decode_with_limits(data []u8, limits BinaryDecodeLimits) !Document
 	doc.validate_with_limits(AstValidationLimits{
 		max_nodes: limits.max_nodes
 		max_nesting_depth: limits.max_nesting_depth
-	}) or { return error('invalid binary AST: ${err}') }
+	}) or { return binary_decode_error(.invalid_ast, -1, 'invalid binary AST: ${err}') }
 	canonical := doc.binary_encode()
 	if canonical != data {
-		return error('non-canonical binary document at byte ${first_different_byte(data, canonical)}')
+		offset := first_different_byte(data, canonical)
+		return binary_decode_error(.non_canonical, offset, 'non-canonical binary document at byte ${offset}')
 	}
 	return doc
 }
@@ -70,13 +108,21 @@ fn first_different_byte(left []u8, right []u8) int {
 
 fn validate_binary_decode_limits(limits BinaryDecodeLimits) ! {
 	if limits.max_input_bytes < 0 {
-		return error('max_input_bytes cannot be negative')
+		return binary_decode_error(.invalid_limits, -1, 'max_input_bytes cannot be negative')
 	}
 	if limits.max_nodes < 0 {
-		return error('max_nodes cannot be negative')
+		return binary_decode_error(.invalid_limits, -1, 'max_nodes cannot be negative')
 	}
 	if limits.max_nesting_depth < 0 {
-		return error('max_nesting_depth cannot be negative')
+		return binary_decode_error(.invalid_limits, -1, 'max_nesting_depth cannot be negative')
+	}
+}
+
+fn binary_decode_error(kind BinaryDecodeErrorKind, offset int, message string) IError {
+	return BinaryDecodeError{
+		kind: kind
+		offset: offset
+		message: message
 	}
 }
 
@@ -91,7 +137,7 @@ mut:
 
 fn (mut r BinaryReader) read_u8(label string) !u8 {
 	if r.pos >= r.limit {
-		return error('truncated ${label} at byte ${r.pos}')
+		return binary_decode_error(.truncated, r.pos, 'truncated ${label} at byte ${r.pos}')
 	}
 	value := r.data[r.pos]
 	r.pos++
@@ -99,45 +145,47 @@ fn (mut r BinaryReader) read_u8(label string) !u8 {
 }
 
 fn (mut r BinaryReader) read_varint(label string) !int {
+	start := r.pos
 	mut value := u64(0)
 	mut byte_count := 0
 	for shift := u32(0); shift < 64; shift += 7 {
 		byte := r.read_u8(label)!
 		byte_count++
 		if shift == 63 && byte > 1 {
-			return error('${label} varint overflows u64 at byte ${r.pos - 1}')
+			return binary_decode_error(.invalid_varint, r.pos - 1, '${label} varint overflows u64 at byte ${r.pos - 1}')
 		}
 		value |= u64(byte & 0x7f) << shift
 		if byte & 0x80 == 0 {
 			if byte_count > 1 && byte == 0 {
-				return error('${label} uses a non-canonical varint')
+				return binary_decode_error(.invalid_varint, r.pos - 1, '${label} uses a non-canonical varint')
 			}
 			if r.limits.max_input_bytes > 0 && value > u64(r.limits.max_input_bytes)
 				&& label.contains('length') {
-				return error('${label} exceeds ${r.limits.max_input_bytes}')
+				return binary_decode_error(.resource_limit, start, '${label} exceeds ${r.limits.max_input_bytes}')
 			}
 			if value > u64(0x7fff_ffff_ffff_ffff) {
-				return error('${label} exceeds supported integer range')
+				return binary_decode_error(.invalid_varint, start, '${label} exceeds supported integer range')
 			}
 			return int(value)
 		}
 	}
-	return error('${label} varint is too long')
+	return binary_decode_error(.invalid_varint, start, '${label} varint is too long')
 }
 
 fn (mut r BinaryReader) read_sized_end(label string) !int {
 	length := r.read_varint('${label} length')!
 	if length < 0 || length > r.limit - r.pos {
-		return error('truncated ${label}: need ${length} bytes, have ${r.limit - r.pos}')
+		return binary_decode_error(.truncated, r.pos, 'truncated ${label}: need ${length} bytes, have ${r.limit - r.pos}')
 	}
 	return r.pos + length
 }
 
 fn (mut r BinaryReader) read_string(label string) !string {
 	end := r.read_sized_end(label)!
+	start := r.pos
 	value := r.data[r.pos..end].bytestr()
 	if !utf8.validate_str(value) {
-		return error('${label} is not valid UTF-8')
+		return binary_decode_error(.invalid_utf8, start, '${label} is not valid UTF-8')
 	}
 	r.pos = end
 	return value
@@ -146,24 +194,24 @@ fn (mut r BinaryReader) read_string(label string) !string {
 fn (mut r BinaryReader) read_bool(label string) !bool {
 	value := r.read_u8(label)!
 	if value > 1 {
-		return error('invalid ${label} value ${value}')
+		return binary_decode_error(.invalid_value, r.pos - 1, 'invalid ${label} value ${value}')
 	}
 	return value == 1
 }
 
 fn (mut r BinaryReader) require_end(expected int, label string) ! {
 	if r.pos != expected {
-		return error('${label} ended at byte ${r.pos}, expected ${expected}')
+		return binary_decode_error(.invalid_framing, r.pos, '${label} ended at byte ${r.pos}, expected ${expected}')
 	}
 }
 
 fn (mut r BinaryReader) count_node(depth int) ! {
 	if r.limits.max_nesting_depth > 0 && depth > r.limits.max_nesting_depth {
-		return error('binary AST exceeds maximum depth ${r.limits.max_nesting_depth}')
+		return binary_decode_error(.resource_limit, r.pos, 'binary AST exceeds maximum depth ${r.limits.max_nesting_depth}')
 	}
 	r.nodes++
 	if r.limits.max_nodes > 0 && r.nodes > r.limits.max_nodes {
-		return error('binary AST exceeds maximum node count ${r.limits.max_nodes}')
+		return binary_decode_error(.resource_limit, r.pos, 'binary AST exceeds maximum node count ${r.limits.max_nodes}')
 	}
 }
 
@@ -171,21 +219,21 @@ fn (mut r BinaryReader) read_block(container_end int, depth int) !BlockNode {
 	r.count_node(depth)!
 	old_limit := r.limit
 	if container_end > old_limit {
-		return error('block container exceeds its parent boundary')
+		return binary_decode_error(.invalid_framing, r.pos, 'block container exceeds its parent boundary')
 	}
 	r.limit = container_end
 	defer {
 		r.limit = old_limit
 	}
 	if r.pos >= container_end {
-		return error('missing block tag at byte ${r.pos}')
+		return binary_decode_error(.truncated, r.pos, 'missing block tag at byte ${r.pos}')
 	}
 	tag := r.read_u8('block tag')!
 	match tag {
 		heading_type_tag {
 			level := int(r.read_u8('heading level')!)
 			if level < 1 || level > 6 {
-				return error('invalid heading level ${level}')
+				return binary_decode_error(.invalid_value, r.pos - 1, 'invalid heading level ${level}')
 			}
 			end := r.read_sized_end('heading children')!
 			children := r.read_inlines(end, depth + 1)!
@@ -212,7 +260,7 @@ fn (mut r BinaryReader) read_block(container_end int, depth int) !BlockNode {
 			for _ in 0 .. count {
 				key := r.read_string('metadata key')!
 				if key in data {
-					return error('duplicate metadata key ${key}')
+					return binary_decode_error(.invalid_value, r.pos, 'duplicate metadata key ${key}')
 				}
 				data[key] = r.read_string('metadata value')!
 			}
@@ -245,7 +293,7 @@ fn (mut r BinaryReader) read_block(container_end int, depth int) !BlockNode {
 				end := r.read_sized_end('table row')!
 				row := r.read_table_row(end, depth + 1)!
 				if row.cells.len != columns {
-					return error('table row has ${row.cells.len} cells, expected ${columns}')
+					return binary_decode_error(.invalid_value, r.pos, 'table row has ${row.cells.len} cells, expected ${columns}')
 				}
 				rows << row
 			}
@@ -259,7 +307,7 @@ fn (mut r BinaryReader) read_block(container_end int, depth int) !BlockNode {
 			return BlockNode(RawHtmlBlockNode{ html: r.read_string('raw HTML block')! })
 		}
 		else {
-			return error('unknown block tag ${tag} at byte ${r.pos - 1}')
+			return binary_decode_error(.unknown_tag, r.pos - 1, 'unknown block tag ${tag} at byte ${r.pos - 1}')
 		}
 	}
 }
@@ -267,10 +315,10 @@ fn (mut r BinaryReader) read_block(container_end int, depth int) !BlockNode {
 fn (mut r BinaryReader) read_count(label string) !int {
 	value := r.read_varint(label)!
 	if r.limits.max_nodes > 0 && value > r.limits.max_nodes {
-		return error('${label} exceeds ${r.limits.max_nodes}')
+		return binary_decode_error(.resource_limit, r.pos, '${label} exceeds ${r.limits.max_nodes}')
 	}
 	if value > r.limit - r.pos {
-		return error('${label} ${value} exceeds remaining payload capacity ${r.limit - r.pos}')
+		return binary_decode_error(.invalid_framing, r.pos, '${label} ${value} exceeds remaining payload capacity ${r.limit - r.pos}')
 	}
 	return value
 }
@@ -279,25 +327,25 @@ fn (mut r BinaryReader) read_list_item(end int, depth int) !ListItemNode {
 	r.count_node(depth)!
 	old_limit := r.limit
 	if end > old_limit {
-		return error('list item exceeds its parent boundary')
+		return binary_decode_error(.invalid_framing, r.pos, 'list item exceeds its parent boundary')
 	}
 	r.limit = end
 	defer {
 		r.limit = old_limit
 	}
 	if r.read_u8('list item tag')! != list_item_type_tag {
-		return error('invalid list item tag at byte ${r.pos - 1}')
+		return binary_decode_error(.unknown_tag, r.pos - 1, 'invalid list item tag at byte ${r.pos - 1}')
 	}
 	level := r.read_varint('list item level')!
 	number := r.read_varint('list item number')!
 	is_task := r.read_bool('task flag')!
 	checked := r.read_bool('task checked flag')!
 	if checked && !is_task {
-		return error('non-task list item cannot be checked')
+		return binary_decode_error(.invalid_value, r.pos - 1, 'non-task list item cannot be checked')
 	}
 	body_end := r.read_sized_end('list item children')!
 	if body_end != end {
-		return error('list item framing mismatch')
+		return binary_decode_error(.invalid_framing, r.pos, 'list item framing mismatch')
 	}
 	mut children := []BlockNode{}
 	for r.pos < body_end {
@@ -318,7 +366,7 @@ fn (mut r BinaryReader) read_list_item(end int, depth int) !ListItemNode {
 fn (mut r BinaryReader) read_table_row(end int, depth int) !TableRowNode {
 	old_limit := r.limit
 	if end > old_limit {
-		return error('table row exceeds its parent boundary')
+		return binary_decode_error(.invalid_framing, r.pos, 'table row exceeds its parent boundary')
 	}
 	r.limit = end
 	defer {
@@ -329,7 +377,7 @@ fn (mut r BinaryReader) read_table_row(end int, depth int) !TableRowNode {
 	for _ in 0 .. count {
 		alignment_value := r.read_u8('table cell alignment')!
 		if alignment_value > u8(TableAlignment.right) {
-			return error('invalid table alignment ${alignment_value}')
+			return binary_decode_error(.invalid_value, r.pos - 1, 'invalid table alignment ${alignment_value}')
 		}
 		children_end := r.read_sized_end('table cell children')!
 		cells << TableCellNode{
@@ -354,14 +402,14 @@ fn (mut r BinaryReader) read_inline(container_end int, depth int) !InlineNode {
 	r.count_node(depth)!
 	old_limit := r.limit
 	if container_end > old_limit {
-		return error('inline container exceeds its parent boundary')
+		return binary_decode_error(.invalid_framing, r.pos, 'inline container exceeds its parent boundary')
 	}
 	r.limit = container_end
 	defer {
 		r.limit = old_limit
 	}
 	if r.pos >= container_end {
-		return error('missing inline tag at byte ${r.pos}')
+		return binary_decode_error(.truncated, r.pos, 'missing inline tag at byte ${r.pos}')
 	}
 	tag := r.read_u8('inline tag')!
 	match tag {
@@ -422,7 +470,7 @@ fn (mut r BinaryReader) read_inline(container_end int, depth int) !InlineNode {
 			return InlineNode(RawHtmlInlineNode{ html: r.read_string('raw inline HTML')! })
 		}
 		else {
-			return error('unknown inline tag ${tag} at byte ${r.pos - 1}')
+			return binary_decode_error(.unknown_tag, r.pos - 1, 'unknown inline tag ${tag} at byte ${r.pos - 1}')
 		}
 	}
 }
