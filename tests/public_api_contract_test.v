@@ -314,7 +314,16 @@ fn test_public_ingest_and_encoding_contract() {
 
 	doc := vmarkdown.parse_with_dialect('- one\n- two', .gfm) or { panic(err) }
 	mut store := vmarkdown.new_memory_store()
+	limited_result := store.ingest_with_limits('text', vmarkdown.ParseOptions{}, vmarkdown.ParseLimits{
+		max_input_bytes: 64
+		max_nodes: 8
+		max_nesting_depth: 4
+	}) or { panic(err) }
+	assert limited_result.root_id.len > 0
 	plan := vmarkdown.plan_ingest_document_checked(doc, store) or { panic(err) }
+	assert vmarkdown.plan_ingest_with_limits('text', store, vmarkdown.ParseOptions{}, vmarkdown.ParseLimits{
+		max_nodes: 8
+	}) or { panic(err) }.root_id == limited_result.root_id
 	assert plan.root_id == doc.stable_id()
 	result := store.ingest_document(doc) or { panic(err) }
 	assert result.root_id == doc.stable_id()
