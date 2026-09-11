@@ -8,6 +8,64 @@ fn test_render_html() {
 	assert html.contains('<p>Paragraph with <a href="https://example.com">link</a>.</p>')
 }
 
+fn test_render_html_enforces_input_contract() {
+	for input, expected_offset in {
+		[u8(0xff), u8(`a`)].bytestr():   0
+		[u8(`a`), 0xe2, 0x82].bytestr(): 1
+	} {
+		if _ := render_html(input) {
+			assert false, 'invalid UTF-8 Markdown must fail HTML rendering'
+		} else {
+			assert err is HtmlRenderError
+			render_error := err as HtmlRenderError
+			assert render_error.kind == .invalid_utf8
+			assert render_error.offset == expected_offset
+			assert render_error.native_code == 0
+		}
+	}
+
+	if _ := render_html_with_limits('12345', HtmlRenderOptions{}, HtmlRenderLimits{
+		max_input_bytes: 4
+	}) {
+		assert false, 'oversized Markdown must fail HTML rendering'
+	} else {
+		assert err is HtmlRenderError
+		assert (err as HtmlRenderError).kind == .input_limit
+	}
+}
+
+fn test_render_html_enforces_output_contract() {
+	if _ := render_html_with_limits('<>&', HtmlRenderOptions{}, HtmlRenderLimits{
+		max_output_bytes: 8
+	}) {
+		assert false, 'oversized HTML output must fail'
+	} else {
+		assert err is HtmlRenderError
+		render_error := err as HtmlRenderError
+		assert render_error.kind == .output_limit
+		assert render_error.message.contains('8 bytes')
+	}
+
+	html := render_html_with_limits('<>&', HtmlRenderOptions{}, HtmlRenderLimits{
+		max_output_bytes: 64
+	}) or { panic(err) }
+	assert html == '<p>&lt;&gt;&amp;</p>\n'
+}
+
+fn test_render_html_rejects_negative_limits() {
+	for limits in [
+		HtmlRenderLimits{ max_input_bytes: -1 },
+		HtmlRenderLimits{ max_output_bytes: -1 },
+	] {
+		if _ := render_html_with_limits('text', HtmlRenderOptions{}, limits) {
+			assert false, 'negative HTML render limits must fail'
+		} else {
+			assert err is HtmlRenderError
+			assert (err as HtmlRenderError).kind == .invalid_limits
+		}
+	}
+}
+
 fn test_render_text() {
 	text := render_text('# Title\n\n- alpha\n- beta\n\n`code`\n') or { panic(err) }
 	assert text.contains('Title')
