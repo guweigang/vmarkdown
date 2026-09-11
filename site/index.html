@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#071018" />
+    <meta
+      name="description"
+      content="vmarkdown is a fast, typed Markdown parser for V with stable ASTs, terminal rendering, and native diagram support."
+    />
+    <title>vmarkdown — Markdown, structured for V</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="main.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site-header">
+      <a class="wordmark" href="#top" aria-label="vmarkdown home">
+        <span class="brand-mark" aria-hidden="true"><img src="../assets/vmarkdown_brand.png" alt="" /></span>
+        <span><strong>v</strong>markdown</span>
+      </a>
+      <nav class="nav" aria-label="Primary navigation">
+        <a href="#editor">Editor</a>
+        <a href="#features">Features</a>
+        <a href="#diagrams">Diagrams</a>
+      </nav>
+      <a class="github-link" href="https://github.com/guweigang/vmarkdown" target="_blank" rel="noreferrer">
+        GitHub <span aria-hidden="true">↗</span>
+      </a>
+    </header>
+
+    <main id="main">
+      <section class="hero" id="top">
+        <div class="hero-grid" aria-hidden="true"></div>
+        <div class="hero-copy reveal">
+          <div class="eyebrow"><span class="status-dot"></span> V-native Markdown toolkit</div>
+          <h1>Markdown,<br /><span>structured for V.</span></h1>
+          <p class="hero-lede">
+            Parse Markdown into a typed AST — or open the cross-platform editor binary and work
+            directly in Terminal, Markdown, HTML, and AST views.
+          </p>
+          <div class="hero-actions">
+            <a class="button button-primary" href="#editor">Meet the editor <span aria-hidden="true">→</span></a>
+            <a class="button button-ghost" href="https://github.com/guweigang/vmarkdown" target="_blank" rel="noreferrer">View source</a>
+          </div>
+          <div class="hero-meta" aria-label="Project details">
+            <span><b>MIT</b> licensed</span>
+            <span><b>macOS · Linux · Windows</b></span>
+            <span><b>Pure V</b> toolkit</span>
+          </div>
+        </div>
+
+        <div class="hero-terminal reveal" aria-label="vmarkdown code example">
+          <div class="terminal-bar">
+            <div class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></div>
+            <span>example.v</span>
+            <span class="terminal-badge">V</span>
+          </div>
+          <pre><code><span class="c-muted">// Parse once. Keep the structure.</span>
+<span class="c-key">import</span> vmarkdown
+
+doc := vmarkdown.parse(<span class="c-string">'# Hello\n\nBuild **fast**.'</span>)!
+
+<span class="c-key">println</span>(doc.pretty())
+<span class="c-muted">// Document</span>
+<span class="c-muted">// ├─ Heading(level=1) "Hello"</span>
+<span class="c-muted">// └─ Paragraph "Build **fast**."</span></code></pre>
+          <div class="terminal-prompt">
+            <span>~/project</span>
+            <span class="prompt-chevron">›</span>
+            <span class="typing">v run example.v</span><span class="cursor" aria-hidden="true"></span>
+          </div>
+        </div>
+
+        <div class="scroll-cue" aria-hidden="true"><span>SCROLL TO EXPLORE</span><i></i></div>
+      </section>
+
+      <section class="signal-strip" aria-label="Core capabilities">
+        <div><span>01</span> Typed AST</div>
+        <div><span>02</span> Stable IDs</div>
+        <div><span>03</span> Multi-format</div>
+        <div><span>04</span> Editor binary</div>
+      </section>
+
+      <section class="editor-section section" id="editor">
+        <div class="editor-heading reveal">
+          <div>
+            <p class="kicker">The parser you can type into</p>
+            <h2>A Markdown editor.<br /><span>Inside your terminal.</span></h2>
+          </div>
+          <div class="editor-intro">
+            <p>
+              vmarkdown is also a focused full-screen editor binary. Open a file, edit the original
+              Markdown, and inspect the rendered document without leaving the keyboard.
+            </p>
+            <div class="platforms" aria-label="Supported operating systems">
+              <span><i aria-hidden="true">●</i> macOS</span>
+              <span><i aria-hidden="true">●</i> Linux</span>
+              <span><i aria-hidden="true">●</i> Windows</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="editor-showcase reveal">
+          <div class="editor-window">
+            <div class="editor-titlebar">
+              <div class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></div>
+              <span>vmarkdown preview README.md</span>
+              <span class="editor-os">cross-platform</span>
+            </div>
+            <div class="editor-view-tabs" role="tablist" aria-label="Editor preview modes">
+              <button role="tab" aria-selected="true" aria-controls="terminal-view" id="terminal-view-tab" data-target="terminal-view"><b>1</b> Terminal</button>
+              <button role="tab" aria-selected="false" aria-controls="markdown-view" id="markdown-view-tab" data-target="markdown-view"><b>2</b> Markdown</button>
+              <button role="tab" aria-selected="false" aria-controls="html-view" id="html-view-tab" data-target="html-view"><b>3</b> HTML</button>
+              <button role="tab" aria-selected="false" aria-controls="ast-view" id="ast-view-tab" data-target="ast-view"><b>4</b> AST</button>
+            </div>
+            <div class="editor-pane" id="terminal-view" role="tabpanel" aria-labelledby="terminal-view-tab">
+              <div class="line-no">1<br />2<br />3<br />4<br />5<br />6<br />7<br />8</div>
+              <pre><code><span class="preview-h1">vmarkdown</span>
+
+<span class="preview-text">Typed Markdown infrastructure for V.</span>
+
+<span class="preview-bullet">•</span> Typed, lossless AST
+<span class="preview-bullet">•</span> Stable document IDs
+<span class="preview-bullet">•</span> Terminal-native diagrams</code></pre>
+            </div>
+            <div class="editor-pane" id="markdown-view" role="tabpanel" aria-labelledby="markdown-view-tab" hidden>
+              <div class="line-no">1<br />2<br />3<br />4<br />5<br />6<br />7<br />8</div>
+              <pre><code><span class="c-key"># vmarkdown</span>
+
+Typed Markdown infrastructure for V.
+
+- Typed, lossless AST
+- Stable document IDs
+- Terminal-native diagrams</code></pre>
+            </div>
+            <div class="editor-pane" id="html-view" role="tabpanel" aria-labelledby="html-view-tab" hidden>
+              <div class="line-no">1<br />2<br />3<br />4<br />5<br />6<br />7<br />8</div>
+              <pre><code><span class="c-muted">&lt;h1&gt;</span>vmarkdown<span class="c-muted">&lt;/h1&gt;</span>
+<span class="c-muted">&lt;p&gt;</span>Typed Markdown infrastructure for V.<span class="c-muted">&lt;/p&gt;</span>
+<span class="c-muted">&lt;ul&gt;</span>
+  <span class="c-muted">&lt;li&gt;</span>Typed, lossless AST<span class="c-muted">&lt;/li&gt;</span>
+  <span class="c-muted">&lt;li&gt;</span>Stable document IDs<span class="c-muted">&lt;/li&gt;</span>
+<span class="c-muted">&lt;/ul&gt;</span></code></pre>
+            </div>
+            <div class="editor-pane" id="ast-view" role="tabpanel" aria-labelledby="ast-view-tab" hidden>
+              <div class="line-no">1<br />2<br />3<br />4<br />5<br />6<br />7<br />8</div>
+              <pre><code><span class="c-key">Document</span>
+├─ Heading(level=1) <span class="c-string">"vmarkdown"</span>
+├─ Paragraph <span class="c-string">"Typed Markdown…"</span>
+└─ UnorderedList
+   ├─ ListItem <span class="c-string">"Typed, lossless AST"</span>
+   └─ ListItem <span class="c-string">"Stable document IDs"</span></code></pre>
+            </div>
+            <div class="editor-status">
+              <span><b>NORMAL</b> README.md</span>
+              <span>1–8/120&nbsp;&nbsp;7%</span>
+            </div>
+            <div class="editor-command"><span>:</span><span class="command-text">w</span><i aria-hidden="true"></i></div>
+          </div>
+
+          <div class="editor-capabilities">
+            <article><span>01</span><div><h3>Edit in place</h3><p>Enter Insert mode with <kbd>i</kbd>, return with <kbd>Esc</kbd>, and navigate with familiar Vim keys.</p></div></article>
+            <article><span>02</span><div><h3>Four synchronized views</h3><p>Switch between Terminal, Markdown, HTML, and AST while staying anchored to the same source position.</p></div></article>
+            <article><span>03</span><div><h3>Save without surprises</h3><p>Atomic writes, undo/redo, and external-change detection protect work before anything is overwritten.</p></div></article>
+          </div>
+        </div>
+
+        <div class="editor-run reveal">
+          <span class="editor-run-label">OPEN ANY MARKDOWN FILE</span>
+          <code><span>$</span> vmarkdown preview README.md</code>
+          <button class="copy-button inline-copy" data-copy="vmarkdown preview README.md" aria-label="Copy editor command">Copy</button>
+        </div>
+      </section>
+
+      <section class="feature-section section" id="features">
+        <div class="section-intro reveal">
+          <p class="kicker">Built for real syntax</p>
+          <h2>Keep meaning.<br />Choose the output.</h2>
+          <p>
+            vmarkdown turns Markdown into explicit V sum types, so downstream tools can inspect,
+            transform, index, and render documents with confidence.
+          </p>
+        </div>
+
+        <div class="feature-list">
+          <article class="feature-row reveal">
+            <div class="feature-no">01</div>
+            <div class="feature-title">
+              <span class="feature-icon" aria-hidden="true">{ }</span>
+              <h3>A typed, lossless AST</h3>
+            </div>
+            <p>Headings, paragraphs, nested lists, tables, code blocks, and inline nodes stay explicit and traversable.</p>
+          </article>
+          <article class="feature-row reveal">
+            <div class="feature-no">02</div>
+            <div class="feature-title">
+              <span class="feature-icon" aria-hidden="true">#</span>
+              <h3>Stable document identity</h3>
+            </div>
+            <p>Generate deterministic IDs from normalized document structure for storage, indexing, caching, and change detection.</p>
+          </article>
+          <article class="feature-row reveal">
+            <div class="feature-no">03</div>
+            <div class="feature-title">
+              <span class="feature-icon" aria-hidden="true">↔</span>
+              <h3>Render in every direction</h3>
+            </div>
+            <p>Move between Markdown, HTML, text, JSON, and terminal output through one focused API.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="pipeline section" aria-labelledby="pipeline-title">
+        <div class="pipeline-heading reveal">
+          <p class="kicker">One parser · many paths</p>
+          <h2 id="pipeline-title">A small core with a wide reach.</h2>
+        </div>
+        <div class="pipeline-map reveal" role="img" aria-label="Markdown flows through the typed AST to five output formats">
+          <div class="pipe-source"><span>.md</span><strong>Markdown</strong></div>
+          <div class="pipe-line"><i></i><b>parse()</b><i></i></div>
+          <div class="pipe-core"><span>sum type</span><strong>Typed AST</strong><small>BlockNode · InlineNode</small></div>
+          <div class="pipe-branches" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+          <div class="pipe-outputs">
+            <span>HTML</span><span>JSON</span><span>TEXT</span><span>MARKDOWN</span><span>TERMINAL</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="diagram-section section" id="diagrams">
+        <div class="diagram-copy reveal">
+          <p class="kicker">Diagrams without the browser</p>
+          <h2>Mermaid,<br />meet the terminal.</h2>
+          <p>
+            Render flowcharts, sequences, states, classes, ER models, timelines, journeys, git graphs,
+            and more as readable Unicode layouts — directly in your CLI.
+          </p>
+          <ul class="check-list">
+            <li><span>✓</span> Pure V parsing and layout</li>
+            <li><span>✓</span> Width-aware rendering</li>
+            <li><span>✓</span> Graceful syntax fallback</li>
+          </ul>
+        </div>
+        <figure class="preview-frame reveal">
+          <div class="preview-glow" aria-hidden="true"></div>
+          <img src="../assets/terminal_preview.png" alt="Terminal rendering of a vmarkdown document with headings, lists, code, and a flow diagram" />
+          <figcaption><span>terminal_preview</span><span>ANSI + Unicode</span></figcaption>
+        </figure>
+      </section>
+
+      <section class="quickstart section" id="quickstart">
+        <div class="quickstart-heading reveal">
+          <p class="kicker">Three lines to structure</p>
+          <h2>Parse your first document.</h2>
+          <p>Drop vmarkdown into a V project and start with the API you already know.</p>
+        </div>
+        <div class="code-card reveal">
+          <div class="code-tabs" role="tablist" aria-label="Quick start examples">
+            <button role="tab" aria-selected="true" aria-controls="install-panel" id="install-tab" data-target="install-panel">Run example</button>
+            <button role="tab" aria-selected="false" aria-controls="api-panel" id="api-tab" data-target="api-panel">Core API</button>
+          </div>
+          <div class="code-panel" id="install-panel" role="tabpanel" aria-labelledby="install-tab">
+            <pre><code>v run examples/basic.v</code></pre>
+            <button class="copy-button" data-copy="v run examples/basic.v" aria-label="Copy run command">Copy</button>
+          </div>
+          <div class="code-panel" id="api-panel" role="tabpanel" aria-labelledby="api-tab" hidden>
+            <pre><code><span class="c-key">import</span> vmarkdown
+
+doc := vmarkdown.parse(<span class="c-string">'# hello\n\nworld'</span>)!
+<span class="c-key">println</span>(doc.stable_id())</code></pre>
+            <button class="copy-button" data-copy="import vmarkdown\n\ndoc := vmarkdown.parse('# hello\\n\\nworld')!\nprintln(doc.stable_id())" aria-label="Copy V example">Copy</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="closing">
+        <div class="closing-grid" aria-hidden="true"></div>
+        <p class="kicker">Open source · MIT licensed</p>
+        <h2>Give Markdown<br /><span>a real shape.</span></h2>
+        <a class="button button-primary" href="https://github.com/guweigang/vmarkdown" target="_blank" rel="noreferrer">
+          Explore on GitHub <span aria-hidden="true">↗</span>
+        </a>
+      </section>
+    </main>
+
+    <footer>
+      <a class="wordmark" href="#top" aria-label="vmarkdown home"><span class="brand-mark" aria-hidden="true"><img src="../assets/vmarkdown_brand.png" alt="" /></span><span><strong>v</strong>markdown</span></a>
+      <p>Typed Markdown infrastructure for the V ecosystem.</p>
+      <p>© <span id="year"></span> vmarkdown</p>
+    </footer>
+  </body>
+</html>
