@@ -121,6 +121,11 @@ terminal := vmarkdown.render_terminal_with_options(markdown, vmarkdown.TerminalR
 })!
 ```
 
+Text, JSON, normalized Markdown, and terminal helpers also expose
+`render_*_with_limits()` variants. These accept `ParseLimits` and preserve
+structured `MarkdownParseError` failures, so one-shot rendering can enforce the
+same input, node, and nesting budgets as an explicit parse step.
+
 AST pretty printing:
 
 ```v

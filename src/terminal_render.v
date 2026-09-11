@@ -26,7 +26,11 @@ pub fn render_terminal(markdown string) !string {
 }
 
 pub fn render_terminal_with_options(markdown string, options TerminalRenderOptions) !string {
-	return parse_with_options(markdown, options.parser)!.to_terminal_with_options(options)
+	return render_terminal_with_limits(markdown, options, ParseLimits{})
+}
+
+pub fn render_terminal_with_limits(markdown string, options TerminalRenderOptions, limits ParseLimits) !string {
+	return parse_with_limits(markdown, options.parser, limits)!.to_terminal_with_options(options)
 }
 
 @[inline]

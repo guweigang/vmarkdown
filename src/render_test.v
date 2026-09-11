@@ -98,6 +98,46 @@ fn test_one_shot_renderers_accept_parser_options() {
 	assert render_markdown_with_options(input, options) or { panic(err) } == input
 }
 
+fn test_one_shot_renderers_accept_parse_limits() {
+	limits := ParseLimits{
+		max_input_bytes: 64
+		max_nodes: 8
+		max_nesting_depth: 4
+	}
+	assert render_text_with_limits('text', ParseOptions{}, limits) or { panic(err) } == 'text'
+	assert render_json_with_limits('text', ParseOptions{}, limits) or { panic(err) }.contains('"text":"text"')
+	assert render_markdown_with_limits('text', ParseOptions{}, limits) or { panic(err) } == 'text'
+	assert render_terminal_with_limits('text', TerminalRenderOptions{
+		width: 40
+		color: false
+	}, limits) or { panic(err) } == 'text'
+
+	for kind in ['text', 'json', 'markdown', 'terminal'] {
+		if kind == 'text' {
+			render_text_with_limits('text', ParseOptions{}, ParseLimits{ max_nodes: 2 }) or {
+				assert (err as MarkdownParseError).kind == .resource_limit
+				continue
+			}
+		} else if kind == 'json' {
+			render_json_with_limits('text', ParseOptions{}, ParseLimits{ max_nodes: 2 }) or {
+				assert (err as MarkdownParseError).kind == .resource_limit
+				continue
+			}
+		} else if kind == 'markdown' {
+			render_markdown_with_limits('text', ParseOptions{}, ParseLimits{ max_nodes: 2 }) or {
+				assert (err as MarkdownParseError).kind == .resource_limit
+				continue
+			}
+		} else {
+			render_terminal_with_limits('text', TerminalRenderOptions{}, ParseLimits{ max_nodes: 2 }) or {
+				assert (err as MarkdownParseError).kind == .resource_limit
+				continue
+			}
+		}
+		assert false, '${kind} renderer must enforce parse limits'
+	}
+}
+
 fn test_render_table_text_json_and_markdown() {
 	input := '| Name | Value |\n| :--- | ---: |\n| **alpha** | 10 |\n'
 	doc := parse(input) or { panic(err) }
