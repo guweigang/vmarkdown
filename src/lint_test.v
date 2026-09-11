@@ -130,3 +130,26 @@ fn assert_edit_error(source string, edits []MarkdownTextEdit, expected LintContr
 		assert contract_error.kind == expected
 	}
 }
+
+fn test_lint_with_limits_uses_caller_validation_budget() {
+	doc := parse('text') or { panic(err) }
+	rules := [LintRule{
+		id: 'example.text'
+		check: fn (visit AstVisit) []LintFinding {
+			return if visit.kind == .text {
+				[LintFinding{ message: 'text' }]
+			} else {
+				[]LintFinding{}
+			}
+		}
+	}]
+	assert doc.lint_with_limits(rules, AstValidationLimits{
+		max_nodes: 3
+		max_nesting_depth: 2
+	}) or { panic(err) }.len == 1
+	if _ := doc.lint_with_limits(rules, AstValidationLimits{ max_nodes: 2 }) {
+		assert false
+	} else {
+		assert (err as AstValidationError).kind == .validation_limit
+	}
+}

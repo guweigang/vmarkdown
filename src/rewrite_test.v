@@ -103,3 +103,21 @@ fn test_rewrite_validates_input_before_invoking_callback() {
 		assert invocations.len == 0
 	}
 }
+
+fn test_rewrite_with_limits_validates_before_and_after_transform() {
+	doc := parse('text') or { panic(err) }
+	unchanged := doc.rewrite_blocks_with_limits(AstValidationLimits{
+		max_nodes: 3
+		max_nesting_depth: 2
+	}, fn (visit AstBlockRewrite) ![]BlockNode {
+		return [visit.node]
+	}) or { panic(err) }
+	assert unchanged.stable_id() == doc.stable_id()
+	if _ := doc.rewrite_inlines_with_limits(AstValidationLimits{ max_nodes: -1 }, fn (visit AstInlineRewrite) ![]InlineNode {
+		return [visit.node]
+	}) {
+		assert false
+	} else {
+		assert (err as AstValidationError).kind == .invalid_limits
+	}
+}

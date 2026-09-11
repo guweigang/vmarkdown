@@ -354,6 +354,11 @@ Adjacent text nodes created by a rewrite are merged into canonical form before
 validation. Their source spans are combined only when the original ranges are
 contiguous; otherwise the merged node reports an unavailable span.
 
+`rewrite_blocks_with_limits()` and `rewrite_inlines_with_limits()` apply one
+caller-selected `AstValidationLimits` budget both before and after the
+transformation. `lint_with_limits()` provides the same control for lint
+pipelines; the existing methods retain the default validation budget.
+
 ### Lint diagnostics and fixes
 
 `Document.lint()` runs composable rules over the same pre-order `AstVisit`
