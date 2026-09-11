@@ -140,6 +140,35 @@ fn test_public_validation_error_contract() {
 	assert matched
 }
 
+fn test_public_markdown_parse_error_contract() {
+	invalid := [u8(`a`), 0xe2, 0x82].bytestr()
+	if _ := vmarkdown.parse(invalid) {
+		assert false, 'invalid UTF-8 Markdown must fail'
+	} else {
+		assert err is vmarkdown.MarkdownParseError
+		parse_error := err as vmarkdown.MarkdownParseError
+		assert parse_error.kind == .invalid_utf8
+		assert parse_error.offset == 1
+		assert parse_error.native_code == 0
+		assert parse_error.message.contains('byte 1')
+		assert parse_error.code() >= 5000
+	}
+}
+
+fn test_public_invalid_utf8_ast_error_contract() {
+	invalid := vmarkdown.InlineNode(vmarkdown.TextNode{
+		text: [u8(0xff)].bytestr()
+	})
+	if _ := invalid.validate() {
+		assert false, 'invalid UTF-8 AST field must fail'
+	} else {
+		assert err is vmarkdown.AstValidationError
+		validation := err as vmarkdown.AstValidationError
+		assert validation.kind == .invalid_utf8
+		assert validation.path == 'inline.text'
+	}
+}
+
 fn test_public_binary_decode_error_contract() {
 	if _ := vmarkdown.binary_decode([u8(`X`), `M`, `D`, `A`, 0x01, 0x00, 0x00]) {
 		assert false, 'invalid VMDA envelope must fail'

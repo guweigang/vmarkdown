@@ -1,5 +1,7 @@
 module vmarkdown
 
+import encoding.utf8
+
 pub struct AstValidationLimits {
 pub:
 	max_nodes         int = 1_000_000
@@ -25,6 +27,7 @@ pub enum AstValidationErrorKind {
 	nested_link
 	wiki_link_target
 	latex_math_content
+	invalid_utf8
 }
 
 pub struct AstValidationError {
@@ -135,7 +138,9 @@ fn (mut validator AstValidator) validate_block(node BlockNode, path string, dept
 		}
 		MetaNode {
 			mut normalized_keys := map[string]string{}
-			for key, _ in node.data {
+			for key, value in node.data {
+				validate_utf8_field(key, '${path}.data', node.span)!
+				validate_utf8_field(value, '${path}.data[${key}]', node.span)!
 				normalized := normalize_text(key)
 				if normalized.len == 0 {
 					return validation_error(.metadata_key, '${path}.data', 'contains an empty normalized key', node.span)
@@ -147,6 +152,8 @@ fn (mut validator AstValidator) validate_block(node BlockNode, path string, dept
 			}
 		}
 		CodeBlockNode {
+			validate_utf8_field(node.lang, '${path}.lang', node.span)!
+			validate_utf8_field(node.content, '${path}.content', node.span)!
 			if node.lang.contains_any('\r\n') {
 				return validation_error(.code_info, '${path}.lang', 'cannot contain a line break', node.span)
 			}
@@ -165,7 +172,10 @@ fn (mut validator AstValidator) validate_block(node BlockNode, path string, dept
 				validator.validate_table_row(row, '${path}.body[${row_index}]', depth + 1, node.columns)!
 			}
 		}
-		HorizontalRuleNode, RawHtmlBlockNode {}
+		RawHtmlBlockNode {
+			validate_utf8_field(node.html, '${path}.html', node.span)!
+		}
+		HorizontalRuleNode {}
 	}
 }
 
@@ -226,6 +236,7 @@ fn (mut validator AstValidator) validate_inline(node InlineNode, path string, de
 	validate_source_span(node.source_span(), '${path}.span')!
 	match node {
 		TextNode {
+			validate_utf8_field(node.text, '${path}.text', node.span)!
 			if node.text.len == 0 {
 				return validation_error(.empty_text, '${path}.text', 'cannot be empty', node.span)
 			}
@@ -247,12 +258,14 @@ fn (mut validator AstValidator) validate_inline(node InlineNode, path string, de
 			validator.validate_inlines(node.children, '${path}.children', depth + 1, inside_link)!
 		}
 		LinkNode {
+			validate_utf8_field(node.url, '${path}.url', node.span)!
 			if inside_link {
 				return validation_error(.nested_link, path, 'cannot nest a link inside another link', node.span)
 			}
 			validator.validate_inlines(node.text, '${path}.text', depth + 1, true)!
 		}
 		WikiLinkNode {
+			validate_utf8_field(node.target, '${path}.target', node.span)!
 			if inside_link {
 				return validation_error(.nested_link, path, 'cannot nest a wiki link inside another link', node.span)
 			}
@@ -262,14 +275,22 @@ fn (mut validator AstValidator) validate_inline(node InlineNode, path string, de
 			validator.validate_inlines(node.text, '${path}.text', depth + 1, true)!
 		}
 		ImageNode {
+			validate_utf8_field(node.url, '${path}.url', node.span)!
 			validator.validate_inlines(node.alt, '${path}.alt', depth + 1, inside_link)!
 		}
 		LatexMathNode {
+			validate_utf8_field(node.content, '${path}.content', node.span)!
 			if node.content.contains_any('\r\n') || contains_unescaped_dollar(node.content) {
 				return validation_error(.latex_math_content, '${path}.content', 'cannot contain a line break or unescaped dollar sign', node.span)
 			}
 		}
-		CodeSpanNode, SoftBreakNode, HardBreakNode, RawHtmlInlineNode {}
+		CodeSpanNode {
+			validate_utf8_field(node.text, '${path}.text', node.span)!
+		}
+		RawHtmlInlineNode {
+			validate_utf8_field(node.html, '${path}.html', node.span)!
+		}
+		SoftBreakNode, HardBreakNode {}
 	}
 }
 
@@ -299,6 +320,12 @@ fn validate_source_span(span SourceSpan, path string) ! {
 		return
 	}
 	return validation_error(.source_span, path, 'must be a valid half-open range or an unavailable negative range', span)
+}
+
+fn validate_utf8_field(value string, path string, span SourceSpan) ! {
+	if !utf8.validate_str(value) {
+		return validation_error(.invalid_utf8, path, 'must be valid UTF-8', span)
+	}
 }
 
 fn validation_error(kind AstValidationErrorKind, path string, message string, span SourceSpan) IError {

@@ -1,5 +1,6 @@
 module vmarkdown
 
+import encoding.utf8
 import strings
 
 pub enum MarkdownDialect {
@@ -12,6 +13,31 @@ pub:
 	max_input_bytes   int = 64 * 1024 * 1024
 	max_nodes         int = 1_000_000
 	max_nesting_depth int = 256
+}
+
+pub enum MarkdownParseErrorKind {
+	invalid_limits
+	input_limit
+	invalid_utf8
+	resource_limit
+	parser_failure
+	invalid_ast
+}
+
+pub struct MarkdownParseError {
+pub:
+	kind        MarkdownParseErrorKind
+	offset      int = -1
+	native_code int
+	message     string
+}
+
+pub fn (err MarkdownParseError) msg() string {
+	return err.message
+}
+
+pub fn (err MarkdownParseError) code() int {
+	return 5000 + int(err.kind)
 }
 
 pub struct ParseOptions {
@@ -61,35 +87,94 @@ pub fn parse_with_options(markdown string, options ParseOptions) !Document {
 pub fn parse_with_limits(markdown string, options ParseOptions, limits ParseLimits) !Document {
 	validate_parse_limits(limits)!
 	if u64(markdown.len) > u64(0xffff_ffff) {
-		return error('Markdown input exceeds md4c maximum size 4294967295 bytes')
+		return markdown_parse_error(.input_limit, -1, 0, 'Markdown input exceeds md4c maximum size 4294967295 bytes')
 	}
 	if limits.max_input_bytes > 0 && markdown.len > limits.max_input_bytes {
-		return error('Markdown input exceeds maximum size ${limits.max_input_bytes} bytes')
+		return markdown_parse_error(.resource_limit, -1, 0, 'Markdown input exceeds maximum size ${limits.max_input_bytes} bytes')
+	}
+	if !utf8.validate_str(markdown) {
+		offset := first_invalid_utf8_byte(markdown)
+		return markdown_parse_error(.invalid_utf8, offset, 0, 'Markdown input is not valid UTF-8 at byte ${offset}')
 	}
 	mut builder := new_builder(markdown, limits)
 	flags := options.to_md4c_flags()
 	rc := C.vmd_parse_to_v(markdown.str, u32(markdown.len), flags, &builder)
 	if rc != 0 {
-		return error(builder.error_message(rc))
+		kind := if builder.callback_error.starts_with('Markdown AST exceeds maximum') {
+			MarkdownParseErrorKind.resource_limit
+		} else {
+			MarkdownParseErrorKind.parser_failure
+		}
+		return markdown_parse_error(kind, builder.source_cursor, rc, builder.error_message(rc))
 	}
-	doc := builder.finish()!
+	doc := builder.finish() or {
+		return markdown_parse_error(.parser_failure, builder.source_cursor, rc, err.msg())
+	}
 	doc.validate_with_limits(AstValidationLimits{
 		max_nodes: limits.max_nodes
 		max_nesting_depth: limits.max_nesting_depth
-	})!
+	}) or {
+		offset := if err is AstValidationError && err.span.is_valid() { err.span.start } else { -1 }
+		return markdown_parse_error(.invalid_ast, offset, rc, 'invalid parsed AST: ${err}')
+	}
 	return doc
 }
 
 fn validate_parse_limits(limits ParseLimits) ! {
 	if limits.max_input_bytes < 0 {
-		return error('max_input_bytes cannot be negative')
+		return markdown_parse_error(.invalid_limits, -1, 0, 'max_input_bytes cannot be negative')
 	}
 	if limits.max_nodes < 0 {
-		return error('max_nodes cannot be negative')
+		return markdown_parse_error(.invalid_limits, -1, 0, 'max_nodes cannot be negative')
 	}
 	if limits.max_nesting_depth < 0 {
-		return error('max_nesting_depth cannot be negative')
+		return markdown_parse_error(.invalid_limits, -1, 0, 'max_nesting_depth cannot be negative')
 	}
+}
+
+fn markdown_parse_error(kind MarkdownParseErrorKind, offset int, native_code int, message string) IError {
+	return MarkdownParseError{
+		kind: kind
+		offset: offset
+		native_code: native_code
+		message: message
+	}
+}
+
+fn first_invalid_utf8_byte(value string) int {
+	mut index := 0
+	for index < value.len {
+		first := value[index]
+		if first < 0x80 {
+			index++
+			continue
+		}
+		length := if first >= 0xc2 && first <= 0xdf {
+			2
+		} else if first >= 0xe0 && first <= 0xef {
+			3
+		} else if first >= 0xf0 && first <= 0xf4 {
+			4
+		} else {
+			return index
+		}
+		if index + length > value.len {
+			return index
+		}
+		second := value[index + 1]
+		if second & 0xc0 != 0x80 || (first == 0xe0 && second < 0xa0)
+			|| (first == 0xed && second >= 0xa0) || (first == 0xf0 && second < 0x90)
+			|| (first == 0xf4 && second > 0x8f) {
+			return index
+		}
+		for continuation in 2 .. length {
+			if value[index + continuation] & 0xc0 != 0x80 {
+				return index
+			}
+		}
+		index += length
+	}
+	return -1
 }
 
 fn (options ParseOptions) to_md4c_flags() u32 {
