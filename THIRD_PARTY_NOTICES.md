@@ -1,6 +1,6 @@
 # Third-party notices
 
-vmarkdown vendors and links the md4c Markdown parser and HTML renderer.
+vmarkdown vendors and links the md4c 0.5.2 Markdown parser and HTML renderer.
 
 ## md4c
 

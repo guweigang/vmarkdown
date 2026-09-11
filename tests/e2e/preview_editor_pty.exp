@@ -44,20 +44,36 @@ expect {
 }
 
 set timeout 10
+
+# Exercise term.ui's SGR mouse path: wheel down/up and click the HTML tab in
+# the footer. The terminal is 100x30, so the footer is on row 29.
+send -- "\033\[<64;10;10M"
+expect {
+    -re {Ln 4} {}
+    eof { fail "preview exited while handling mouse wheel" }
+    timeout { fail "mouse wheel down did not move the cursor" }
+}
+send -- "\033\[<65;10;10M"
+expect {
+    -re {Ln 1} {}
+    eof { fail "preview exited while handling mouse wheel" }
+    timeout { fail "mouse wheel up did not move the cursor" }
+}
+
 send -- "?"
 expect {
     -re {vmarkdown preview help} {}
     eof { fail "preview exited while opening help" }
     timeout { fail "help overlay was not rendered" }
 }
-send -- "?"
+send -- "\033\[<0;10;10M"
 expect {
     -re {ready} {}
     eof { fail "preview exited while closing help" }
     timeout { fail "help overlay did not close" }
 }
 
-send -- "3"
+send -- "\033\[<0;29;29M"
 expect {
     -re {<h1>PTY fixture</h1>} {}
     eof { fail "preview exited while switching to HTML" }

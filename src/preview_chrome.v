@@ -295,6 +295,7 @@ fn preview_help_lines() []string {
 		'Ctrl+d / Ctrl+u scroll half a page down or up',
 		'g goes to the top, G goes to the bottom',
 		'/ starts search, Enter confirms, n/N jump matches',
+		'mouse wheel scrolls; left click moves the cursor or activates controls',
 		'i enters Insert mode for the original Markdown source',
 		'in the editor, Esc returns to Normal; 1/2/3/4 open rendered views',
 		'Esc leaves search input and clears search on the next press',

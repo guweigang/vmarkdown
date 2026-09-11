@@ -324,20 +324,34 @@ fn preview_matchable_rune_indices(rendered []rune, mode PreviewMode) []int {
 		return indices
 	}
 	if mode == .ast {
-		mut first_quote := -1
-		mut last_quote := -1
+		mut quotes := []int{}
 		for i, r in rendered {
 			if r == `"` {
-				if first_quote < 0 {
-					first_quote = i
-				}
-				last_quote = i
+				quotes << i
 			}
 		}
-		if first_quote >= 0 && last_quote > first_quote {
-			for i in first_quote + 1 .. last_quote {
+		if quotes.len >= 2 {
+			for i in quotes[0] + 1 .. quotes.last() {
 				indices << i
 			}
+			return indices
+		}
+		if quotes.len == 1 {
+			quote := quotes[0]
+			if quote == rendered.len - 1 {
+				for i in 0 .. quote {
+					indices << i
+				}
+			} else {
+				for i in quote + 1 .. rendered.len {
+					indices << i
+				}
+			}
+			return indices
+		}
+		plain := rendered.string().trim_space()
+		if plain == 'Document' || plain.starts_with('├') || plain.starts_with('└')
+			|| plain.starts_with('│') {
 			return indices
 		}
 	}
@@ -469,34 +483,56 @@ fn normalize_preview_anchor(line string, mode PreviewMode) string {
 }
 
 fn find_preview_line_for_source(sources []PreviewLineSource, source_line int) int {
+	return find_preview_line_for_source_position(sources, source_line, 0)
+}
+
+fn find_preview_line_for_source_position(sources []PreviewLineSource, source_line int, source_column int) int {
 	if sources.len == 0 {
 		return 0
 	}
 	mut closest := 0
-	mut closest_distance := int(1 << 30)
+	mut closest_line_rank := int(1 << 30)
+	mut closest_column_rank := int(1 << 30)
+	mut closest_column_distance := int(1 << 30)
 	for i, source in sources {
-		if source_line >= source.start_line && source_line <= source.end_line {
-			if source.source_line == source_line {
-				return i
-			}
-			distance := abs_int(source.source_line - source_line)
-			if distance < closest_distance {
-				closest = i
-				closest_distance = distance
-			}
+		line_rank := if source.source_line == source_line {
+			0
+		} else if source_line >= source.start_line && source_line <= source.end_line {
+			1 + abs_int(source.source_line - source_line)
+		} else {
+			1000 + abs_int(source.source_line - source_line)
 		}
-	}
-	if closest_distance < int(1 << 30) {
-		return closest
-	}
-	for i, source in sources {
-		distance := abs_int(source.source_line - source_line)
-		if distance < closest_distance {
+		column_distance, exact := preview_source_column_distance(source, source_column)
+		column_rank := if exact { 0 } else { 1 }
+		if line_rank < closest_line_rank
+			|| (line_rank == closest_line_rank && column_rank < closest_column_rank)
+			|| (line_rank == closest_line_rank && column_rank == closest_column_rank
+				&& column_distance < closest_column_distance) {
 			closest = i
-			closest_distance = distance
+			closest_line_rank = line_rank
+			closest_column_rank = column_rank
+			closest_column_distance = column_distance
 		}
 	}
 	return closest
+}
+
+fn preview_source_column_distance(source PreviewLineSource, source_column int) (int, bool) {
+	if source.source_columns.len == 0 {
+		return abs_int(source_column), false
+	}
+	mut closest := int(1 << 30)
+	mut exact := false
+	for i, column in source.source_columns {
+		distance := abs_int(column - source_column)
+		if distance < closest {
+			closest = distance
+		}
+		if distance == 0 && i < source.exact_columns.len && source.exact_columns[i] {
+			exact = true
+		}
+	}
+	return closest, exact
 }
 
 fn abs_int(value int) int {
