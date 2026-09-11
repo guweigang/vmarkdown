@@ -19,6 +19,50 @@ raw inline HTML, `2a` wiki link, `2b` LaTeX math, and `2c` underline.
 Variable-size nested records carry a byte length so a decoder can reject
 truncation and framing errors.
 
+## Record layouts
+
+In the layouts below, `varint` is canonical unsigned LEB128, `bool` is exactly
+`00` or `01`, and `bytes` is raw UTF-8 preceded by its byte length. A framed
+sequence is a varint byte length followed by concatenated records whose total
+size must exactly match that length.
+
+| Tag | Record after tag |
+| --- | --- |
+| `00` document | `framed block sequence` (after the magic and version) |
+| `01` heading | `level:u8, framed inline sequence` |
+| `02` paragraph | `framed inline sequence` |
+| `03` list | `ordered:bool, item_count:varint, start:varint, repeated framed list items` |
+| `04` metadata | `pair_count:varint, repeated key:bytes + value:bytes in sorted-key order` |
+| `05` blockquote | `framed block sequence` |
+| `06` code block | `language:bytes, content:bytes` |
+| `07` horizontal rule | no payload |
+| `08` table | `columns:varint, head_rows:varint, body_rows:varint, repeated framed rows` |
+| `09` raw HTML block | `html:bytes` |
+| `10` list item | `level:varint, number:varint, task:bool, checked:bool, framed length-prefixed blocks` |
+| `20` text | `text:bytes` |
+| `21` emphasis | `framed inline sequence` |
+| `22` strong | `framed inline sequence` |
+| `23` code span | `text:bytes` |
+| `24` link | `url:bytes, framed inline label` |
+| `25` image | `url:bytes, framed inline alt text` |
+| `26` strikethrough | `framed inline sequence` |
+| `27` soft break | no payload |
+| `28` hard break | no payload |
+| `29` raw inline HTML | `html:bytes` |
+| `2a` wiki link | `target:bytes, framed inline label` |
+| `2b` LaTeX math | `display:bool, content:bytes` |
+| `2c` underline | `framed inline sequence` |
+
+A table row is `cell_count:varint` followed by cells. Each cell is
+`alignment:u8` plus a framed inline sequence. Alignment values are `00`
+default, `01` left, `02` center, and `03` right.
+
+The byte-for-byte golden fixtures in `src/binary_codec_test.v` cover every v1
+tag and both LaTeX math flag values. Changing any fixture requires either
+demonstrating that the implementation had violated this document or assigning
+a new format version; synchronized encoder/decoder changes alone are not
+sufficient.
+
 The v1 decoder rejects incorrect magic or versions, non-canonical or
 overflowing varints, invalid UTF-8, unknown tags, invalid flags/enums,
 truncation, trailing bytes, and documents beyond its published size, depth,

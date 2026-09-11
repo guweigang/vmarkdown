@@ -10,6 +10,209 @@ fn test_binary_v1_golden_minimal_document() {
 		0x02, 0x68, 0x69]
 }
 
+fn test_binary_v1_golden_inline_records() {
+	text := InlineNode(TextNode{ text: 'a' })
+	assert text.binary_encode() == [u8(0x20), 0x01, 0x61]
+	assert InlineNode(EmphasisNode{ children: [text] }).binary_encode() == [u8(0x21), 0x03, 0x20,
+		0x01, 0x61]
+	assert InlineNode(StrongNode{ children: [text] }).binary_encode() == [u8(0x22), 0x03, 0x20,
+		0x01, 0x61]
+	assert InlineNode(CodeSpanNode{ text: 'a' }).binary_encode() == [u8(0x23), 0x01, 0x61]
+	assert InlineNode(LinkNode{ url: 'u', text: [text] }).binary_encode() == [
+		u8(0x24),
+		0x01,
+		0x75,
+		0x03,
+		0x20,
+		0x01,
+		0x61,
+	]
+	assert InlineNode(ImageNode{ url: 'u', alt: [text] }).binary_encode() == [
+		u8(0x25),
+		0x01,
+		0x75,
+		0x03,
+		0x20,
+		0x01,
+		0x61,
+	]
+	assert InlineNode(StrikethroughNode{ children: [text] }).binary_encode() == [
+		u8(0x26),
+		0x03,
+		0x20,
+		0x01,
+		0x61,
+	]
+	assert InlineNode(SoftBreakNode{}).binary_encode() == [u8(0x27)]
+	assert InlineNode(HardBreakNode{}).binary_encode() == [u8(0x28)]
+	assert InlineNode(RawHtmlInlineNode{ html: '<' }).binary_encode() == [u8(0x29), 0x01, 0x3c]
+	assert InlineNode(WikiLinkNode{ target: 't', text: [text] }).binary_encode() == [
+		u8(0x2a),
+		0x01,
+		0x74,
+		0x03,
+		0x20,
+		0x01,
+		0x61,
+	]
+	assert InlineNode(LatexMathNode{ content: 'x' }).binary_encode() == [u8(0x2b), 0x00, 0x01, 0x78]
+	assert InlineNode(LatexMathNode{ content: 'x', display: true }).binary_encode() == [
+		u8(0x2b),
+		0x01,
+		0x01,
+		0x78,
+	]
+	assert InlineNode(UnderlineNode{ children: [text] }).binary_encode() == [u8(0x2c), 0x03, 0x20,
+		0x01, 0x61]
+}
+
+fn test_binary_v1_golden_block_and_list_item_records() {
+	text := InlineNode(TextNode{ text: 'a' })
+	paragraph := BlockNode(ParagraphNode{ children: [text] })
+	assert BlockNode(HeadingNode{ level: 2, children: [text] }).binary_encode() == [
+		u8(0x01),
+		0x02,
+		0x03,
+		0x20,
+		0x01,
+		0x61,
+	]
+	assert paragraph.binary_encode() == [u8(0x02), 0x03, 0x20, 0x01, 0x61]
+	item := ListItemNode{
+		level: 1
+		children: [paragraph]
+	}
+	assert item.binary_encode() == [u8(0x10), 0x01, 0x00, 0x00, 0x00, 0x06, 0x05, 0x02, 0x03, 0x20,
+		0x01, 0x61]
+	assert BlockNode(ListNode{ start: 1, items: [item] }).binary_encode() == [
+		u8(0x03),
+		0x00,
+		0x01,
+		0x01,
+		0x0c,
+		0x10,
+		0x01,
+		0x00,
+		0x00,
+		0x00,
+		0x06,
+		0x05,
+		0x02,
+		0x03,
+		0x20,
+		0x01,
+		0x61,
+	]
+	assert BlockNode(MetaNode{
+		data: {
+			' k ': ' v '
+		}
+	}).binary_encode() == [u8(0x04), 0x01, 0x01, 0x6b, 0x01, 0x76]
+	assert BlockNode(BlockquoteNode{ children: [paragraph] }).binary_encode() == [
+		u8(0x05),
+		0x05,
+		0x02,
+		0x03,
+		0x20,
+		0x01,
+		0x61,
+	]
+	assert BlockNode(CodeBlockNode{ lang: 'v', content: 'x' }).binary_encode() == [
+		u8(0x06),
+		0x01,
+		0x76,
+		0x01,
+		0x78,
+	]
+	assert BlockNode(HorizontalRuleNode{}).binary_encode() == [u8(0x07)]
+	assert BlockNode(TableNode{
+		columns: 1
+		head: [TableRowNode{
+			cells: [TableCellNode{ children: [text] }]
+		}]
+	}).binary_encode() == [u8(0x08), 0x01, 0x01, 0x00, 0x06, 0x01, 0x00, 0x03, 0x20, 0x01, 0x61]
+	assert BlockNode(RawHtmlBlockNode{ html: '<' }).binary_encode() == [u8(0x09), 0x01, 0x3c]
+}
+
+fn test_binary_v1_round_trip_covers_every_record_type() {
+	inline_nodes := [
+		InlineNode(TextNode{ text: 'text' }),
+		InlineNode(EmphasisNode{ children: [InlineNode(TextNode{ text: 'em' })] }),
+		InlineNode(StrongNode{ children: [InlineNode(TextNode{ text: 'strong' })] }),
+		InlineNode(CodeSpanNode{ text: 'code' }),
+		InlineNode(LinkNode{
+			url: 'https://example.com'
+			text: [InlineNode(TextNode{ text: 'link' })]
+		}),
+		InlineNode(ImageNode{
+			url: 'image.png'
+			alt: [InlineNode(TextNode{ text: 'image' })]
+		}),
+		InlineNode(StrikethroughNode{ children: [InlineNode(TextNode{ text: 'strike' })] }),
+		InlineNode(SoftBreakNode{}),
+		InlineNode(HardBreakNode{}),
+		InlineNode(RawHtmlInlineNode{ html: '<kbd>' }),
+		InlineNode(WikiLinkNode{
+			target: 'docs'
+			text: [InlineNode(TextNode{ text: 'wiki' })]
+		}),
+		InlineNode(LatexMathNode{ content: 'x^2', display: true }),
+		InlineNode(UnderlineNode{ children: [InlineNode(TextNode{ text: 'under' })] }),
+	]
+	doc := Document{
+		children: [
+			BlockNode(HeadingNode{
+				level: 2
+				children: [InlineNode(TextNode{ text: 'heading' })]
+			}),
+			BlockNode(ParagraphNode{ children: inline_nodes }),
+			BlockNode(ListNode{
+				is_ordered: true
+				start: 3
+				items: [ListItemNode{
+					level: 1
+					number: 3
+					is_task: true
+					checked: true
+					children: [BlockNode(ParagraphNode{
+						children: [InlineNode(TextNode{ text: 'item' })]
+					})]
+				}]
+			}),
+			BlockNode(MetaNode{
+				data: {
+					'key': 'value'
+				}
+			}),
+			BlockNode(BlockquoteNode{
+				children: [BlockNode(ParagraphNode{
+					children: [InlineNode(TextNode{ text: 'quote' })]
+				})]
+			}),
+			BlockNode(CodeBlockNode{ lang: 'v', content: 'println(1)\n' }),
+			BlockNode(HorizontalRuleNode{}),
+			BlockNode(TableNode{
+				columns: 1
+				head: [TableRowNode{
+					cells: [TableCellNode{
+						alignment: .center
+						children: [InlineNode(TextNode{ text: 'cell' })]
+					}]
+				}]
+			}),
+			BlockNode(RawHtmlBlockNode{ html: '<div>raw</div>\n' }),
+		]
+	}
+	doc.validate() or { panic(err) }
+	encoded := doc.binary_encode()
+	decoded := binary_decode(encoded) or { panic(err) }
+	assert decoded.binary_encode() == encoded
+	assert decoded.find_all(.latex_math).len == 1
+	assert decoded.find_all(.underline).len == 1
+	assert decoded.find_all(.wiki_link).len == 1
+	assert decoded.children.len == 9
+}
+
 fn test_binary_v1_round_trip_preserves_core_semantics() {
 	input := '- [x] **done**\n\n~~gone~~  \nnext <kbd>key</kbd>\n\n<div>raw</div>\n'
 	doc := parse(input) or { panic(err) }
