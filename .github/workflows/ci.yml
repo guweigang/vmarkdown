@@ -25,7 +25,7 @@ jobs:
       - name: Setup V
         uses: vlang/setup-v@v1.4
         env:
-          VFLAGS: -no-parallel
+          VFLAGS: -no-prealloc
         with:
           check-latest: true
 
