@@ -49,30 +49,32 @@ jobs:
     name: Latest V compatibility (advisory)
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    continue-on-error: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup latest V
+        id: latest_setup
+        continue-on-error: true
         uses: vlang/setup-v@v1.7
         with:
           check-latest: true
 
-      - name: Verify formatting
-        run: v fmt -verify src cmd examples bench tests/public_api_contract_test.v
+      - name: Run latest V compatibility suite
+        id: compatibility
+        if: steps.latest_setup.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          v fmt -verify src cmd examples bench tests/public_api_contract_test.v
+          v test src
+          v test tests/public_api_contract_test.v
+          v run bench/roundtrip.v
+          v -o /tmp/vmarkdown cmd/cli
+          /tmp/vmarkdown ast README.md > /tmp/vmarkdown-ast.txt
 
-      - name: Run tests
-        run: v test src
-
-      - name: Verify public API from an external module
-        run: v test tests/public_api_contract_test.v
-
-      - name: Large-document performance smoke
-        run: v run bench/roundtrip.v
-
-      - name: Build CLI
-        run: v -o /tmp/vmarkdown cmd/cli
-
-      - name: Smoke CLI
-        run: /tmp/vmarkdown ast README.md > /tmp/vmarkdown-ast.txt
+      - name: Report latest V incompatibility
+        if: always() && (steps.latest_setup.outcome == 'failure' || steps.compatibility.outcome == 'failure')
+        shell: bash
+        run: echo '::warning title=Latest V compatibility::Latest V failed to set up or did not pass the compatibility suite; the pinned V gate remains authoritative.'
