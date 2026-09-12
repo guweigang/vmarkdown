@@ -51,6 +51,18 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - os: ubuntu-latest
+            artifact: vmarkdown-linux-x64
+            binary: vmarkdown
+            archive: vmarkdown-linux-x64.tar.gz
+            shell: bash
+            v_cc: clang
+          - os: ubuntu-24.04-arm
+            artifact: vmarkdown-linux-arm64
+            binary: vmarkdown
+            archive: vmarkdown-linux-arm64.tar.gz
+            shell: bash
+            v_cc: clang
           - os: macos-26
             artifact: vmarkdown-darwin-arm64
             binary: vmarkdown
@@ -90,6 +102,13 @@ jobs:
         with:
           version-file: .v-version
 
+      - name: Install Linux test dependencies
+        if: startsWith(matrix.os, 'ubuntu')
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y expect
+
       - name: Verify vmarkdown format
         run: v fmt -verify src cmd examples tests/public_api_contract_test.v
 
@@ -99,7 +118,7 @@ jobs:
       - name: Verify public API from an external module
         run: v test tests/public_api_contract_test.v
 
-      - name: Build macOS binary
+      - name: Build Unix binary
         if: matrix.shell == 'bash'
         shell: bash
         run: |
@@ -125,7 +144,7 @@ jobs:
             throw "V reported success but did not create dist\${{ matrix.binary }}"
           }
 
-      - name: Smoke macOS binary
+      - name: Smoke Unix binary
         if: matrix.shell == 'bash'
         shell: bash
         run: |
@@ -144,7 +163,7 @@ jobs:
           .\dist\${{ matrix.binary }} diagram validate org examples\diagrams\org.json
           .\dist\${{ matrix.binary }} ast README.md | Out-File -FilePath "$env:RUNNER_TEMP\vmarkdown-ast.txt" -Encoding utf8
 
-      - name: Package macOS archive
+      - name: Package Unix archive
         if: matrix.shell == 'bash'
         shell: bash
         run: |
