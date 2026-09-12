@@ -6,7 +6,9 @@ still refine public APIs with migration notes in this file.
 
 ## [Unreleased]
 
-No user-facing changes yet.
+### Added
+
+- Prebuilt Linux x64 and Linux ARM64 CLI archives in the release matrix.
 
 ## [0.1.0] - 2026-09-12
 

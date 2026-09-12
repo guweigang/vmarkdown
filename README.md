@@ -27,6 +27,9 @@ it, and verify the binary before use:
 Windows archives contain `vmarkdown.exe`. Release archives also include the
 changelog, roadmap, VMDA format specification, and license notices.
 
+The release matrix supports prebuilt CLI archives for Linux x64, Linux ARM64,
+macOS x64, macOS ARM64, and Windows x64.
+
 To use or develop the V library from source, check out the desired release tag
 and run the tests and example from the repository root:
 
