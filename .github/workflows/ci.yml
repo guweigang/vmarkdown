@@ -23,7 +23,39 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup V
-        uses: vlang/setup-v@v1.4
+        uses: vlang/setup-v@v1.7
+        with:
+          version-file: .v-version
+
+      - name: Verify formatting
+        run: v fmt -verify src cmd examples bench tests/public_api_contract_test.v
+
+      - name: Run tests
+        run: v test src
+
+      - name: Verify public API from an external module
+        run: v test tests/public_api_contract_test.v
+
+      - name: Large-document performance smoke
+        run: v run bench/roundtrip.v
+
+      - name: Build CLI
+        run: v -o /tmp/vmarkdown cmd/cli
+
+      - name: Smoke CLI
+        run: /tmp/vmarkdown ast README.md > /tmp/vmarkdown-ast.txt
+
+  latest-v:
+    name: Latest V compatibility (advisory)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup latest V
+        uses: vlang/setup-v@v1.7
         with:
           check-latest: true
 
