@@ -508,7 +508,7 @@ fn (mut b Builder) enter_block(typ int, detail voidptr) ! {
 			top.number = b.next_list_item_number()!
 			li := unsafe { &C.MD_BLOCK_LI_DETAIL(detail) }
 			top.is_task = li.is_task != 0
-			top.checked = top.is_task && li.task_mark != ` `
+			top.checked = top.is_task && u8(li.task_mark) != u8(` `)
 			if top.is_task {
 				top.absorb_span(SourceSpan{ start: int(li.task_mark_offset), end: int(li.task_mark_offset) + 1 })
 			}
@@ -860,9 +860,9 @@ fn (mut frame Frame) absorb_span(span SourceSpan) {
 }
 
 fn (mut b Builder) source_span_for(typ int, text &char, size int) SourceSpan {
-	base := usize(b.markdown.str)
-	address := usize(text)
-	if size >= 0 && address >= base && address + usize(size) <= base + usize(b.markdown.len) {
+	base := uint(b.markdown.str)
+	address := uint(text)
+	if size >= 0 && address >= base && address + uint(size) <= base + uint(b.markdown.len) {
 		start := int(address - base)
 		b.source_cursor = max_int(b.source_cursor, start + size)
 		return SourceSpan{ start: start, end: start + size }

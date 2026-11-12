@@ -42,7 +42,7 @@ pub type AstWalkNode = BlockquoteNode
 	| LinkNode
 	| WikiLinkNode
 	| ListItemNode
-	| ListNode
+	| vmarkdown.ListNode
 	| MetaNode
 	| ParagraphNode
 	| RawHtmlBlockNode
