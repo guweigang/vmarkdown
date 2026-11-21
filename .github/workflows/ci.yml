@@ -23,9 +23,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup V
-        uses: vlang/setup-v@v1.7
-        with:
-          version-file: .v-version
+        uses: ./.github/actions/setup-pinned-v
 
       - name: Verify formatting
         run: v fmt -verify src cmd examples bench tests/public_api_contract_test.v

@@ -1,0 +1,50 @@
+name: Set up pinned V
+description: Build the V revision in .v-version with a compatible bootstrap snapshot.
+
+runs:
+  using: composite
+  steps:
+    - name: Read pinned V revision
+      id: revision
+      shell: bash
+      run: printf 'sha=%s\n' "$(cat .v-version)" >> "$GITHUB_OUTPUT"
+
+    - name: Check out V
+      uses: actions/checkout@v4
+      with:
+        repository: guweigang/vlang
+        ref: ${{ steps.revision.outputs.sha }}
+        path: .ci-v
+        persist-credentials: false
+
+    - name: Check out compatible vc snapshot
+      uses: actions/checkout@v4
+      with:
+        repository: vlang/vc
+        # The compiler in .v-version cannot build with newer generated C snapshots.
+        ref: 524cf5d3d74b137274c2317fba7c91e4425e4296
+        path: .ci-v/vc
+        persist-credentials: false
+
+    - name: Build V on Unix
+      if: runner.os != 'Windows'
+      shell: bash
+      working-directory: .ci-v
+      run: |
+        make latest_tcc
+        make local=1
+        ./v version
+        printf '%s\n' "$PWD" >> "$GITHUB_PATH"
+
+    - name: Build V on Windows
+      if: runner.os == 'Windows'
+      shell: pwsh
+      working-directory: .ci-v
+      run: |
+        .\makev.bat latest_tcc
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        .\makev.bat --local -msvc
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        .\v.exe version
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        $PWD.Path >> $env:GITHUB_PATH
