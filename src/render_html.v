@@ -75,7 +75,7 @@ pub fn render_html_with_limits(markdown string, options HtmlRenderOptions, limit
 		return html_render_error(.invalid_utf8, offset, 0, 'Markdown input is not valid UTF-8 at byte ${offset}')
 	}
 	mut out := HtmlOutputBuilder{
-		sb: strings.new_builder(512)
+		sb:               strings.new_builder(512)
 		max_output_bytes: limits.max_output_bytes
 	}
 	mut render_flags := u32(0)
@@ -112,10 +112,10 @@ fn validate_html_render_limits(limits HtmlRenderLimits) ! {
 
 fn html_render_error(kind HtmlRenderErrorKind, offset int, native_code int, message string) IError {
 	return HtmlRenderError{
-		kind: kind
-		offset: offset
+		kind:        kind
+		offset:      offset
 		native_code: native_code
-		message: message
+		message:     message
 	}
 }
 

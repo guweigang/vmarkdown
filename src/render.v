@@ -33,12 +33,20 @@ pub fn render_text_with_limits(markdown string, options ParseOptions, limits Par
 fn (doc Document) render_text() string {
 	mut lines := []string{}
 	for child in doc.children {
+		if child is BlankLinesNode {
+			lines << []string{len: child.line_count}
+			continue
+		}
 		text := child.render_text_block()
 		if text.len > 0 {
 			lines << text
 		}
 	}
-	return lines.join('\n\n')
+	return if doc.preserve_blank_lines || has_explicit_blank_lines(doc.children) {
+		join_preserved_lines(lines)
+	} else {
+		lines.join('\n\n')
+	}
 }
 
 fn (node BlockNode) render_text_block() string {
@@ -49,15 +57,17 @@ fn (node BlockNode) render_text_block() string {
 		ParagraphNode {
 			return render_inline_text(node.children)
 		}
+		FootnoteDefinitionNode {
+			return '[${node.number}] ' + render_inline_text(node.children)
+		}
+		BlankLinesNode {
+			return ''
+		}
+		AdmonitionNode {
+			return render_container_text(node.children, [node.kind.str().to_upper()])
+		}
 		BlockquoteNode {
-			mut parts := []string{}
-			for child in node.children {
-				text := child.render_text_block()
-				if text.len > 0 {
-					parts << text
-				}
-			}
-			return parts.join('\n')
+			return render_container_text(node.children, [])
 		}
 		ListNode {
 			mut lines := []string{}
@@ -110,14 +120,7 @@ fn (node BlockNode) render_text_block() string {
 }
 
 fn (item ListItemNode) render_text_item() string {
-	mut parts := []string{}
-	for child in item.children {
-		text := child.render_text_block()
-		if text.len > 0 {
-			parts << text
-		}
-	}
-	return parts.join('\n')
+	return render_container_text(item.children, [])
 }
 
 fn render_inline_text(nodes []InlineNode) string {
@@ -142,6 +145,9 @@ fn (node InlineNode) render_text_inline() string {
 		StrikethroughNode {
 			return render_inline_text(node.children)
 		}
+		InlineStyleNode {
+			return render_inline_text(node.children)
+		}
 		UnderlineNode {
 			return render_inline_text(node.children)
 		}
@@ -153,6 +159,9 @@ fn (node InlineNode) render_text_inline() string {
 		}
 		LinkNode {
 			return render_inline_text(node.text)
+		}
+		FootnoteReferenceNode {
+			return '[${node.number}]'
 		}
 		WikiLinkNode {
 			return render_inline_text(node.text)
@@ -170,4 +179,19 @@ fn (node InlineNode) render_text_inline() string {
 			return node.html
 		}
 	}
+}
+
+fn render_container_text(children []BlockNode, initial_lines []string) string {
+	mut lines := initial_lines.clone()
+	for child in children {
+		if child is BlankLinesNode {
+			lines << []string{len: child.line_count}
+			continue
+		}
+		text := child.render_text_block()
+		if text.len > 0 {
+			lines << text
+		}
+	}
+	return lines.join('\n')
 }

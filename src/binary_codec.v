@@ -63,18 +63,24 @@ pub fn binary_decode_with_limits(data []u8, limits BinaryDecodeLimits) !Document
 	if data.len < 7 {
 		return binary_decode_error(.truncated, data.len, 'truncated binary document header at byte ${data.len}')
 	}
-	if data[4] != binary_format_version {
+	if data[4] < binary_format_version || data[4] > binary_layout_version {
 		return binary_decode_error(.invalid_envelope, 4, 'unsupported binary document version ${data[4]}')
 	}
 	if data[5] != document_type_tag {
 		return binary_decode_error(.invalid_envelope, 5, 'invalid binary document root tag ${data[5]}')
 	}
 	mut reader := BinaryReader{
-		data: data
-		pos: 6
-		limit: data.len
-		limits: limits
-		nodes: 1
+		data:    data
+		version: data[4]
+		pos:     6
+		limit:   data.len
+		limits:  limits
+		nodes:   1
+	}
+	preserve_blank_lines := if reader.version >= binary_layout_version {
+		reader.read_bool('document blank-line preservation setting')!
+	} else {
+		false
 	}
 	body_end := reader.read_sized_end('document payload')!
 	mut children := []BlockNode{}
@@ -83,9 +89,9 @@ pub fn binary_decode_with_limits(data []u8, limits BinaryDecodeLimits) !Document
 	}
 	reader.require_end(body_end, 'document payload')!
 	reader.require_end(data.len, 'binary document')!
-	doc := Document{ children: children }
+	doc := Document{ children: children, preserve_blank_lines: preserve_blank_lines }
 	doc.validate_with_limits(AstValidationLimits{
-		max_nodes: limits.max_nodes
+		max_nodes:         limits.max_nodes
 		max_nesting_depth: limits.max_nesting_depth
 	}) or { return binary_decode_error(.invalid_ast, -1, 'invalid binary AST: ${err}') }
 	canonical := doc.binary_encode()
@@ -120,15 +126,16 @@ fn validate_binary_decode_limits(limits BinaryDecodeLimits) ! {
 
 fn binary_decode_error(kind BinaryDecodeErrorKind, offset int, message string) IError {
 	return BinaryDecodeError{
-		kind: kind
-		offset: offset
+		kind:    kind
+		offset:  offset
 		message: message
 	}
 }
 
 struct BinaryReader {
-	data   []u8
-	limits BinaryDecodeLimits
+	data    []u8
+	version u8
+	limits  BinaryDecodeLimits
 mut:
 	pos   int
 	limit int
@@ -267,17 +274,38 @@ fn (mut r BinaryReader) read_block(container_end int, depth int) !BlockNode {
 			return BlockNode(MetaNode{ data: data })
 		}
 		blockquote_type_tag {
-			end := r.read_sized_end('blockquote children')!
-			mut children := []BlockNode{}
-			for r.pos < end {
-				children << r.read_block(end, depth + 1)!
-			}
-			r.require_end(end, 'blockquote children')!
+			children := r.read_block_sequence('blockquote children', depth + 1)!
 			return BlockNode(BlockquoteNode{ children: children })
+		}
+		footnote_definition_type_tag {
+			number, label := r.read_footnote_header()!
+			end := r.read_sized_end('footnote definition contents')!
+			return BlockNode(FootnoteDefinitionNode{
+				number:   number
+				label:    label
+				children: r.read_inlines(end, depth + 1)!
+			})
+		}
+		blank_lines_type_tag {
+			if r.version < binary_layout_version {
+				return binary_decode_error(.unknown_tag, r.pos - 1, 'blank lines require VMDA version 5')
+			}
+			return BlockNode(BlankLinesNode{ line_count: r.read_varint('blank line count')! })
+		}
+		admonition_type_tag {
+			if r.version < binary_admonition_version {
+				return binary_decode_error(.unknown_tag, r.pos - 1, 'admonition requires VMDA version 2')
+			}
+			kind := r.read_u8('admonition kind')!
+			if kind > u8(AdmonitionKind.caution) {
+				return binary_decode_error(.invalid_value, r.pos - 1, 'invalid admonition kind ${kind}')
+			}
+			children := r.read_block_sequence('admonition children', depth + 1)!
+			return BlockNode(AdmonitionNode{ kind: unsafe { AdmonitionKind(kind) }, children: children })
 		}
 		code_block_type_tag {
 			return BlockNode(CodeBlockNode{
-				lang: r.read_string('code block language')!
+				lang:    r.read_string('code block language')!
 				content: r.read_string('code block content')!
 			})
 		}
@@ -299,8 +327,8 @@ fn (mut r BinaryReader) read_block(container_end int, depth int) !BlockNode {
 			}
 			return BlockNode(TableNode{
 				columns: columns
-				head: rows[..head_count].clone()
-				body: rows[head_count..].clone()
+				head:    rows[..head_count].clone()
+				body:    rows[head_count..].clone()
 			})
 		}
 		raw_html_block_type_tag {
@@ -310,6 +338,25 @@ fn (mut r BinaryReader) read_block(container_end int, depth int) !BlockNode {
 			return binary_decode_error(.unknown_tag, r.pos - 1, 'unknown block tag ${tag} at byte ${r.pos - 1}')
 		}
 	}
+}
+
+fn (mut r BinaryReader) read_footnote_header() !(int, string) {
+	if r.version < binary_footnote_version {
+		return binary_decode_error(.unknown_tag, r.pos - 1, 'footnote requires VMDA version 3')
+	}
+	number := r.read_varint('footnote number')!
+	label := r.read_string('footnote label')!
+	return number, label
+}
+
+fn (mut r BinaryReader) read_block_sequence(label string, depth int) ![]BlockNode {
+	end := r.read_sized_end(label)!
+	mut children := []BlockNode{}
+	for r.pos < end {
+		children << r.read_block(end, depth)!
+	}
+	r.require_end(end, label)!
+	return children
 }
 
 fn (mut r BinaryReader) read_count(label string) !int {
@@ -355,10 +402,10 @@ fn (mut r BinaryReader) read_list_item(end int, depth int) !ListItemNode {
 	}
 	r.require_end(end, 'list item')!
 	return ListItemNode{
-		level: level
-		number: number
-		is_task: is_task
-		checked: checked
+		level:    level
+		number:   number
+		is_task:  is_task
+		checked:  checked
 		children: children
 	}
 }
@@ -382,7 +429,7 @@ fn (mut r BinaryReader) read_table_row(end int, depth int) !TableRowNode {
 		children_end := r.read_sized_end('table cell children')!
 		cells << TableCellNode{
 			alignment: unsafe { TableAlignment(alignment_value) }
-			children: r.read_inlines(children_end, depth + 1)!
+			children:  r.read_inlines(children_end, depth + 1)!
 		}
 	}
 	r.require_end(end, 'table row')!
@@ -428,6 +475,23 @@ fn (mut r BinaryReader) read_inline(container_end int, depth int) !InlineNode {
 			end := r.read_sized_end('strikethrough children')!
 			return InlineNode(StrikethroughNode{ children: r.read_inlines(end, depth + 1)! })
 		}
+		inline_style_type_tag {
+			if r.version < binary_inline_style_version {
+				return binary_decode_error(.unknown_tag, r.pos - 1, 'inline style requires VMDA version 4')
+			}
+			kind := r.read_u8('inline style kind')!
+			if kind > u8(InlineStyleKind.spoiler) {
+				return binary_decode_error(.invalid_value, r.pos - 1, 'invalid inline style kind ${kind}')
+			}
+			if kind == u8(InlineStyleKind.spoiler) && r.version < binary_layout_version {
+				return binary_decode_error(.invalid_value, r.pos - 1, 'spoiler requires VMDA version 5')
+			}
+			end := r.read_sized_end('inline style children')!
+			return InlineNode(InlineStyleNode{
+				kind:     unsafe { InlineStyleKind(kind) }
+				children: r.read_inlines(end, depth + 1)!
+			})
+		}
 		underline_type_tag {
 			end := r.read_sized_end('underline children')!
 			return InlineNode(UnderlineNode{ children: r.read_inlines(end, depth + 1)! })
@@ -447,12 +511,16 @@ fn (mut r BinaryReader) read_inline(container_end int, depth int) !InlineNode {
 			end := r.read_sized_end('link text')!
 			return InlineNode(LinkNode{ url: url, text: r.read_inlines(end, depth + 1)! })
 		}
+		footnote_reference_type_tag {
+			number, label := r.read_footnote_header()!
+			return InlineNode(FootnoteReferenceNode{ number: number, label: label })
+		}
 		wiki_link_type_tag {
 			target := r.read_string('wiki link target')!
 			end := r.read_sized_end('wiki link text')!
 			return InlineNode(WikiLinkNode{
 				target: target
-				text: r.read_inlines(end, depth + 1)!
+				text:   r.read_inlines(end, depth + 1)!
 			})
 		}
 		image_type_tag {

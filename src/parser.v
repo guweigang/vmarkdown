@@ -54,6 +54,14 @@ pub:
 	no_html_blocks            bool
 	no_html_spans             bool
 	no_indented_code_blocks   bool
+	admonitions               bool
+	footnotes                 bool
+	highlight                 bool
+	insertion                 bool
+	superscript               bool
+	subscript                 bool
+	preserve_blank_lines      bool
+	spoilers                  bool
 }
 
 pub fn parse(markdown string) !Document {
@@ -68,11 +76,11 @@ pub fn parse_options_for_dialect(dialect MarkdownDialect) ParseOptions {
 	return match dialect {
 		.commonmark {
 			ParseOptions{
-				tables: false
-				tasklists: false
-				strikethrough: false
-				permissive_url_autolinks: false
-				permissive_www_autolinks: false
+				tables:                    false
+				tasklists:                 false
+				strikethrough:             false
+				permissive_url_autolinks:  false
+				permissive_www_autolinks:  false
 				permissive_email_autolink: false
 			}
 		}
@@ -107,11 +115,11 @@ pub fn parse_with_limits(markdown string, options ParseOptions, limits ParseLimi
 		}
 		return markdown_parse_error(kind, builder.source_cursor, rc, builder.error_message(rc))
 	}
-	doc := builder.finish() or {
+	doc := builder.finish(options.preserve_blank_lines) or {
 		return markdown_parse_error(.parser_failure, builder.source_cursor, rc, err.msg())
 	}
 	doc.validate_with_limits(AstValidationLimits{
-		max_nodes: limits.max_nodes
+		max_nodes:         limits.max_nodes
 		max_nesting_depth: limits.max_nesting_depth
 	}) or {
 		offset := if err is AstValidationError && err.span.is_valid() { err.span.start } else { -1 }
@@ -134,10 +142,10 @@ fn validate_parse_limits(limits ParseLimits) ! {
 
 fn markdown_parse_error(kind MarkdownParseErrorKind, offset int, native_code int, message string) IError {
 	return MarkdownParseError{
-		kind: kind
-		offset: offset
+		kind:        kind
+		offset:      offset
 		native_code: native_code
-		message: message
+		message:     message
 	}
 }
 
@@ -215,12 +223,38 @@ fn (options ParseOptions) to_md4c_flags() u32 {
 	if options.no_indented_code_blocks {
 		flags |= u32(C.MD_FLAG_NOINDENTEDCODEBLOCKS)
 	}
+	if options.admonitions {
+		flags |= u32(C.MD_FLAG_ADMONITIONS)
+	}
+	if options.footnotes {
+		flags |= u32(C.MD_FLAG_FOOTNOTES)
+	}
+	if options.highlight {
+		flags |= u32(C.MD_FLAG_HIGHLIGHT)
+	}
+	if options.insertion {
+		flags |= u32(C.MD_FLAG_INSERT)
+	}
+	if options.superscript {
+		flags |= u32(C.MD_FLAG_SUPERSCRIPTS)
+	}
+	if options.subscript {
+		flags |= u32(C.MD_FLAG_SUBSCRIPTS)
+	}
+	if options.preserve_blank_lines {
+		flags |= u32(C.MD_FLAG_PRESERVEBLANKLINES)
+	}
+	if options.spoilers {
+		flags |= u32(C.MD_FLAG_SPOILERS)
+	}
 	return flags
 }
 
 enum FrameKind {
 	document
 	blockquote
+	admonition
+	footnote_definition
 	list
 	list_item
 	heading
@@ -229,6 +263,7 @@ enum FrameKind {
 	strong
 	strikethrough
 	underline
+	inline_style
 	link
 	wiki_link
 	image
@@ -246,27 +281,30 @@ enum FrameKind {
 struct Frame {
 	kind FrameKind
 mut:
-	blocks    []BlockNode
-	inlines   []InlineNode
-	items     []ListItemNode
-	level     int
-	ordered   bool
-	start     int
-	number    int
-	url       string
-	lang      string
-	implicit  bool
-	columns   int
-	rows      []TableRowNode
-	head_rows []TableRowNode
-	body_rows []TableRowNode
-	cells     []TableCellNode
-	alignment TableAlignment
-	span      SourceSpan = SourceSpan{ start: -1, end: -1 }
-	is_task   bool
-	checked   bool
-	display   bool
-	text      strings.Builder
+	blocks     []BlockNode
+	inlines    []InlineNode
+	items      []ListItemNode
+	level      int
+	ordered    bool
+	start      int
+	number     int
+	url        string
+	label      string
+	lang       string
+	implicit   bool
+	columns    int
+	rows       []TableRowNode
+	head_rows  []TableRowNode
+	body_rows  []TableRowNode
+	cells      []TableCellNode
+	alignment  TableAlignment
+	style      InlineStyleKind
+	admonition AdmonitionKind
+	span       SourceSpan = SourceSpan{ start: -1, end: -1 }
+	is_task    bool
+	checked    bool
+	display    bool
+	text       strings.Builder
 }
 
 struct Builder {
@@ -283,23 +321,41 @@ mut:
 fn new_builder(markdown string, limits ParseLimits) Builder {
 	return Builder{
 		markdown: markdown
-		limits: limits
-		nodes: 1
-		frames: [Frame{
+		limits:   limits
+		nodes:    1
+		frames:   [Frame{
 			kind: .document
 			text: strings.new_builder(0)
 		}]
 	}
 }
 
-fn (mut b Builder) finish() !Document {
+fn (mut b Builder) finish(preserve_blank_lines bool) !Document {
 	if b.frames.len != 1 || b.frames[0].kind != .document {
 		return error('markdown parse ended with an unbalanced frame stack')
 	}
-	return Document{
-		span: SourceSpan{ start: 0, end: b.markdown.len }
-		children: b.frames[0].blocks.clone()
+	mut children := b.frames[0].blocks.clone()
+	if preserve_blank_lines && children.len > 0 && children.last() is FootnoteDefinitionNode {
+		// md4c appends referenced definitions after the body. Separate that
+		// section from the preceding block so it can be serialized as Markdown.
+		for index, child in children {
+			if child is FootnoteDefinitionNode {
+				if index > 0 && children[index - 1] !is BlankLinesNode {
+					children.insert(index, BlockNode(BlankLinesNode{ line_count: 1 }))
+				}
+				break
+			}
+		}
 	}
+	doc := Document{
+		span:                 SourceSpan{ start: 0, end: b.markdown.len }
+		preserve_blank_lines: preserve_blank_lines
+		children:             children
+	}
+	if doc.children.len > 0 && doc.children.last() is FootnoteDefinitionNode {
+		return disambiguate_footnote_labels(doc)
+	}
+	return doc
 }
 
 fn (b &Builder) error_message(code int) string {
@@ -356,7 +412,17 @@ fn (mut b Builder) append_block(node BlockNode) ! {
 	span := node.source_span()
 	for i := b.frames.len - 1; i >= 0; i-- {
 		match b.frames[i].kind {
-			.document, .blockquote, .list_item {
+			.document, .blockquote, .admonition, .list_item {
+				last_index := b.frames[i].blocks.len - 1
+				if node is BlankLinesNode && last_index >= 0 {
+					last := b.frames[i].blocks[last_index]
+					if last is BlankLinesNode {
+						b.frames[i].blocks[last_index] = BlankLinesNode{
+							line_count: last.line_count + node.line_count
+						}
+						return
+					}
+				}
 				b.frames[i].blocks << node
 				b.frames[i].absorb_span(span)
 				return
@@ -383,7 +449,8 @@ fn (mut b Builder) append_inline(node InlineNode) ! {
 	span := node.source_span()
 	for i := b.frames.len - 1; i >= 0; i-- {
 		match b.frames[i].kind {
-			.heading, .paragraph, .emphasis, .strong, .strikethrough, .underline, .link, .wiki_link, .image, .table_cell {
+			.heading, .paragraph, .footnote_definition, .emphasis, .strong, .strikethrough,
+			.underline, .inline_style, .link, .wiki_link, .image, .table_cell {
 				if node is TextNode && b.frames[i].inlines.len > 0 {
 					last_index := b.frames[i].inlines.len - 1
 					last := b.frames[i].inlines[last_index]
@@ -419,14 +486,15 @@ fn merge_source_spans(left SourceSpan, right SourceSpan) SourceSpan {
 	}
 	return SourceSpan{
 		start: min_int(left.start, right.start)
-		end: max_int(left.end, right.end)
+		end:   max_int(left.end, right.end)
 	}
 }
 
 fn (b &Builder) has_inline_parent() bool {
 	for i := b.frames.len - 1; i >= 0; i-- {
 		match b.frames[i].kind {
-			.heading, .paragraph, .emphasis, .strong, .strikethrough, .underline, .link, .wiki_link, .image, .table_cell {
+			.heading, .paragraph, .footnote_definition, .emphasis, .strong, .strikethrough,
+			.underline, .inline_style, .link, .wiki_link, .image, .table_cell {
 				return true
 			}
 			else {}
@@ -462,7 +530,7 @@ fn (mut b Builder) flush_implicit_paragraph() ! {
 	}
 	frame := b.pop_frame(.paragraph)!
 	b.append_block(ParagraphNode{
-		span: frame.span
+		span:     frame.span
 		children: frame.inlines.clone()
 	})!
 }
@@ -483,8 +551,38 @@ fn (mut b Builder) enter_block(typ int, detail voidptr) ! {
 	}
 	match typ {
 		int(C.MD_BLOCK_DOC) {}
+		int(C.MD_BLOCK_BLANK) {
+			blank := unsafe { &C.MD_BLOCK_BLANK_DETAIL(detail) }
+			b.append_block(BlankLinesNode{ line_count: int(blank.line_count) })!
+		}
 		int(C.MD_BLOCK_QUOTE) {
 			b.push_frame(.blockquote)!
+		}
+		int(C.MD_BLOCK_FOOTNOTE_DEF) {
+			b.push_frame(.footnote_definition)!
+			mut top := b.top()!
+			footnote := unsafe { &C.MD_BLOCK_FOOTNOTE_DEF_DETAIL(detail) }
+			top.label = attribute_to_string(footnote.label)
+			top.number = int(footnote.id)
+			// Definitions are emitted after the document body and may precede
+			// it in the source. Reset the cursor used to infer line breaks.
+			b.source_cursor = 0
+			top.span = b.footnote_label_span(footnote.label)
+		}
+		int(C.MD_BLOCK_ADMONITION) {
+			details := unsafe { &C.MD_BLOCK_ADMONITION_DETAIL(detail) }
+			name := attribute_to_string(details.type)
+			kind := match name {
+				'note' { AdmonitionKind.note }
+				'tip' { AdmonitionKind.tip }
+				'important' { AdmonitionKind.important }
+				'warning' { AdmonitionKind.warning }
+				'caution' { AdmonitionKind.caution }
+				else { return error('unknown md4c admonition type ${name}') }
+			}
+			b.push_frame(.admonition)!
+			mut top := b.top()!
+			top.admonition = kind
 		}
 		int(C.MD_BLOCK_UL) {
 			b.push_frame(.list)!
@@ -566,28 +664,45 @@ fn (mut b Builder) leave_block(typ int, _detail voidptr) ! {
 		int(C.MD_BLOCK_QUOTE) {
 			frame := b.pop_frame(.blockquote)!
 			b.append_block(BlockquoteNode{
-				span: frame.span
+				span:     frame.span
+				children: frame.blocks.clone()
+			})!
+		}
+		int(C.MD_BLOCK_FOOTNOTE_DEF) {
+			frame := b.pop_frame(.footnote_definition)!
+			b.append_block(FootnoteDefinitionNode{
+				span:     frame.span
+				label:    frame.label
+				number:   frame.number
+				children: frame.inlines.clone()
+			})!
+		}
+		int(C.MD_BLOCK_ADMONITION) {
+			frame := b.pop_frame(.admonition)!
+			b.append_block(AdmonitionNode{
+				span:     frame.span
+				kind:     frame.admonition
 				children: frame.blocks.clone()
 			})!
 		}
 		int(C.MD_BLOCK_UL), int(C.MD_BLOCK_OL) {
 			frame := b.pop_frame(.list)!
 			b.append_block(ListNode{
-				span: frame.span
+				span:       frame.span
 				is_ordered: frame.ordered
-				start: frame.start
-				items: frame.items.clone()
+				start:      frame.start
+				items:      frame.items.clone()
 			})!
 		}
 		int(C.MD_BLOCK_LI) {
 			b.flush_implicit_paragraph()!
 			frame := b.pop_frame(.list_item)!
 			b.append_list_item(ListItemNode{
-				span: frame.span
-				level: frame.level
-				number: frame.number
-				is_task: frame.is_task
-				checked: frame.checked
+				span:     frame.span
+				level:    frame.level
+				number:   frame.number
+				is_task:  frame.is_task
+				checked:  frame.checked
 				children: frame.blocks.clone()
 			})!
 		}
@@ -595,16 +710,16 @@ fn (mut b Builder) leave_block(typ int, _detail voidptr) ! {
 		int(C.MD_BLOCK_H) {
 			frame := b.pop_frame(.heading)!
 			b.append_block(HeadingNode{
-				span: frame.span
-				level: frame.level
+				span:     frame.span
+				level:    frame.level
 				children: frame.inlines.clone()
 			})!
 		}
 		int(C.MD_BLOCK_CODE) {
 			mut frame := b.pop_frame(.code_block)!
 			b.append_block(CodeBlockNode{
-				span: frame.span
-				lang: frame.lang
+				span:    frame.span
+				lang:    frame.lang
 				content: frame.text.str()
 			})!
 		}
@@ -618,17 +733,17 @@ fn (mut b Builder) leave_block(typ int, _detail voidptr) ! {
 		int(C.MD_BLOCK_P) {
 			frame := b.pop_frame(.paragraph)!
 			b.append_block(ParagraphNode{
-				span: frame.span
+				span:     frame.span
 				children: frame.inlines.clone()
 			})!
 		}
 		int(C.MD_BLOCK_TABLE) {
 			frame := b.pop_frame(.table)!
 			b.append_block(TableNode{
-				span: frame.span
+				span:    frame.span
 				columns: frame.columns
-				head: frame.head_rows.clone()
-				body: frame.body_rows.clone()
+				head:    frame.head_rows.clone()
+				body:    frame.body_rows.clone()
 			})!
 		}
 		int(C.MD_BLOCK_THEAD) {
@@ -648,7 +763,7 @@ fn (mut b Builder) leave_block(typ int, _detail voidptr) ! {
 			b.reserve_node()!
 			mut top := b.top()!
 			top.rows << TableRowNode{
-				span: frame.span
+				span:  frame.span
 				cells: frame.cells.clone()
 			}
 			top.absorb_span(frame.span)
@@ -658,9 +773,9 @@ fn (mut b Builder) leave_block(typ int, _detail voidptr) ! {
 			b.reserve_node()!
 			mut top := b.top()!
 			top.cells << TableCellNode{
-				span: frame.span
+				span:      frame.span
 				alignment: frame.alignment
-				children: frame.inlines.clone()
+				children:  frame.inlines.clone()
 			}
 			top.absorb_span(frame.span)
 		}
@@ -683,11 +798,32 @@ fn (mut b Builder) enter_span(typ int, detail voidptr) ! {
 		int(C.MD_SPAN_U) {
 			b.push_frame(.underline)!
 		}
+		int(C.MD_SPAN_MARK), int(C.MD_SPAN_INS), int(C.MD_SPAN_SUPERSCRIPT),
+		int(C.MD_SPAN_SUBSCRIPT), int(C.MD_SPAN_SPOILER) {
+			b.push_frame(.inline_style)!
+			mut top := b.top()!
+			top.style = match typ {
+				int(C.MD_SPAN_MARK) { .highlight }
+				int(C.MD_SPAN_INS) { .insertion }
+				int(C.MD_SPAN_SUPERSCRIPT) { .superscript }
+				int(C.MD_SPAN_SUBSCRIPT) { .subscript }
+				else { .spoiler }
+			}
+		}
 		int(C.MD_SPAN_A) {
 			b.push_frame(.link)!
 			mut top := b.top()!
 			link_detail := unsafe { &C.MD_SPAN_A_DETAIL(detail) }
 			top.url = attribute_to_string(link_detail.href)
+		}
+		int(C.MD_SPAN_FOOTNOTE_REF) {
+			footnote := unsafe { &C.MD_SPAN_FOOTNOTE_REF_DETAIL(detail) }
+			span := b.footnote_label_span(footnote.label)
+			b.append_inline(FootnoteReferenceNode{
+				span:   span
+				label:  attribute_to_string(footnote.label)
+				number: int(footnote.id)
+			})!
 		}
 		int(C.MD_SPAN_WIKILINK) {
 			b.push_frame(.wiki_link)!
@@ -718,28 +854,37 @@ fn (mut b Builder) leave_span(typ int, _detail voidptr) ! {
 		int(C.MD_SPAN_EM) {
 			frame := b.pop_frame(.emphasis)!
 			b.append_inline(EmphasisNode{
-				span: frame.span
+				span:     frame.span
 				children: frame.inlines.clone()
 			})!
 		}
 		int(C.MD_SPAN_STRONG) {
 			frame := b.pop_frame(.strong)!
 			b.append_inline(StrongNode{
-				span: frame.span
+				span:     frame.span
 				children: frame.inlines.clone()
 			})!
 		}
 		int(C.MD_SPAN_DEL) {
 			frame := b.pop_frame(.strikethrough)!
 			b.append_inline(StrikethroughNode{
-				span: frame.span
+				span:     frame.span
 				children: frame.inlines.clone()
 			})!
 		}
 		int(C.MD_SPAN_U) {
 			frame := b.pop_frame(.underline)!
 			b.append_inline(UnderlineNode{
-				span: frame.span
+				span:     frame.span
+				children: frame.inlines.clone()
+			})!
+		}
+		int(C.MD_SPAN_MARK), int(C.MD_SPAN_INS), int(C.MD_SPAN_SUPERSCRIPT),
+		int(C.MD_SPAN_SUBSCRIPT), int(C.MD_SPAN_SPOILER) {
+			frame := b.pop_frame(.inline_style)!
+			b.append_inline(InlineStyleNode{
+				span:     frame.span
+				kind:     frame.style
 				children: frame.inlines.clone()
 			})!
 		}
@@ -748,23 +893,23 @@ fn (mut b Builder) leave_span(typ int, _detail voidptr) ! {
 			b.append_inline(LinkNode{
 				span: frame.span
 				text: frame.inlines.clone()
-				url: frame.url
+				url:  frame.url
 			})!
 		}
 		int(C.MD_SPAN_WIKILINK) {
 			frame := b.pop_frame(.wiki_link)!
 			b.append_inline(WikiLinkNode{
-				span: frame.span
+				span:   frame.span
 				target: frame.url
-				text: frame.inlines.clone()
+				text:   frame.inlines.clone()
 			})!
 		}
 		int(C.MD_SPAN_IMG) {
 			frame := b.pop_frame(.image)!
 			b.append_inline(ImageNode{
 				span: frame.span
-				alt: frame.inlines.clone()
-				url: frame.url
+				alt:  frame.inlines.clone()
+				url:  frame.url
 			})!
 		}
 		int(C.MD_SPAN_CODE) {
@@ -777,7 +922,7 @@ fn (mut b Builder) leave_span(typ int, _detail voidptr) ! {
 		int(C.MD_SPAN_LATEXMATH), int(C.MD_SPAN_LATEXMATH_DISPLAY) {
 			mut frame := b.pop_frame(.latex_math)!
 			b.append_inline(LatexMathNode{
-				span: frame.span
+				span:    frame.span
 				content: frame.text.str()
 				display: frame.display
 			})!
@@ -855,7 +1000,7 @@ fn (mut frame Frame) absorb_span(span SourceSpan) {
 	}
 	frame.span = SourceSpan{
 		start: min_int(frame.span.start, span.start)
-		end: max_int(frame.span.end, span.end)
+		end:   max_int(frame.span.end, span.end)
 	}
 }
 
@@ -880,6 +1025,16 @@ fn (mut b Builder) absorb_open_frames(span SourceSpan) {
 	for i in 0 .. b.frames.len {
 		b.frames[i].absorb_span(span)
 	}
+}
+
+// md4c points into the source for labels that need no attribute processing.
+fn (mut b Builder) footnote_label_span(label C.MD_ATTRIBUTE) SourceSpan {
+	span := b.source_span_for(int(C.MD_TEXT_NORMAL), label.text, int(label.size))
+	if span.start >= 2 && span.end < b.markdown.len && b.markdown[span.start - 2..span.start] == '[^'
+		&& b.markdown[span.end] == `]` {
+		return SourceSpan{ start: span.start - 2, end: span.end + 1 }
+	}
+	return SourceSpan{}
 }
 
 fn (b &Builder) in_code_context() bool {

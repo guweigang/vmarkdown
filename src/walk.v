@@ -27,17 +27,31 @@ pub enum AstNodeKind {
 	strong
 	text
 	underline
+	admonition
+	footnote_definition
+	footnote_reference
+	highlight
+	insertion
+	superscript
+	subscript
+	spoiler
+	blank_lines
 }
 
-pub type AstWalkNode = BlockquoteNode
+pub type AstWalkNode = AdmonitionNode
+	| BlankLinesNode
+	| BlockquoteNode
 	| CodeBlockNode
 	| CodeSpanNode
 	| Document
 	| EmphasisNode
+	| FootnoteDefinitionNode
+	| FootnoteReferenceNode
 	| HardBreakNode
 	| HeadingNode
 	| HorizontalRuleNode
 	| ImageNode
+	| InlineStyleNode
 	| LatexMathNode
 	| LinkNode
 	| WikiLinkNode
@@ -70,11 +84,11 @@ pub:
 // visitor to stop traversal immediately.
 pub fn (doc Document) walk(visitor fn (AstVisit) bool) bool {
 	if !visitor(AstVisit{
-		kind: .document
-		node: AstWalkNode(doc)
-		path: 'document'
+		kind:  .document
+		node:  AstWalkNode(doc)
+		path:  'document'
 		depth: 0
-		span: doc.span
+		span:  doc.span
 	}) {
 		return false
 	}
@@ -122,16 +136,19 @@ pub fn (doc Document) find_all_checked_with_limits(kind AstNodeKind, limits AstV
 
 fn walk_block(node BlockNode, path string, depth int, visitor fn (AstVisit) bool) bool {
 	if !visitor(AstVisit{
-		kind: block_kind(node)
-		node: block_walk_node(node)
-		path: path
+		kind:  block_kind(node)
+		node:  block_walk_node(node)
+		path:  path
 		depth: depth
-		span: node.source_span()
+		span:  node.source_span()
 	}) {
 		return false
 	}
 	match node {
 		HeadingNode {
+			return walk_inlines(node.children, '${path}.children', depth + 1, visitor)
+		}
+		FootnoteDefinitionNode {
 			return walk_inlines(node.children, '${path}.children', depth + 1, visitor)
 		}
 		ParagraphNode {
@@ -144,15 +161,22 @@ fn walk_block(node BlockNode, path string, depth int, visitor fn (AstVisit) bool
 				}
 			}
 		}
+		AdmonitionNode {
+			for index, child in node.children {
+				if !walk_block(child, '${path}.children[${index}]', depth + 1, visitor) {
+					return false
+				}
+			}
+		}
 		ListNode {
 			for item_index, item in node.items {
 				item_path := '${path}.items[${item_index}]'
 				if !visitor(AstVisit{
-					kind: .list_item
-					node: AstWalkNode(item)
-					path: item_path
+					kind:  .list_item
+					node:  AstWalkNode(item)
+					path:  item_path
 					depth: depth + 1
-					span: item.span
+					span:  item.span
 				}) {
 					return false
 				}
@@ -175,29 +199,29 @@ fn walk_block(node BlockNode, path string, depth int, visitor fn (AstVisit) bool
 				}
 			}
 		}
-		CodeBlockNode, HorizontalRuleNode, MetaNode, RawHtmlBlockNode {}
+		BlankLinesNode, CodeBlockNode, HorizontalRuleNode, MetaNode, RawHtmlBlockNode {}
 	}
 	return true
 }
 
 fn walk_table_row(row TableRowNode, path string, depth int, visitor fn (AstVisit) bool) bool {
 	if !visitor(AstVisit{
-		kind: .table_row
-		node: AstWalkNode(row)
-		path: path
+		kind:  .table_row
+		node:  AstWalkNode(row)
+		path:  path
 		depth: depth
-		span: row.span
+		span:  row.span
 	}) {
 		return false
 	}
 	for index, cell in row.cells {
 		cell_path := '${path}.cells[${index}]'
 		if !visitor(AstVisit{
-			kind: .table_cell
-			node: AstWalkNode(cell)
-			path: cell_path
+			kind:  .table_cell
+			node:  AstWalkNode(cell)
+			path:  cell_path
 			depth: depth + 1
-			span: cell.span
+			span:  cell.span
 		}) {
 			return false
 		}
@@ -219,11 +243,11 @@ fn walk_inlines(nodes []InlineNode, path string, depth int, visitor fn (AstVisit
 
 fn walk_inline(node InlineNode, path string, depth int, visitor fn (AstVisit) bool) bool {
 	if !visitor(AstVisit{
-		kind: inline_kind(node)
-		node: inline_walk_node(node)
-		path: path
+		kind:  inline_kind(node)
+		node:  inline_walk_node(node)
+		path:  path
 		depth: depth
-		span: node.source_span()
+		span:  node.source_span()
 	}) {
 		return false
 	}
@@ -235,6 +259,9 @@ fn walk_inline(node InlineNode, path string, depth int, visitor fn (AstVisit) bo
 			return walk_inlines(node.children, '${path}.children', depth + 1, visitor)
 		}
 		StrikethroughNode {
+			return walk_inlines(node.children, '${path}.children', depth + 1, visitor)
+		}
+		InlineStyleNode {
 			return walk_inlines(node.children, '${path}.children', depth + 1, visitor)
 		}
 		UnderlineNode {
@@ -249,13 +276,18 @@ fn walk_inline(node InlineNode, path string, depth int, visitor fn (AstVisit) bo
 		ImageNode {
 			return walk_inlines(node.alt, '${path}.alt', depth + 1, visitor)
 		}
-		CodeSpanNode, HardBreakNode, LatexMathNode, RawHtmlInlineNode, SoftBreakNode, TextNode {}
+		CodeSpanNode, FootnoteReferenceNode, HardBreakNode, LatexMathNode, RawHtmlInlineNode, SoftBreakNode,
+		TextNode {
+		}
 	}
 	return true
 }
 
 fn block_kind(node BlockNode) AstNodeKind {
 	return match node {
+		AdmonitionNode { .admonition }
+		BlankLinesNode { .blank_lines }
+		FootnoteDefinitionNode { .footnote_definition }
 		BlockquoteNode { .blockquote }
 		CodeBlockNode { .code_block }
 		HeadingNode { .heading }
@@ -277,17 +309,30 @@ fn inline_kind(node InlineNode) AstNodeKind {
 		LatexMathNode { .latex_math }
 		LinkNode { .link }
 		WikiLinkNode { .wiki_link }
+		FootnoteReferenceNode { .footnote_reference }
 		RawHtmlInlineNode { .raw_html_inline }
 		SoftBreakNode { .soft_break }
 		StrikethroughNode { .strikethrough }
 		StrongNode { .strong }
 		TextNode { .text }
 		UnderlineNode { .underline }
+		InlineStyleNode {
+			match node.kind {
+				.highlight { .highlight }
+				.insertion { .insertion }
+				.superscript { .superscript }
+				.subscript { .subscript }
+				.spoiler { .spoiler }
+			}
+		}
 	}
 }
 
 fn block_walk_node(node BlockNode) AstWalkNode {
 	return match node {
+		AdmonitionNode { AstWalkNode(node) }
+		BlankLinesNode { AstWalkNode(node) }
+		FootnoteDefinitionNode { AstWalkNode(node) }
 		BlockquoteNode { AstWalkNode(node) }
 		CodeBlockNode { AstWalkNode(node) }
 		HeadingNode { AstWalkNode(node) }
@@ -309,11 +354,13 @@ fn inline_walk_node(node InlineNode) AstWalkNode {
 		LatexMathNode { AstWalkNode(node) }
 		LinkNode { AstWalkNode(node) }
 		WikiLinkNode { AstWalkNode(node) }
+		FootnoteReferenceNode { AstWalkNode(node) }
 		RawHtmlInlineNode { AstWalkNode(node) }
 		SoftBreakNode { AstWalkNode(node) }
 		StrikethroughNode { AstWalkNode(node) }
 		StrongNode { AstWalkNode(node) }
 		TextNode { AstWalkNode(node) }
 		UnderlineNode { AstWalkNode(node) }
+		InlineStyleNode { AstWalkNode(node) }
 	}
 }

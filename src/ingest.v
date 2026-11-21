@@ -100,8 +100,8 @@ pub mut:
 
 pub fn new_memory_store() MemoryStore {
 	return MemoryStore{
-		chunks: map[string]Chunk{}
-		roots: map[string][]string{}
+		chunks:    map[string]Chunk{}
+		roots:     map[string][]string{}
 		manifests: map[string][]BlockManifestEntry{}
 	}
 }
@@ -117,7 +117,7 @@ pub fn (mut store MemoryStore) ingest_with_options(markdown string, options Pars
 pub fn (mut store MemoryStore) ingest_with_limits(markdown string, options ParseOptions, limits ParseLimits) !IngestResult {
 	doc := parse_with_limits(markdown, options, limits)!
 	return store.ingest_document_with_limits(doc, AstValidationLimits{
-		max_nodes: limits.max_nodes
+		max_nodes:         limits.max_nodes
 		max_nesting_depth: limits.max_nesting_depth
 	})
 }
@@ -187,7 +187,7 @@ pub fn plan_ingest_with_options(markdown string, store ChunkStore, options Parse
 pub fn plan_ingest_with_limits(markdown string, store ChunkStore, options ParseOptions, limits ParseLimits) !IngestPlan {
 	doc := parse_with_limits(markdown, options, limits)!
 	return plan_ingest_document_checked_with_limits(doc, store, AstValidationLimits{
-		max_nodes: limits.max_nodes
+		max_nodes:         limits.max_nodes
 		max_nesting_depth: limits.max_nesting_depth
 	})
 }
@@ -222,12 +222,12 @@ pub fn commit_ingest_plan(mut store ChunkStore, plan IngestPlan) !IngestResult {
 	store.put_root_manifest(plan.root_id, plan.manifest)!
 	store.set_last_root_id(plan.root_id)!
 	return IngestResult{
-		root_id: plan.root_id
-		added: added
-		reused: reused
-		changed: plan.changed.clone()
-		chunks: plan.all_chunks.clone()
-		diff: plan.diff.clone()
+		root_id:  plan.root_id
+		added:    added
+		reused:   reused
+		changed:  plan.changed.clone()
+		chunks:   plan.all_chunks.clone()
+		diff:     plan.diff.clone()
 		manifest: plan.manifest.clone()
 	}
 }
@@ -295,15 +295,15 @@ fn make_ingest_plan(doc Document, store ChunkStore) IngestPlan {
 		}
 	}
 	return IngestPlan{
-		root_id: root.id
+		root_id:       root.id
 		previous_root: previous_root
-		root_refs: root.refs.clone()
-		to_add: to_add
-		to_reuse: to_reuse
-		changed: diff_root_refs(previous_refs, root.refs)
-		all_chunks: collector.chunks.clone()
-		diff: diff_entries(previous_manifest, collector.manifest, chunk_index)
-		manifest: collector.manifest.clone()
+		root_refs:     root.refs.clone()
+		to_add:        to_add
+		to_reuse:      to_reuse
+		changed:       diff_root_refs(previous_refs, root.refs)
+		all_chunks:    collector.chunks.clone()
+		diff:          diff_entries(previous_manifest, collector.manifest, chunk_index)
+		manifest:      collector.manifest.clone()
 	}
 }
 
@@ -314,7 +314,7 @@ fn (mut c ChunkCollector) collect_document(doc Document) Chunk {
 		refs << child.stable_id()
 	}
 	root := Chunk{
-		id: doc.stable_id()
+		id:   doc.stable_id()
 		kind: 'document'
 		data: doc.binary_encode()
 		refs: refs
@@ -326,15 +326,22 @@ fn (mut c ChunkCollector) collect_document(doc Document) Chunk {
 fn (mut c ChunkCollector) collect_block(node BlockNode, path string, index int) {
 	mut refs := []string{}
 	c.manifest << BlockManifestEntry{
-		id: node.stable_id()
-		kind: node.kind_name()
-		path: path
+		id:    node.stable_id()
+		kind:  node.kind_name()
+		path:  path
 		index: index
 	}
 	match node {
-		HeadingNode, ParagraphNode, CodeBlockNode, HorizontalRuleNode, MetaNode, RawHtmlBlockNode, TableNode {
+		HeadingNode, ParagraphNode, BlankLinesNode, FootnoteDefinitionNode, CodeBlockNode, HorizontalRuleNode,
+		MetaNode, RawHtmlBlockNode, TableNode {
 		}
 		BlockquoteNode {
+			for child_index, child in node.children {
+				c.collect_block(child, '${path}.children[${child_index}]', child_index)
+				refs << child.stable_id()
+			}
+		}
+		AdmonitionNode {
 			for child_index, child in node.children {
 				c.collect_block(child, '${path}.children[${child_index}]', child_index)
 				refs << child.stable_id()
@@ -350,7 +357,7 @@ fn (mut c ChunkCollector) collect_block(node BlockNode, path string, index int) 
 		}
 	}
 	c.chunks << Chunk{
-		id: node.stable_id()
+		id:   node.stable_id()
 		kind: node.kind_name()
 		data: node.binary_encode()
 		refs: refs

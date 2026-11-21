@@ -3,9 +3,11 @@ module vmarkdown
 import term
 
 struct MarkdownSourceBlock {
-	start_line int
-	end_line   int
-	text       string
+	start_line      int
+	end_line        int
+	text            string
+	footnote_number int
+	footnote_label  string
 }
 
 struct PreviewLineSource {
@@ -64,8 +66,8 @@ fn scan_markdown_source_blocks(markdown string) []MarkdownSourceBlock {
 		end := max_int(i - 1, start)
 		blocks << MarkdownSourceBlock{
 			start_line: start
-			end_line: end
-			text: lines[start..end + 1].join('\n')
+			end_line:   end
+			text:       lines[start..end + 1].join('\n')
 		}
 	}
 	return blocks
@@ -75,12 +77,21 @@ fn scan_markdown_source_blocks(markdown string) []MarkdownSourceBlock {
 // source of block boundaries. The syntax scanner is retained only for nodes
 // such as thematic breaks for which md4c emits no source-bearing callback.
 fn ast_markdown_source_blocks(markdown string) []MarkdownSourceBlock {
-	doc := parse(markdown) or { return scan_markdown_source_blocks(markdown) }
+	return ast_markdown_source_blocks_with_options(markdown, ParseOptions{})
+}
+
+fn ast_markdown_source_blocks_with_options(markdown string, options ParseOptions) []MarkdownSourceBlock {
+	doc := parse_with_options(markdown, options) or { return scan_markdown_source_blocks(markdown) }
 	lines := markdown.split('\n')
 	fallback := scan_markdown_source_blocks(markdown)
 	mut blocks := []MarkdownSourceBlock{cap: doc.children.len}
 	mut previous_end := -1
+	mut block_count := 0
 	for node in doc.children {
+		if node is BlankLinesNode {
+			continue
+		}
+		block_count++
 		span := node.source_span()
 		mut start_line := -1
 		mut end_line := -1
@@ -90,6 +101,17 @@ fn ast_markdown_source_blocks(markdown string) []MarkdownSourceBlock {
 			end_line = source_line_for_byte_offset(markdown, last_byte)
 			if node is CodeBlockNode {
 				start_line, end_line = expand_fenced_code_lines(lines, start_line, end_line)
+			}
+			if node is AdmonitionNode {
+				// md4c reports text offsets for the body. Include the preceding
+				// quoted marker when building the preview's block anchor.
+				for candidate in fallback {
+					if candidate.start_line > previous_end && candidate.start_line < start_line
+						&& start_line <= candidate.end_line {
+						start_line = candidate.start_line
+						break
+					}
+				}
 			}
 		}
 		if start_line < 0 {
@@ -106,13 +128,15 @@ fn ast_markdown_source_blocks(markdown string) []MarkdownSourceBlock {
 		}
 		end_line = min_int(max_int(end_line, start_line), lines.len - 1)
 		blocks << MarkdownSourceBlock{
-			start_line: start_line
-			end_line: end_line
-			text: lines[start_line..end_line + 1].join('\n')
+			start_line:      start_line
+			end_line:        end_line
+			text:            lines[start_line..end_line + 1].join('\n')
+			footnote_number: if node is FootnoteDefinitionNode { node.number } else { 0 }
+			footnote_label:  if node is FootnoteDefinitionNode { node.label } else { '' }
 		}
 		previous_end = end_line
 	}
-	return if blocks.len == doc.children.len { blocks } else { fallback }
+	return if blocks.len == block_count { blocks } else { fallback }
 }
 
 fn source_line_for_byte_offset(markdown string, offset int) int {
@@ -187,19 +211,31 @@ fn starts_new_markdown_block(line string) bool {
 }
 
 fn build_preview_line_sources(markdown string, mode PreviewMode, width int, actual_lines []string) []PreviewLineSource {
+	return build_preview_line_sources_with_options(markdown, mode, width, actual_lines, ParseOptions{})
+}
+
+fn build_preview_line_sources_with_options(markdown string, mode PreviewMode, width int, actual_lines []string, options ParseOptions) []PreviewLineSource {
+	return build_preview_line_sources_with_spoiler_visibility(markdown, mode, width, actual_lines, options, false)
+}
+
+fn build_preview_line_sources_with_spoiler_visibility(markdown string, mode PreviewMode, width int, actual_lines []string, options ParseOptions, reveal_spoilers bool) []PreviewLineSource {
 	if actual_lines.len == 0 {
 		return []PreviewLineSource{}
 	}
-	blocks := ast_markdown_source_blocks(markdown)
+	blocks := ast_markdown_source_blocks_with_options(markdown, options)
 	if blocks.len == 0 {
 		return []PreviewLineSource{len: actual_lines.len, init: PreviewLineSource{}}
 	}
 	mut starts := []int{len: blocks.len, init: -1}
 	mut search_from := 0
 	for block_index, block in blocks {
-		block_lines := preview_lines(block.text, mode, width) or { []string{} }
-		anchor := first_preview_anchor(block_lines, mode)
-		found := find_preview_anchor(actual_lines, anchor, search_from, mode)
+		found := if block.footnote_number > 0 {
+			find_preview_footnote(actual_lines, block, search_from, mode)
+		} else {
+			block_lines := preview_lines_with_spoiler_visibility(block.text, mode, width, options, reveal_spoilers) or { []string{} }
+			anchor := first_preview_anchor(block_lines, mode)
+			find_preview_anchor(actual_lines, anchor, search_from, mode)
+		}
 		starts[block_index] = if found >= 0 { found } else { search_from }
 		search_from = min_int(starts[block_index] + 1, actual_lines.len)
 	}
@@ -256,11 +292,11 @@ fn build_preview_line_sources(markdown string, mode PreviewMode, width int, actu
 			source_offsets[source_line] = next_offset
 		}
 		result[line_index] = PreviewLineSource{
-			start_line: block.start_line
-			end_line: block.end_line
-			source_line: source_line
+			start_line:     block.start_line
+			end_line:       block.end_line
+			source_line:    source_line
 			source_columns: columns
-			exact_columns: exact
+			exact_columns:  exact
 		}
 	}
 	return result
@@ -458,6 +494,21 @@ fn first_preview_anchor(lines []string, mode PreviewMode) string {
 		}
 	}
 	return ''
+}
+
+fn find_preview_footnote(lines []string, block MarkdownSourceBlock, start int, mode PreviewMode) int {
+	marker := match mode {
+		.terminal { '[${block.footnote_number}]' }
+		.markdown { markdown_footnote_label(block.footnote_label) + ':' }
+		.html { '<li id="fn-${block.footnote_number}">' }
+		.ast { 'Footnote(number=${block.footnote_number},' }
+	}
+	for index in start .. lines.len {
+		if normalize_preview_anchor(lines[index], mode).starts_with(marker) {
+			return index
+		}
+	}
+	return -1
 }
 
 fn find_preview_anchor(lines []string, anchor string, start int, mode PreviewMode) int {

@@ -64,7 +64,7 @@ fn test_checked_traversal_matches_valid_fast_paths() {
 	})
 	assert checked_paths == fast_paths
 	assert doc.find_all_checked_with_limits(.text, AstValidationLimits{
-		max_nodes: 16
+		max_nodes:         16
 		max_nesting_depth: 8
 	}) or { panic(err) } == doc.find_all(.text)
 	assert doc.find_all_checked(.heading) or { panic(err) } == doc.find_all(.heading)

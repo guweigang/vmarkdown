@@ -52,7 +52,7 @@ fn test_preview_column_map_skips_render_only_markup() {
 	columns, exact := build_preview_source_columns('# **Hello** world', '<h1><strong>Hello</strong> world</h1>', .html)
 	source := PreviewLineSource{
 		source_columns: columns
-		exact_columns: exact
+		exact_columns:  exact
 	}
 	rendered := '<h1><strong>Hello</strong> world</h1>'.runes()
 	hello_column := rendered.index(`H`)
@@ -65,7 +65,7 @@ fn test_preview_column_map_prefers_ast_quoted_content() {
 	columns, exact := build_preview_source_columns('Paragraph', 'Paragraph "Paragraph"', .ast)
 	source := PreviewLineSource{
 		source_columns: columns
-		exact_columns: exact
+		exact_columns:  exact
 	}
 	content_column := 'Paragraph "'.runes().len
 	assert source_column_at(source, content_column) == 0
@@ -77,7 +77,7 @@ fn test_preview_column_map_uses_terminal_display_cells_for_wide_text() {
 	columns, exact := build_preview_source_columns('中文', '中文', .terminal)
 	source := PreviewLineSource{
 		source_columns: columns
-		exact_columns: exact
+		exact_columns:  exact
 	}
 	assert source_column_at(source, 0) == 0
 	assert source_column_at(source, 1) == 0
@@ -98,7 +98,7 @@ fn test_preview_column_map_advances_across_wrapped_repeated_words() {
 	second_columns, second_exact := build_preview_source_columns_from(source, 'word beta', .terminal, next_source_column)
 	second := PreviewLineSource{
 		source_columns: second_columns
-		exact_columns: second_exact
+		exact_columns:  second_exact
 	}
 	assert source_column_at(second, 0) == 11
 	assert source_column_is_exact(second, 0)
@@ -116,18 +116,18 @@ fn test_preview_line_map_selects_matching_source_line_in_list_block() {
 fn test_preview_line_map_uses_source_column_for_wrapped_line() {
 	sources := [
 		PreviewLineSource{
-			start_line: 4
-			end_line: 4
-			source_line: 4
+			start_line:     4
+			end_line:       4
+			source_line:    4
 			source_columns: [0, 1, 2, 3]
-			exact_columns: [true, true, true, true]
+			exact_columns:  [true, true, true, true]
 		},
 		PreviewLineSource{
-			start_line: 4
-			end_line: 4
-			source_line: 4
+			start_line:     4
+			end_line:       4
+			source_line:    4
 			source_columns: [4, 5, 6, 7]
-			exact_columns: [true, true, true, true]
+			exact_columns:  [true, true, true, true]
 		},
 	]
 	assert find_preview_line_for_source_position(sources, 4, 1) == 0

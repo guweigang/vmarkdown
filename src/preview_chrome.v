@@ -211,24 +211,24 @@ struct PreviewModeItem {
 fn preview_mode_items() []PreviewModeItem {
 	return [
 		PreviewModeItem{
-			key: '1'
+			key:   '1'
 			label: 'terminal'
-			mode: .terminal
+			mode:  .terminal
 		},
 		PreviewModeItem{
-			key: '2'
+			key:   '2'
 			label: 'markdown'
-			mode: .markdown
+			mode:  .markdown
 		},
 		PreviewModeItem{
-			key: '3'
+			key:   '3'
 			label: 'html'
-			mode: .html
+			mode:  .html
 		},
 		PreviewModeItem{
-			key: '4'
+			key:   '4'
 			label: 'ast'
-			mode: .ast
+			mode:  .ast
 		},
 	]
 }
@@ -299,6 +299,9 @@ fn preview_help_lines() []string {
 		'i enters Insert mode for the original Markdown source',
 		'in the editor, Esc returns to Normal; 1/2/3/4 open rendered views',
 		'Esc leaves search input and clears search on the next press',
+		'z reveals or hides spoilers in Terminal view',
+		'Enter or click on a footnote number follows it',
+		'Shift+Enter or Backspace returns from a footnote',
 		'? toggles this help window',
 		'q quits the preview',
 	]

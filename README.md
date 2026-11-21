@@ -34,7 +34,7 @@ To use or develop the V library from source, check out the desired release tag
 and run the tests and example from the repository root:
 
 ```sh
-git clone --branch v0.1.0 https://github.com/guweigang/vmarkdown.git
+git clone --branch v0.2.0 https://github.com/guweigang/vmarkdown.git
 cd vmarkdown
 v test src
 v run examples/basic.v
@@ -116,6 +116,44 @@ println(doc.stable_id())
 stable dialect contract, use `parse_with_dialect(markdown, .commonmark)` or
 `parse_with_dialect(markdown, .gfm)`. Lower-level feature switches remain
 available through `parse_with_options()`.
+
+Enable GitHub-style alerts such as `> [!NOTE]` with
+`ParseOptions{ admonitions: true }`. The AST exposes an `AdmonitionNode` with a
+kind and child blocks. Add `--admonitions` after the filename in `preview`,
+`terminal`, `markdown`, `html`, or `ast` commands to try it in the CLI.
+For those same commands, `--github` enables both alerts and footnotes.
+
+Enable footnotes with `ParseOptions{ footnotes: true }` or `--footnotes` in
+the same CLI commands. Write `See note[^example]` and add a definition such
+as `[^example]: The note text.` The AST exposes typed references and
+definitions using md4c's numbering by first reference. md4c emits only
+referenced definitions. Terminal preview groups them under **Footnotes**.
+Click a reference number or press `Enter` with the cursor on it to follow it.
+Use `Backspace`, `Shift+Enter` where the terminal reports it, or click the
+definition number to return to the reference you followed.
+If distinct source labels become identical after md4c unescapes them,
+vmarkdown assigns a unique label so normalized Markdown preserves both notes.
+
+Enable `==highlight==`, `++insertion++`, `x^2^`, and `H~2~O` independently with
+`ParseOptions` fields `highlight`, `insertion`, `superscript`, and `subscript`.
+The corresponding CLI switches are `--highlight`, `--insertion`, `--superscript`,
+and `--subscript`. The AST represents each style as an `InlineStyleNode` with
+a kind and inline children. With subscript and strikethrough enabled together,
+use `~~text~~` for strikethrough.
+
+Enable `ParseOptions{ preserve_blank_lines: true }` or
+`--preserve-blank-lines` to keep leading, trailing, and inter-block blank-line
+runs in the AST, normalized Markdown, and terminal preview. md4c reports these
+as counts, so whitespace within a blank line is normalized. Footnote
+definitions are serialized at the end with a blank separator.
+
+Enable `ParseOptions{ spoilers: true }` or `--spoilers` for `||spoilers||`.
+Terminal view displays `[spoiler]`. Press `z` in the interactive Terminal view
+to reveal or hide the text, or set `TerminalRenderOptions.reveal_spoilers`
+in the library. HTML uses md4c's `<x-spoiler>` element. When both spoilers and
+tables are enabled, md4c reserves `||` for spoilers. Write empty cells as
+`| |` and literal pipes as `\|`. Default GFM parses adjacent `||` as cell
+separators.
 
 Text parsing is bounded by default, matching the defensive posture of binary
 decoding: 64 MiB input, one million AST nodes, and 256 open nesting frames.
@@ -222,7 +260,10 @@ and numbering invariants require parent context.
 
 Document encodings start with the `VMDA` magic and a format version. Version 1
 uses canonical unsigned varints for every length, count, and non-negative
-integer, so values cannot be silently truncated to 16 bits. Decode with
+integer, so values cannot be silently truncated to 16 bits. Admonitions need
+version 2, footnotes need version 3, and the four inline styles need version 4.
+Blank-line preservation and spoilers need version 5. Encoding uses the oldest applicable
+version for each document. Decode with
 `vmarkdown.binary_decode(bytes)!`. The complete contract and tag table are in
 [`BINARY_FORMAT.md`](BINARY_FORMAT.md).
 
@@ -504,9 +545,11 @@ produce exit status 1.
 
 ## Conformance and performance baselines
 
-The test suite checks structural Markdown round trips against 723 vendored md4c
+The test suite checks structural Markdown round trips against 869 vendored md4c
 examples: the CommonMark corpus plus tables, task lists, strikethrough,
-hard/soft breaks, permissive autolinks, wiki links, LaTeX math, and underline.
+hard/soft breaks, permissive autolinks, wiki links, LaTeX math, underline,
+footnotes, highlights, insertions, superscripts, subscripts, blank-line runs,
+and spoilers.
 Each example must preserve its versioned `stable_id()` after parse, normalized
 Markdown render, and reparse.
 

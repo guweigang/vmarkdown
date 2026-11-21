@@ -5,17 +5,17 @@ import vmarkdown
 fn test_public_parse_render_and_codec_contract() {
 	options := vmarkdown.parse_options_for_dialect(.commonmark)
 	doc := vmarkdown.parse_with_limits('# API\n\ntext', options, vmarkdown.ParseLimits{
-		max_input_bytes: 1024
-		max_nodes: 32
+		max_input_bytes:   1024
+		max_nodes:         32
 		max_nesting_depth: 16
 	}) or { panic(err) }
 	doc.validate() or { panic(err) }
 	doc.validate_with_limits(vmarkdown.AstValidationLimits{
-		max_nodes: 16
+		max_nodes:         16
 		max_nesting_depth: 8
 	}) or { panic(err) }
 	doc.children[0].validate_with_limits(vmarkdown.AstValidationLimits{
-		max_nodes: 8
+		max_nodes:         8
 		max_nesting_depth: 4
 	}) or { panic(err) }
 	headings := doc.find_all(.heading)
@@ -23,7 +23,7 @@ fn test_public_parse_render_and_codec_contract() {
 	assert headings[0].node is vmarkdown.HeadingNode
 	heading := headings[0].node as vmarkdown.HeadingNode
 	heading.children[0].validate_with_limits(vmarkdown.AstValidationLimits{
-		max_nodes: 4
+		max_nodes:         4
 		max_nesting_depth: 2
 	}) or { panic(err) }
 	mut visited_paths := []string{}
@@ -37,7 +37,7 @@ fn test_public_parse_render_and_codec_contract() {
 		return visit.kind != .hard_break
 	}) or { panic(err) }
 	assert doc.find_all_checked_with_limits(.heading, vmarkdown.AstValidationLimits{
-		max_nodes: 16
+		max_nodes:         16
 		max_nesting_depth: 8
 	}) or { panic(err) }.len == 1
 	rewritten := doc.rewrite_inlines(fn (visit vmarkdown.AstInlineRewrite) ![]vmarkdown.InlineNode {
@@ -48,15 +48,15 @@ fn test_public_parse_render_and_codec_contract() {
 	}) or { panic(err) }
 	assert rewritten.to_markdown().starts_with('# renamed')
 	assert doc.rewrite_blocks_with_limits(vmarkdown.AstValidationLimits{
-		max_nodes: 16
+		max_nodes:         16
 		max_nesting_depth: 8
 	}, fn (visit vmarkdown.AstBlockRewrite) ![]vmarkdown.BlockNode {
 		return [visit.node]
 	}) or { panic(err) }.stable_id() == doc.stable_id()
 	diagnostics := doc.lint([vmarkdown.LintRule{
-		id: 'contract.heading'
+		id:       'contract.heading'
 		severity: .info
-		check: fn (visit vmarkdown.AstVisit) []vmarkdown.LintFinding {
+		check:    fn (visit vmarkdown.AstVisit) []vmarkdown.LintFinding {
 			if visit.kind == .heading {
 				return [vmarkdown.LintFinding{ message: 'heading found' }]
 			}
@@ -64,20 +64,20 @@ fn test_public_parse_render_and_codec_contract() {
 		}
 	}]) or { panic(err) }
 	assert doc.lint_with_limits([]vmarkdown.LintRule{}, vmarkdown.AstValidationLimits{
-		max_nodes: 16
+		max_nodes:         16
 		max_nesting_depth: 8
 	}) or { panic(err) } == []vmarkdown.LintDiagnostic{}
 	assert diagnostics.len == 1
 	assert diagnostics[0].path == 'document.children[0]'
 	assert vmarkdown.lint_markdown('# Good') or { panic(err) } == []vmarkdown.LintDiagnostic{}
 	assert vmarkdown.lint_markdown_with_limits('# Good', vmarkdown.ParseOptions{}, vmarkdown.ParseLimits{
-		max_input_bytes: 64
-		max_nodes: 8
+		max_input_bytes:   64
+		max_nodes:         8
 		max_nesting_depth: 4
 	}) or { panic(err) } == []vmarkdown.LintDiagnostic{}
 	assert vmarkdown.recommended_lint_rules().len == 3
 	fixed := vmarkdown.apply_markdown_edits('draft', [vmarkdown.MarkdownTextEdit{
-		span: vmarkdown.SourceSpan{ start: 0, end: 5 }
+		span:        vmarkdown.SourceSpan{ start: 0, end: 5 }
 		replacement: 'final'
 	}]) or { panic(err) }
 	assert fixed == 'final'
@@ -96,7 +96,7 @@ fn test_public_parse_render_and_codec_contract() {
 	assert doc.to_markdown().starts_with('# API')
 	assert doc.to_markdown_checked() or { panic(err) } == doc.to_markdown()
 	render_limits := vmarkdown.AstValidationLimits{
-		max_nodes: 16
+		max_nodes:         16
 		max_nesting_depth: 8
 	}
 	assert doc.to_text_checked_with_limits(render_limits) or { panic(err) } == doc.to_text()
@@ -123,7 +123,7 @@ fn test_public_parse_render_and_codec_contract() {
 	parser_options := vmarkdown.ParseOptions{
 		wiki_links: true
 		latex_math: true
-		underline: true
+		underline:  true
 	}
 	assert vmarkdown.render_text_with_options('[[docs|Guide]]', parser_options) or {
 		panic(err)
@@ -135,8 +135,8 @@ fn test_public_parse_render_and_codec_contract() {
 		panic(err)
 	} == '_text_'
 	assert vmarkdown.render_text_with_limits('text', parser_options, vmarkdown.ParseLimits{
-		max_input_bytes: 64
-		max_nodes: 8
+		max_input_bytes:   64
+		max_nodes:         8
 		max_nesting_depth: 4
 	}) or { panic(err) } == 'text'
 	assert vmarkdown.render_json_with_limits('text', parser_options, vmarkdown.ParseLimits{
@@ -147,8 +147,8 @@ fn test_public_parse_render_and_codec_contract() {
 	}) or { panic(err) } == 'text'
 	assert vmarkdown.render_terminal_with_options('[[docs|Guide]]', vmarkdown.TerminalRenderOptions{
 		parser: parser_options
-		width: 80
-		color: false
+		width:  80
+		color:  false
 	}) or { panic(err) } == 'Guide ↗ docs'
 	assert vmarkdown.render_terminal_with_limits('text', vmarkdown.TerminalRenderOptions{
 		width: 80
@@ -159,7 +159,7 @@ fn test_public_parse_render_and_codec_contract() {
 	checked_encoded := doc.binary_encode_checked() or { panic(err) }
 	assert checked_encoded == encoded
 	assert doc.binary_encode_checked_with_limits(vmarkdown.AstValidationLimits{
-		max_nodes: 16
+		max_nodes:         16
 		max_nesting_depth: 8
 	}) or { panic(err) } == encoded
 	decoded := vmarkdown.binary_decode(encoded) or { panic(err) }
@@ -167,15 +167,15 @@ fn test_public_parse_render_and_codec_contract() {
 	assert decoded.encode() == encoded
 	assert decoded.semantic_encode().len > 0
 	limited := vmarkdown.binary_decode_with_limits(encoded, vmarkdown.BinaryDecodeLimits{
-		max_input_bytes: 1024
-		max_nodes: 32
+		max_input_bytes:   1024
+		max_nodes:         32
 		max_nesting_depth: 16
 	}) or { panic(err) }
 	assert limited.stable_id() == doc.stable_id()
 	assert doc.stable_id_checked() or { panic(err) } == doc.stable_id()
 	assert doc.semantic_stable_id_checked() or { panic(err) } == doc.semantic_stable_id()
 	assert doc.root_refs_checked_with_limits(vmarkdown.AstValidationLimits{
-		max_nodes: 16
+		max_nodes:         16
 		max_nesting_depth: 8
 	}) or { panic(err) } == doc.root_refs()
 	assert doc.children[0].stable_id_checked() or { panic(err) } == doc.children[0].stable_id()
@@ -189,7 +189,7 @@ fn test_public_parse_render_and_codec_contract() {
 	}) or { panic(err) }
 	assert html.contains('<p>line</p>')
 	assert vmarkdown.render_html_with_limits('line', vmarkdown.HtmlRenderOptions{}, vmarkdown.HtmlRenderLimits{
-		max_input_bytes: 64
+		max_input_bytes:  64
 		max_output_bytes: 64
 	}) or { panic(err) } == '<p>line</p>\n'
 }
@@ -197,7 +197,7 @@ fn test_public_parse_render_and_codec_contract() {
 fn test_public_validation_error_contract() {
 	invalid := vmarkdown.Document{
 		children: [vmarkdown.BlockNode(vmarkdown.HeadingNode{
-			span: vmarkdown.SourceSpan{ start: 4, end: 7 }
+			span:  vmarkdown.SourceSpan{ start: 4, end: 7 }
 			level: 0
 		})]
 	}
@@ -329,8 +329,8 @@ fn test_public_ingest_and_encoding_contract() {
 	doc := vmarkdown.parse_with_dialect('- one\n- two', .gfm) or { panic(err) }
 	mut store := vmarkdown.new_memory_store()
 	limited_result := store.ingest_with_limits('text', vmarkdown.ParseOptions{}, vmarkdown.ParseLimits{
-		max_input_bytes: 64
-		max_nodes: 8
+		max_input_bytes:   64
+		max_nodes:         8
 		max_nesting_depth: 4
 	}) or { panic(err) }
 	assert limited_result.root_id.len > 0

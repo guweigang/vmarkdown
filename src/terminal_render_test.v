@@ -5,8 +5,8 @@ import term
 fn test_one_shot_terminal_renderer_accepts_parser_options() {
 	out := render_terminal_with_options('[[docs|Guide]]', TerminalRenderOptions{
 		parser: ParseOptions{ wiki_links: true }
-		width: 80
-		color: false
+		width:  80
+		color:  false
 	}) or { panic(err) }
 	assert out == 'Guide ↗ docs'
 }
@@ -79,7 +79,7 @@ fn test_render_terminal_link_and_image_placeholders() {
 						text: [InlineNode(TextNode{
 							text: 'docs'
 						})]
-						url: 'https://example.com'
+						url:  'https://example.com'
 					}),
 					InlineNode(TextNode{
 						text: ' '
@@ -165,7 +165,7 @@ fn test_terminal_render_sanitizes_untrusted_control_sequences_by_default() {
 				})]
 			}),
 			BlockNode(CodeBlockNode{
-				lang: 'txt\x1b'
+				lang:    'txt\x1b'
 				content: 'line\x1b[2J\n'
 			}),
 			BlockNode(RawHtmlBlockNode{
@@ -193,8 +193,8 @@ fn test_terminal_render_can_explicitly_preserve_control_sequences() {
 		})]
 	}
 	rendered := doc.to_terminal_with_options(TerminalRenderOptions{
-		width: 60
-		color: false
+		width:                      60
+		color:                      false
 		sanitize_control_sequences: false
 	})
 	assert rendered.contains('\x1b[31m')

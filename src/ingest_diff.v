@@ -47,20 +47,20 @@ fn diff_entries(previous []BlockManifestEntry, current []BlockManifestEntry, ind
 		if previous_index >= 0 {
 			previous_entry := previous[previous_index]
 			diff << DiffEntry{
-				op: if in_order[current_index] { .reused } else { .moved }
-				id: entry.id
-				kind: chunk_kind(index, entry.id)
-				path: entry.path
-				previous_path: previous_entry.path
-				current_index: entry.index
+				op:             if in_order[current_index] { .reused } else { .moved }
+				id:             entry.id
+				kind:           chunk_kind(index, entry.id)
+				path:           entry.path
+				previous_path:  previous_entry.path
+				current_index:  entry.index
 				previous_index: previous_entry.index
 			}
 		} else {
 			diff << DiffEntry{
-				op: .added
-				id: entry.id
-				kind: chunk_kind(index, entry.id)
-				path: entry.path
+				op:            .added
+				id:            entry.id
+				kind:          chunk_kind(index, entry.id)
+				path:          entry.path
 				current_index: entry.index
 			}
 		}
@@ -68,10 +68,10 @@ fn diff_entries(previous []BlockManifestEntry, current []BlockManifestEntry, ind
 	for previous_index, entry in previous {
 		if !previous_used[previous_index] {
 			diff << DiffEntry{
-				op: .removed
-				id: entry.id
-				kind: entry.kind
-				path: entry.path
+				op:             .removed
+				id:             entry.id
+				kind:           entry.kind
+				path:           entry.path
 				previous_index: entry.index
 			}
 		}
@@ -140,11 +140,11 @@ fn filter_diff(entries []DiffEntry, op DiffOp) []DiffEntry {
 
 fn build_diff_summary(entries []DiffEntry) DiffSummary {
 	return DiffSummary{
-		added: summarize_entries(entries, .added)
+		added:   summarize_entries(entries, .added)
 		removed: summarize_entries(entries, .removed)
-		reused: summarize_entries(entries, .reused)
-		moved: summarize_entries(entries, .moved)
-		lines: summary_lines(entries)
+		reused:  summarize_entries(entries, .reused)
+		moved:   summarize_entries(entries, .moved)
+		lines:   summary_lines(entries)
 	}
 }
 
@@ -158,8 +158,8 @@ fn summarize_entries(entries []DiffEntry, op DiffOp) []DiffSummaryItem {
 		key := entry.kind
 		if key !in grouped {
 			grouped[key] = DiffSummaryItem{
-				op: op
-				kind: entry.kind
+				op:    op
+				kind:  entry.kind
 				count: 0
 				paths: []string{}
 			}

@@ -1,18 +1,25 @@
-# VMDA binary format v1
+# VMDA binary format
 
 The binary codec is a deterministic, content-oriented representation of the
 vmarkdown AST. It is not a memory dump and it never includes `SourceSpan`:
 source positions describe one parse location and must not change content IDs.
 
-Every document starts with the ASCII magic `VMDA`, followed by version byte
-`0x01`, the document tag `0x00`, a canonical unsigned LEB128 payload length,
-and the block sequence. Integers, counts, and byte lengths are canonical
+Every document starts with the ASCII magic `VMDA`, followed by a version byte
+(`0x01` through `0x05`), then the document tag `0x00`. Version 5 puts a
+`preserve_blank_lines:bool` byte immediately after the tag. A canonical unsigned
+LEB128 payload length and the block sequence follow. Integers, counts, and byte lengths are canonical
 unsigned LEB128 values; negative values cannot be encoded. Strings are UTF-8.
 Within each inline sequence, whitespace runs in text nodes collapse to one ASCII
 space. Only whitespace at the two outer boundaries of the complete sequence is
 trimmed; a space between text and another inline record remains significant.
 
-Block tags are `01` heading, `02` paragraph, `03` list, `04` metadata, `05`
+Version 2 adds the admonition block tag `0a`. Version 3 adds footnote
+definition tag `0b` and footnote reference tag `2d`. Version 4 adds the inline
+style tag `2e`. Version 5 adds blank-line runs, the document layout setting,
+and spoilers. The encoder uses the oldest version that can represent the
+document. The decoder checks each tag against the envelope version.
+
+The v1 block tags are `01` heading, `02` paragraph, `03` list, `04` metadata, `05`
 blockquote, `06` code block, `07` horizontal rule, `08` table, and `09` raw
 HTML block. List items use framed tag `10`.
 
@@ -41,6 +48,9 @@ size must exactly match that length.
 | `07` horizontal rule | no payload |
 | `08` table | `columns:varint, head_rows:varint, body_rows:varint, repeated framed rows` |
 | `09` raw HTML block | `html:bytes` |
+| `0a` admonition (v2) | `kind:u8, framed block sequence` |
+| `0b` footnote definition (v3) | `number:varint, label:bytes, framed inline sequence` |
+| `0c` blank-line run (v5) | `line_count:varint` (positive) |
 | `10` list item | `level:varint, number:varint, task:bool, checked:bool, framed length-prefixed blocks` |
 | `20` text | `text:bytes` |
 | `21` emphasis | `framed inline sequence` |
@@ -55,10 +65,21 @@ size must exactly match that length.
 | `2a` wiki link | `target:bytes, framed inline label` |
 | `2b` LaTeX math | `display:bool, content:bytes` |
 | `2c` underline | `framed inline sequence` |
+| `2d` footnote reference (v3) | `number:varint, label:bytes` |
+| `2e` inline style (v4) | `kind:u8, framed inline sequence` |
 
 A table row is `cell_count:varint` followed by cells. Each cell is
 `alignment:u8` plus a framed inline sequence. Alignment values are `00`
 default, `01` left, `02` center, and `03` right.
+
+Admonition kinds are `00` note, `01` tip, `02` important, `03` warning, and
+`04` caution.
+
+Footnote numbers are positive, starting at `1` in documents parsed by md4c.
+Repeated references to the same note use the same number.
+
+Inline style kinds are `00` highlight, `01` insertion, `02` superscript,
+`03` subscript, and `04` spoiler (v5 only).
 
 The byte-for-byte golden fixtures in `src/binary_codec_test.v` cover every v1
 tag, both LaTeX math flag values, and significant whitespace between inline
@@ -74,19 +95,19 @@ the same ID. Treating only the complete inline sequence boundaries as trim
 boundaries corrects that v1 implementation bug. Stable IDs produced by the
 buggy encoder for affected documents are intentionally replaced.
 
-The v1 decoder rejects incorrect magic or versions, non-canonical or
+The decoder rejects incorrect magic or versions, non-canonical or
 overflowing varints, invalid UTF-8, unknown tags, invalid flags/enums,
 truncation, trailing bytes, non-normalized text, non-canonical metadata order,
 and documents beyond its published size, depth, or node-count limits. After
 structural and semantic validation, it re-encodes the AST and requires an exact
-byte match so every accepted v1 document has one canonical representation.
+byte match so every accepted document has one canonical representation.
 Failures are exposed as `BinaryDecodeError`, with a stable category and the
 best available zero-based byte offset. Configuration and whole-AST semantic
 errors use offset `-1` because no single payload byte identifies the failure.
 
 The public decoder defaults to 64 MiB of input, one million decoded AST nodes,
 and 256 nesting levels. `binary_decode_with_limits()` can tighten or explicitly
-remove those budgets without changing the v1 bytes. The node count includes the
+remove those budgets without changing the encoded bytes. The node count includes the
 root document. The reconstructed document passes the format-independent AST
 validator with the caller's same node and depth budgets before it is returned.
 
@@ -95,5 +116,5 @@ validation contract. In particular, headings use levels 1 through 6; list
 levels, numbers, starts, and task state are canonical; tables have one header
 row and a consistent positive column count; normalized metadata keys are
 unique; inline containers are structurally renderable; and source-span fields
-are either valid half-open ranges or unavailable negative ranges. Decoded v1
+are either valid half-open ranges or unavailable negative ranges. Decoded
 documents do not carry source spans and therefore use unavailable ranges.

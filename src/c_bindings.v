@@ -27,6 +27,30 @@ struct C.MD_ATTRIBUTE {
 }
 
 @[typedef]
+struct C.MD_BLOCK_BLANK_DETAIL {
+	line_count u32
+}
+
+@[typedef]
+struct C.MD_BLOCK_FOOTNOTE_DEF_DETAIL {
+	id        u32
+	ref_count u32
+	label     C.MD_ATTRIBUTE
+}
+
+@[typedef]
+struct C.MD_SPAN_FOOTNOTE_REF_DETAIL {
+	id     u32
+	ref_id u32
+	label  C.MD_ATTRIBUTE
+}
+
+@[typedef]
+struct C.MD_BLOCK_ADMONITION_DETAIL {
+	type C.MD_ATTRIBUTE
+}
+
+@[typedef]
 struct C.MD_BLOCK_OL_DETAIL {
 	start          u32
 	is_tight       int

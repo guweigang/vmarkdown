@@ -87,7 +87,7 @@ fn test_one_shot_renderers_accept_parser_options() {
 	options := ParseOptions{
 		wiki_links: true
 		latex_math: true
-		underline: true
+		underline:  true
 	}
 	input := r'[[docs|Guide]] $x^2$ _underlined_'
 	assert render_text_with_options(input, options) or { panic(err) } == 'Guide x^2 underlined'
@@ -100,8 +100,8 @@ fn test_one_shot_renderers_accept_parser_options() {
 
 fn test_one_shot_renderers_accept_parse_limits() {
 	limits := ParseLimits{
-		max_input_bytes: 64
-		max_nodes: 8
+		max_input_bytes:   64
+		max_nodes:         8
 		max_nesting_depth: 4
 	}
 	assert render_text_with_limits('text', ParseOptions{}, limits) or { panic(err) } == 'text'
@@ -177,7 +177,7 @@ fn test_checked_document_renderers_match_trusted_fast_paths() {
 	assert doc.to_json_checked() or { panic(err) } == doc.to_json()
 	assert doc.to_markdown_checked() or { panic(err) } == doc.to_markdown()
 	limits := AstValidationLimits{
-		max_nodes: 8
+		max_nodes:         8
 		max_nesting_depth: 4
 	}
 	assert doc.to_text_checked_with_limits(limits) or { panic(err) } == doc.to_text()
@@ -281,7 +281,7 @@ fn test_render_markdown_wraps_complex_link_destinations() {
 						text: [InlineNode(TextNode{
 							text: 'docs'
 						})]
-						url: 'https://example.com/a(b c)'
+						url:  'https://example.com/a(b c)'
 					}),
 				]
 			}),
@@ -314,7 +314,7 @@ fn test_render_wiki_link_escapes_target_delimiter() {
 		children: [BlockNode(ParagraphNode{
 			children: [InlineNode(WikiLinkNode{
 				target: 'foo|bar'
-				text: [InlineNode(TextNode{ text: 'label' })]
+				text:   [InlineNode(TextNode{ text: 'label' })]
 			})]
 		})]
 	}
@@ -325,18 +325,21 @@ fn test_render_wiki_link_escapes_target_delimiter() {
 	assert reparsed.stable_id() == doc.stable_id()
 }
 
-fn test_render_table_preserves_wiki_link_delimiters() {
-	input := '| A | B |\n| --- | --- |\n| [[foo|*bar*|baz]] | end |\n'
-	doc := parse_with_options(input, ParseOptions{
+fn test_render_table_escapes_literal_pipes_in_wiki_link_labels() {
+	input := '| A | B |\n| --- | --- |\n| [[foo|*bar*\\|baz]] | end |\n'
+	options := ParseOptions{
 		wiki_links: true
-	}) or { panic(err) }
+	}
+	doc := parse_with_options(input, options) or { panic(err) }
 	markdown := doc.to_markdown()
-	assert markdown.contains('[[foo|*bar*|baz]]')
+	assert markdown.contains(r'[[foo|*bar*\|baz]]')
 	assert !markdown.contains(r'[[foo\|')
-	reparsed := parse_with_options(markdown, ParseOptions{
-		wiki_links: true
-	}) or { panic(err) }
+	reparsed := parse_with_options(markdown, options) or { panic(err) }
 	assert reparsed.stable_id() == doc.stable_id()
+	html := render_html_with_options(input, HtmlRenderOptions{
+		parser: options
+	}) or { panic(err) }
+	assert html.contains('<td><x-wikilink data-target="foo"><em>bar</em>|baz</x-wikilink></td>\n<td>end</td>')
 }
 
 fn test_render_latex_math_text_json_terminal_and_markdown() {

@@ -157,8 +157,8 @@ fn parse_mermaid_header(line string, diagram MermaidDiagram) !(MermaidDiagram, b
 		return diagram, false
 	}
 	kind := parts[0].to_lower()
-	if kind !in ['flowchart', 'graph', 'sequencediagram', 'statediagram-v2', 'classdiagram',
-		'erdiagram', 'gantt', 'mindmap', 'journey', 'gitgraph', 'timeline'] {
+	if kind !in ['flowchart', 'graph', 'sequencediagram', 'statediagram-v2', 'classdiagram', 'erdiagram',
+		'gantt', 'mindmap', 'journey', 'gitgraph', 'timeline'] {
 		return diagram, false
 	}
 	mut updated := MermaidDiagram{

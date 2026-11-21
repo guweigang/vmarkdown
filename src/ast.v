@@ -2,7 +2,8 @@ module vmarkdown
 
 pub struct Document {
 pub:
-	span SourceSpan = SourceSpan{ start: -1, end: -1 }
+	span                 SourceSpan = SourceSpan{ start: -1, end: -1 }
+	preserve_blank_lines bool
 pub mut:
 	children []BlockNode
 }
@@ -23,8 +24,11 @@ pub fn (span SourceSpan) len() int {
 	return if span.is_valid() { span.end - span.start } else { 0 }
 }
 
-pub type BlockNode = BlockquoteNode
+pub type BlockNode = AdmonitionNode
+	| BlankLinesNode
+	| BlockquoteNode
 	| CodeBlockNode
+	| FootnoteDefinitionNode
 	| HeadingNode
 	| HorizontalRuleNode
 	| ListNode
@@ -49,6 +53,35 @@ pub:
 pub struct ParagraphNode {
 pub:
 	span     SourceSpan = SourceSpan{ start: -1, end: -1 }
+	children []InlineNode
+}
+
+pub enum AdmonitionKind {
+	note
+	tip
+	important
+	warning
+	caution
+}
+
+pub struct AdmonitionNode {
+pub:
+	span     SourceSpan = SourceSpan{ start: -1, end: -1 }
+	kind     AdmonitionKind
+	children []BlockNode
+}
+
+pub struct BlankLinesNode {
+pub:
+	span       SourceSpan = SourceSpan{ start: -1, end: -1 }
+	line_count int
+}
+
+pub struct FootnoteDefinitionNode {
+pub:
+	span     SourceSpan = SourceSpan{ start: -1, end: -1 }
+	label    string
+	number   int
 	children []InlineNode
 }
 
@@ -125,8 +158,10 @@ pub:
 
 pub type InlineNode = CodeSpanNode
 	| EmphasisNode
+	| FootnoteReferenceNode
 	| HardBreakNode
 	| ImageNode
+	| InlineStyleNode
 	| LatexMathNode
 	| LinkNode
 	| RawHtmlInlineNode
@@ -187,6 +222,28 @@ pub:
 	url  string
 }
 
+pub struct FootnoteReferenceNode {
+pub:
+	span   SourceSpan = SourceSpan{ start: -1, end: -1 }
+	label  string
+	number int
+}
+
+pub enum InlineStyleKind {
+	highlight
+	insertion
+	superscript
+	subscript
+	spoiler
+}
+
+pub struct InlineStyleNode {
+pub:
+	span     SourceSpan = SourceSpan{ start: -1, end: -1 }
+	kind     InlineStyleKind
+	children []InlineNode
+}
+
 pub struct WikiLinkNode {
 pub:
 	span   SourceSpan = SourceSpan{ start: -1, end: -1 }
@@ -219,7 +276,10 @@ pub:
 
 pub fn (node BlockNode) source_span() SourceSpan {
 	return match node {
+		AdmonitionNode { node.span }
+		BlankLinesNode { node.span }
 		BlockquoteNode { node.span }
+		FootnoteDefinitionNode { node.span }
 		CodeBlockNode { node.span }
 		HeadingNode { node.span }
 		HorizontalRuleNode { node.span }
@@ -245,6 +305,17 @@ pub fn (node InlineNode) source_span() SourceSpan {
 		StrongNode { node.span }
 		TextNode { node.span }
 		UnderlineNode { node.span }
+		InlineStyleNode { node.span }
 		WikiLinkNode { node.span }
+		FootnoteReferenceNode { node.span }
 	}
+}
+
+fn has_explicit_blank_lines(children []BlockNode) bool {
+	return children.any(it is BlankLinesNode)
+}
+
+fn join_preserved_lines(lines []string) string {
+	joined := lines.join('\n')
+	return if lines.len > 0 && lines.last().len == 0 { joined + '\n' } else { joined }
 }

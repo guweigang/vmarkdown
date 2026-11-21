@@ -103,7 +103,7 @@ fn test_ingest_document_rejects_invalid_ast_without_mutating_store() {
 	doc := Document{
 		children: [BlockNode(ListNode{
 			is_ordered: true
-			start: -1
+			start:      -1
 		})]
 	}
 	if _ := store.ingest_document(doc) {
@@ -133,8 +133,8 @@ fn test_ingest_pipeline_accepts_options_and_limits() {
 	result := store.ingest_with_limits('[[docs|Guide]]', ParseOptions{
 		wiki_links: true
 	}, ParseLimits{
-		max_input_bytes: 64
-		max_nodes: 8
+		max_input_bytes:   64
+		max_nodes:         8
 		max_nesting_depth: 4
 	}) or { panic(err) }
 	assert result.root_id.len > 0

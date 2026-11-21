@@ -57,9 +57,9 @@ pub fn decode_markdown_bytes(bytes []u8, requested_encoding string) !MarkdownFil
 	raw := bytes.bytestr()
 	if validate.utf8_string(raw) {
 		return MarkdownFile{
-			text: raw
+			text:     raw
 			encoding: .utf8
-			raw: bytes.clone()
+			raw:      bytes.clone()
 		}
 	}
 	if decoded := decode_markdown_as(bytes, .gbk, false, bytes) {
@@ -142,10 +142,10 @@ fn decode_markdown_as(payload []u8, encoding MarkdownEncoding, bom bool, origina
 		return error('file is not valid ${encoding.label()}')
 	}
 	return MarkdownFile{
-		text: text
+		text:     text
 		encoding: encoding
-		bom: bom
-		raw: original.clone()
+		bom:      bom
+		raw:      original.clone()
 	}
 }
 

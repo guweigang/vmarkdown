@@ -29,6 +29,10 @@ pub enum AstValidationErrorKind {
 	latex_math_content
 	invalid_utf8
 	invalid_limits
+	admonition_kind
+	footnote
+	inline_style
+	blank_lines
 }
 
 pub struct AstValidationError {
@@ -130,6 +134,32 @@ fn (mut validator AstValidator) validate_block(node BlockNode, path string, dept
 			validator.validate_inlines(node.children, '${path}.children', depth + 1, false)!
 		}
 		BlockquoteNode {
+			for index, child in node.children {
+				validator.validate_block(child, '${path}.children[${index}]', depth + 1, list_depth)!
+			}
+		}
+		FootnoteDefinitionNode {
+			validate_footnote(node.label, node.number, path, node.span)!
+			validator.validate_inlines(node.children, '${path}.children', depth + 1, false)!
+		}
+		BlankLinesNode {
+			if node.line_count < 1 {
+				return validation_error(.blank_lines, '${path}.line_count', 'must be positive', node.span)
+			}
+			// Rendering expands the run, so charge the existing node budget
+			// for the number of output lines it represents.
+			if validator.limits.max_nodes > 0
+				&& node.line_count - 1 > validator.limits.max_nodes - validator.nodes {
+				return validation_error(.validation_limit, path, 'blank lines exceed the AST node budget', node.span)
+			}
+			if validator.limits.max_nodes > 0 {
+				validator.nodes += node.line_count - 1
+			}
+		}
+		AdmonitionNode {
+			if int(node.kind) < int(AdmonitionKind.note) || int(node.kind) > int(AdmonitionKind.caution) {
+				return validation_error(.admonition_kind, '${path}.kind', 'invalid admonition kind', node.span)
+			}
 			for index, child in node.children {
 				validator.validate_block(child, '${path}.children[${index}]', depth + 1, list_depth)!
 			}
@@ -254,6 +284,13 @@ fn (mut validator AstValidator) validate_inline(node InlineNode, path string, de
 			validate_nonempty_inline_container(node.children, '${path}.children')!
 			validator.validate_inlines(node.children, '${path}.children', depth + 1, inside_link)!
 		}
+		InlineStyleNode {
+			if int(node.kind) < int(InlineStyleKind.highlight) || int(node.kind) > int(InlineStyleKind.spoiler) {
+				return validation_error(.inline_style, '${path}.kind', 'invalid inline style', node.span)
+			}
+			validate_nonempty_inline_container(node.children, '${path}.children')!
+			validator.validate_inlines(node.children, '${path}.children', depth + 1, inside_link)!
+		}
 		UnderlineNode {
 			validate_nonempty_inline_container(node.children, '${path}.children')!
 			validator.validate_inlines(node.children, '${path}.children', depth + 1, inside_link)!
@@ -264,6 +301,9 @@ fn (mut validator AstValidator) validate_inline(node InlineNode, path string, de
 				return validation_error(.nested_link, path, 'cannot nest a link inside another link', node.span)
 			}
 			validator.validate_inlines(node.text, '${path}.text', depth + 1, true)!
+		}
+		FootnoteReferenceNode {
+			validate_footnote(node.label, node.number, path, node.span)!
 		}
 		WikiLinkNode {
 			validate_utf8_field(node.target, '${path}.target', node.span)!
@@ -331,9 +371,19 @@ fn validate_utf8_field(value string, path string, span SourceSpan) ! {
 
 fn validation_error(kind AstValidationErrorKind, path string, message string, span SourceSpan) IError {
 	return AstValidationError{
-		kind: kind
-		path: path
-		span: span
+		kind:    kind
+		path:    path
+		span:    span
 		message: message
+	}
+}
+
+fn validate_footnote(label string, number int, path string, span SourceSpan) ! {
+	validate_utf8_field(label, '${path}.label', span)!
+	if label.len == 0 || label.len > max_footnote_label_bytes || label.contains_any(' []\t\r\n') {
+		return validation_error(.footnote, '${path}.label', 'invalid footnote label', span)
+	}
+	if number < 1 {
+		return validation_error(.footnote, '${path}.number', 'must be positive', span)
 	}
 }

@@ -80,9 +80,9 @@ pub fn new_source_index(source string) !SourceIndex {
 	}
 	ends << source.len
 	return SourceIndex{
-		source: source
+		source:      source
 		line_starts: starts
-		line_ends: ends
+		line_ends:   ends
 	}
 }
 
@@ -106,9 +106,9 @@ pub fn (index SourceIndex) position(offset int) !SourcePosition {
 	line_index := index.line_index_for_offset(offset)
 	line_start := index.line_starts[line_index]
 	return SourcePosition{
-		offset: offset
-		line: line_index + 1
-		column: index.source[line_start..offset].runes().len + 1
+		offset:      offset
+		line:        line_index + 1
+		column:      index.source[line_start..offset].runes().len + 1
 		byte_column: offset - line_start + 1
 	}
 }
@@ -131,8 +131,8 @@ pub fn (index SourceIndex) locate_diagnostics(diagnostics []LintDiagnostic) ![]L
 		}
 		located << LocatedLintDiagnostic{
 			diagnostic: diagnostic
-			has_range: true
-			range: index.range(diagnostic.span)!
+			has_range:  true
+			range:      index.range(diagnostic.span)!
 		}
 	}
 	return located
@@ -145,7 +145,7 @@ pub fn (index SourceIndex) range(span SourceSpan) !SourceRange {
 	}
 	return SourceRange{
 		start: index.position(span.start)!
-		end: index.position(span.end)!
+		end:   index.position(span.end)!
 	}
 }
 
@@ -178,7 +178,7 @@ fn is_utf8_boundary(source string, offset int) bool {
 
 fn source_index_error(kind SourceIndexErrorKind, message string) SourceIndexError {
 	return SourceIndexError{
-		kind: kind
+		kind:    kind
 		message: message
 	}
 }

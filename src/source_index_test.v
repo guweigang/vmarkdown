@@ -10,26 +10,26 @@ fn test_source_index_maps_utf8_and_mixed_line_endings() {
 	assert index.line_text(4) or { panic(err) } == 'end'
 
 	assert index.position(0) or { panic(err) } == SourcePosition{
-		offset: 0
-		line: 1
-		column: 1
+		offset:      0
+		line:        1
+		column:      1
 		byte_column: 1
 	}
 	assert index.position(4) or { panic(err) } == SourcePosition{
-		offset: 4
-		line: 2
-		column: 1
+		offset:      4
+		line:        2
+		column:      1
 		byte_column: 1
 	}
 	assert index.position(7) or { panic(err) } == SourcePosition{
-		offset: 7
-		line: 2
-		column: 2
+		offset:      7
+		line:        2
+		column:      2
 		byte_column: 4
 	}
 	assert index.range(SourceSpan{ start: 4, end: 10 }) or { panic(err) } == SourceRange{
 		start: SourcePosition{ offset: 4, line: 2, column: 1, byte_column: 1 }
-		end: SourcePosition{ offset: 10, line: 2, column: 3, byte_column: 7 }
+		end:   SourcePosition{ offset: 10, line: 2, column: 3, byte_column: 7 }
 	}
 }
 
@@ -38,9 +38,9 @@ fn test_source_index_preserves_trailing_empty_line() {
 	assert index.line_count() == 2
 	assert index.line_text(2) or { panic(err) } == ''
 	assert index.position(4) or { panic(err) } == SourcePosition{
-		offset: 4
-		line: 2
-		column: 1
+		offset:      4
+		line:        2
+		column:      1
 		byte_column: 1
 	}
 }
@@ -50,15 +50,15 @@ fn test_source_index_locates_lint_diagnostics_and_preserves_unavailable_spans() 
 		LintDiagnostic{
 			rule_id: 'example.first'
 			message: 'first'
-			kind: .text
-			path: 'document.children[0]'
-			span: SourceSpan{ start: 4, end: 10 }
+			kind:    .text
+			path:    'document.children[0]'
+			span:    SourceSpan{ start: 4, end: 10 }
 		},
 		LintDiagnostic{
 			rule_id: 'example.global'
 			message: 'global'
-			kind: .document
-			path: 'document'
+			kind:    .document
+			path:    'document'
 		},
 	]
 	located := locate_lint_diagnostics('α\r\n中文', diagnostics) or { panic(err) }

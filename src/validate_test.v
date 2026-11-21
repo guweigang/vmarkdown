@@ -13,7 +13,7 @@ fn test_parsed_ast_satisfies_validation_contract() {
 fn test_validation_rejects_invalid_heading_and_source_span() {
 	heading := Document{
 		children: [BlockNode(HeadingNode{
-			span: SourceSpan{ start: 4, end: 2 }
+			span:  SourceSpan{ start: 4, end: 2 }
 			level: 7
 		})]
 	}
@@ -29,8 +29,8 @@ fn test_validation_rejects_noncanonical_list_state() {
 	bad_number := Document{
 		children: [BlockNode(ListNode{
 			is_ordered: true
-			start: 3
-			items: [ListItemNode{ level: 1, number: 4 }]
+			start:      3
+			items:      [ListItemNode{ level: 1, number: 4 }]
 		})]
 	}
 	assert document_validation_error(bad_number).contains('.number must be 3')
@@ -48,7 +48,7 @@ fn test_validation_rejects_table_shape_mismatch() {
 	doc := Document{
 		children: [BlockNode(TableNode{
 			columns: 2
-			head: [TableRowNode{
+			head:    [TableRowNode{
 				cells: [TableCellNode{}]
 			}]
 		})]
@@ -65,7 +65,7 @@ fn test_validation_rejects_unstable_inline_shapes() {
 	assert document_validation_error(adjacent_text).contains('is adjacent to another text node')
 
 	nested_link := InlineNode(LinkNode{
-		url: 'outer'
+		url:  'outer'
 		text: [InlineNode(LinkNode{ url: 'inner' })]
 	})
 	if _ := nested_link.validate() {
@@ -78,7 +78,7 @@ fn test_validation_rejects_unstable_inline_shapes() {
 fn test_validation_rejects_invalid_and_nested_wiki_links() {
 	empty_target := InlineNode(WikiLinkNode{
 		target: '  '
-		text: [InlineNode(TextNode{ text: 'label' })]
+		text:   [InlineNode(TextNode{ text: 'label' })]
 	})
 	if _ := empty_target.validate() {
 		assert false, 'empty wiki-link targets must fail validation'
@@ -88,10 +88,10 @@ fn test_validation_rejects_invalid_and_nested_wiki_links() {
 	}
 
 	nested := InlineNode(LinkNode{
-		url: 'outer'
+		url:  'outer'
 		text: [InlineNode(WikiLinkNode{
 			target: 'inner'
-			text: [InlineNode(TextNode{ text: 'inner' })]
+			text:   [InlineNode(TextNode{ text: 'inner' })]
 		})]
 	})
 	if _ := nested.validate() {
@@ -162,11 +162,11 @@ fn test_ast_validation_supports_configurable_resource_limits() {
 		})]
 	}
 	doc.validate_with_limits(AstValidationLimits{
-		max_nodes: 3
+		max_nodes:         3
 		max_nesting_depth: 2
 	}) or { panic(err) }
 	doc.validate_with_limits(AstValidationLimits{
-		max_nodes: 0
+		max_nodes:         0
 		max_nesting_depth: 0
 	}) or { panic(err) }
 

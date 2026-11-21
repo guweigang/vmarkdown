@@ -5,19 +5,19 @@ module vmarkdown
 pub fn recommended_lint_rules() []LintRule {
 	return [
 		LintRule{
-			id: 'vmarkdown.empty-heading'
+			id:       'vmarkdown.empty-heading'
 			severity: .warning
-			check: check_empty_heading
+			check:    check_empty_heading
 		},
 		LintRule{
-			id: 'vmarkdown.image-alt-text'
+			id:       'vmarkdown.image-alt-text'
 			severity: .warning
-			check: check_image_alt_text
+			check:    check_image_alt_text
 		},
 		LintRule{
-			id: 'vmarkdown.empty-link-destination'
+			id:       'vmarkdown.empty-link-destination'
 			severity: .warning
-			check: check_empty_link_destination
+			check:    check_empty_link_destination
 		},
 	]
 }
@@ -33,7 +33,7 @@ pub fn lint_markdown_with_options(source string, options ParseOptions) ![]LintDi
 pub fn lint_markdown_with_limits(source string, options ParseOptions, limits ParseLimits) ![]LintDiagnostic {
 	doc := parse_with_limits(source, options, limits)!
 	mut diagnostics := doc.lint_with_limits(recommended_lint_rules(), AstValidationLimits{
-		max_nodes: limits.max_nodes
+		max_nodes:         limits.max_nodes
 		max_nesting_depth: limits.max_nesting_depth
 	})!
 	diagnostics << trailing_whitespace_diagnostics(source)
@@ -55,13 +55,13 @@ fn trailing_whitespace_diagnostics(source string) []LintDiagnostic {
 			if trailing_start < offset {
 				span := SourceSpan{ start: trailing_start, end: offset }
 				diagnostics << LintDiagnostic{
-					rule_id: 'vmarkdown.trailing-whitespace'
+					rule_id:  'vmarkdown.trailing-whitespace'
 					severity: .warning
-					message: 'line has trailing whitespace'
-					kind: .document
-					path: 'document'
-					span: span
-					edits: [MarkdownTextEdit{ span: span }]
+					message:  'line has trailing whitespace'
+					kind:     .document
+					path:     'document'
+					span:     span
+					edits:    [MarkdownTextEdit{ span: span }]
 				}
 			}
 			if at_end {

@@ -48,6 +48,28 @@ fn test_markdown_editor_word_movements() {
 	assert ed.cursor_x == 5
 }
 
+fn test_editor_word_motion_crosses_punctuation_and_punctuation_only_lines() {
+	mut ed := new_markdown_editor('a[] b\n!!!\n末尾')
+	ed.move_word_forward()
+	assert ed.cursor_x == 1
+	ed.move_word_forward()
+	assert ed.cursor_x == 4
+	ed.move_word_forward()
+	assert ed.cursor_y == 1
+	assert ed.cursor_x == 0
+	ed.move_word_forward()
+	assert ed.cursor_y == 2
+	assert ed.cursor_x == 0
+	ed.move_word_backward()
+	assert ed.cursor_y == 1
+	assert ed.cursor_x == 0
+	ed.move_word_backward()
+	assert ed.cursor_y == 0
+	assert ed.cursor_x == 4
+	ed.move_word_backward()
+	assert ed.cursor_x == 1
+}
+
 fn test_markdown_editor_groups_one_insert_session_into_one_undo() {
 	mut ed := new_markdown_editor('before')
 	ed.cursor_x = ed.current_line().runes().len

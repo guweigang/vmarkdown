@@ -34,8 +34,8 @@ fn test_lint_markdown_reports_and_fixes_trailing_whitespace() {
 
 fn test_lint_markdown_with_limits_threads_the_pipeline_budget() {
 	assert lint_markdown_with_limits('# Good', ParseOptions{}, ParseLimits{
-		max_input_bytes: 64
-		max_nodes: 8
+		max_input_bytes:   64
+		max_nodes:         8
 		max_nesting_depth: 4
 	}) or { panic(err) } == []LintDiagnostic{}
 	if _ := lint_markdown_with_limits('text', ParseOptions{}, ParseLimits{ max_nodes: 2 }) {

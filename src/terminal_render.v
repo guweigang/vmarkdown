@@ -10,6 +10,7 @@ pub:
 	width                      int
 	color                      bool = true
 	sanitize_control_sequences bool = true
+	reveal_spoilers            bool
 }
 
 struct TerminalStyle {
@@ -57,20 +58,26 @@ pub fn (doc Document) to_terminal_checked_with_limits(options TerminalRenderOpti
 }
 
 pub fn (doc Document) to_terminal_with_options(options TerminalRenderOptions) string {
-	width := terminal_width(options)
-	color := options.color && term.can_show_color_on_stdout()
-	mut ctx := TerminalRenderer{
-		width: width
-		color: color
+	return new_terminal_renderer(doc, options).render_document(doc)
+}
+
+fn new_terminal_renderer(doc Document, options TerminalRenderOptions) TerminalRenderer {
+	return TerminalRenderer{
+		width:                      terminal_width(options)
+		color:                      options.color && term.can_show_color_on_stdout()
 		sanitize_control_sequences: options.sanitize_control_sequences
+		reveal_spoilers:            options.reveal_spoilers
+		preserve_blank_lines:       doc.preserve_blank_lines
 	}
-	return ctx.render_document(doc)
 }
 
 struct TerminalRenderer {
 	width                      int
 	color                      bool
 	sanitize_control_sequences bool
+	reveal_spoilers            bool
+	preserve_blank_lines       bool
+	mark_footnotes             bool
 }
 
 fn terminal_width(options TerminalRenderOptions) int {
@@ -83,17 +90,28 @@ fn terminal_width(options TerminalRenderOptions) int {
 
 fn (r TerminalRenderer) render_document(doc Document) string {
 	mut blocks := []string{}
+	mut footnote_heading := false
+	preserve := r.preserve_blank_lines || has_explicit_blank_lines(doc.children)
 	for child in doc.children {
+		if child is BlankLinesNode {
+			blocks << []string{len: child.line_count}
+			continue
+		}
+		if child is FootnoteDefinitionNode && !footnote_heading {
+			blocks << r.style_line('Footnotes', TerminalStyle{'heading'})
+			footnote_heading = true
+		}
 		rendered := r.render_block(child, '', 0)
 		if rendered.len > 0 {
 			blocks << rendered
 		}
 	}
-	return blocks.join('\n\n')
+	return if preserve { join_preserved_lines(blocks) } else { blocks.join('\n\n') }
 }
 
 fn (r TerminalRenderer) render_block(node BlockNode, prefix string, depth int) string {
 	match node {
+		BlankLinesNode { return '' }
 		HeadingNode {
 			text := r.render_inline_plain(node.children)
 			return r.render_heading(text, node.level)
@@ -101,18 +119,22 @@ fn (r TerminalRenderer) render_block(node BlockNode, prefix string, depth int) s
 		ParagraphNode {
 			return r.render_wrapped_inline(node.children, prefix)
 		}
-		BlockquoteNode {
-			mut parts := []string{}
-			for child in node.children {
-				rendered := r.render_block(child, '', depth + 1)
-				if rendered.len == 0 {
-					continue
-				}
-				for line in rendered.split_into_lines() {
-					parts << r.style_line('▎ ', TerminalStyle{'quote_bar'}) + line
-				}
+		FootnoteDefinitionNode {
+			marker := r.footnote_marker(node.number, true)
+			styled := r.style_line(marker, TerminalStyle{'link'})
+			lines := r.wrap_spans(r.inline_spans(node.children), max_int(r.width - marker.len - 1, 20))
+			if lines.len == 0 {
+				return styled
 			}
-			return parts.join('\n')
+			return styled + ' ' + lines.join('\n' + ' '.repeat(marker.len + 1))
+		}
+		AdmonitionNode {
+			style := TerminalStyle{'admonition_${node.kind}'}
+			title := r.style_line('▎ ${node.kind.str().to_upper()}', style)
+			return r.render_quoted_blocks(node.children, depth, style, [title])
+		}
+		BlockquoteNode {
+			return r.render_quoted_blocks(node.children, depth, TerminalStyle{'quote_bar'}, [])
 		}
 		ListNode {
 			mut lines := []string{}
@@ -238,12 +260,17 @@ fn (r TerminalRenderer) render_heading(text string, level int) string {
 
 fn (r TerminalRenderer) render_list_item(item ListItemNode, depth int) []string {
 	mut out := []string{}
+	preserve := r.preserve_blank_lines || has_explicit_blank_lines(item.children)
 	for child_index, child in item.children {
+		if child is BlankLinesNode {
+			out << []string{len: child.line_count}
+			continue
+		}
 		rendered := r.render_block(child, '', depth)
 		if rendered.len == 0 {
 			continue
 		}
-		if child_index > 0 && out.len > 0 {
+		if !preserve && child_index > 0 && out.len > 0 {
 			out << ''
 		}
 		for line in rendered.split_into_lines() {
@@ -349,7 +376,7 @@ fn (r TerminalRenderer) inline_spans(nodes []InlineNode) []TerminalSpan {
 			TextNode {
 				for token in split_text_tokens(r.safe_text(node.text)) {
 					spans << TerminalSpan{
-						plain: token
+						plain:  token
 						styled: token
 					}
 				}
@@ -357,7 +384,7 @@ fn (r TerminalRenderer) inline_spans(nodes []InlineNode) []TerminalSpan {
 			EmphasisNode {
 				for span in r.inline_spans(node.children) {
 					spans << TerminalSpan{
-						plain: span.plain
+						plain:  span.plain
 						styled: r.style_line(span.styled, TerminalStyle{'emphasis'})
 					}
 				}
@@ -365,7 +392,7 @@ fn (r TerminalRenderer) inline_spans(nodes []InlineNode) []TerminalSpan {
 			StrongNode {
 				for span in r.inline_spans(node.children) {
 					spans << TerminalSpan{
-						plain: span.plain
+						plain:  span.plain
 						styled: r.style_line(span.styled, TerminalStyle{'strong'})
 					}
 				}
@@ -373,15 +400,37 @@ fn (r TerminalRenderer) inline_spans(nodes []InlineNode) []TerminalSpan {
 			StrikethroughNode {
 				for span in r.inline_spans(node.children) {
 					spans << TerminalSpan{
-						plain: span.plain
+						plain:  span.plain
 						styled: r.style_line(span.styled, TerminalStyle{'strikethrough'})
+					}
+				}
+			}
+			InlineStyleNode {
+				if node.kind == .spoiler && !r.reveal_spoilers {
+					spans << TerminalSpan{
+						plain:  '[spoiler]'
+						styled: r.style_line('[spoiler]', TerminalStyle{'spoiler'})
+					}
+				} else if node.kind in [.superscript, .subscript] {
+					content := r.render_inline_plain(node.children)
+					display := terminal_script(content, node.kind)
+					spans << TerminalSpan{
+						plain:  display
+						styled: r.style_line(display, TerminalStyle{'script'})
+					}
+				} else {
+					for span in r.inline_spans(node.children) {
+						spans << TerminalSpan{
+							plain:  span.plain
+							styled: r.style_line(span.styled, TerminalStyle{node.kind.str()})
+						}
 					}
 				}
 			}
 			UnderlineNode {
 				for span in r.inline_spans(node.children) {
 					spans << TerminalSpan{
-						plain: span.plain
+						plain:  span.plain
 						styled: r.style_line(span.styled, TerminalStyle{'underline'})
 					}
 				}
@@ -389,14 +438,14 @@ fn (r TerminalRenderer) inline_spans(nodes []InlineNode) []TerminalSpan {
 			CodeSpanNode {
 				text := r.safe_text(node.text)
 				spans << TerminalSpan{
-					plain: text
+					plain:  text
 					styled: r.style_line(' ${text} ', TerminalStyle{'codespan'})
 				}
 			}
 			LatexMathNode {
 				text := r.safe_text(node.content)
 				spans << TerminalSpan{
-					plain: text
+					plain:  text
 					styled: r.style_line(text, TerminalStyle{'math'})
 				}
 			}
@@ -405,8 +454,15 @@ fn (r TerminalRenderer) inline_spans(nodes []InlineNode) []TerminalSpan {
 				url := r.safe_text(node.url)
 				display := if url.len > 0 { '${label} ↗ ${url}' } else { label }
 				spans << TerminalSpan{
-					plain: display
+					plain:  display
 					styled: r.style_line(display, TerminalStyle{'link'})
+				}
+			}
+			FootnoteReferenceNode {
+				marker := r.footnote_marker(node.number, false)
+				spans << TerminalSpan{
+					plain:  marker
+					styled: r.style_line(marker, TerminalStyle{'link'})
 				}
 			}
 			WikiLinkNode {
@@ -414,7 +470,7 @@ fn (r TerminalRenderer) inline_spans(nodes []InlineNode) []TerminalSpan {
 				target := r.safe_text(node.target)
 				display := if target.len > 0 { '${label} ↗ ${target}' } else { label }
 				spans << TerminalSpan{
-					plain: display
+					plain:  display
 					styled: r.style_line(display, TerminalStyle{'link'})
 				}
 			}
@@ -426,7 +482,7 @@ fn (r TerminalRenderer) inline_spans(nodes []InlineNode) []TerminalSpan {
 					'▣ image'
 				}
 				spans << TerminalSpan{
-					plain: display
+					plain:  display
 					styled: r.style_line(display, TerminalStyle{'image'})
 				}
 			}
@@ -488,7 +544,7 @@ fn (r TerminalRenderer) wrap_plain(input string, width int) []string {
 		return [input]
 	}
 	return wrap_terminal_lines([TerminalSpan{
-		plain: input
+		plain:  input
 		styled: input
 	}], width)
 }
@@ -602,6 +658,11 @@ fn (r TerminalRenderer) style_line(input string, style TerminalStyle) string {
 		'heading' { term.bold(term.bright_white(input)) }
 		'bullet' { term.bright_magenta(input) }
 		'quote_bar' { term.hex(0x7dcfff, input) }
+		'admonition_note' { term.hex(0x7dcfff, input) }
+		'admonition_tip' { term.hex(0xa6da95, input) }
+		'admonition_important' { term.hex(0xc6a0f6, input) }
+		'admonition_warning' { term.hex(0xe6b450, input) }
+		'admonition_caution' { term.hex(0xf7768e, input) }
 		'code_border' { term.bright_black(input) }
 		'code' { term.hex(0xa6da95, input) }
 		'codespan' { term.bg_rgb(42, 42, 48, term.hex(0xf5a97f, input)) }
@@ -610,6 +671,10 @@ fn (r TerminalRenderer) style_line(input string, style TerminalStyle) string {
 		'emphasis' { term.italic(term.hex(0xc6a0f6, input)) }
 		'strikethrough' { term.dim(input) }
 		'underline' { term.underline(input) }
+		'highlight' { term.bg_rgb(244, 208, 111, term.hex(0x282014, input)) }
+		'insertion' { term.underline(term.hex(0x6aab76, input)) }
+		'script' { term.hex(0x758ad9, input) }
+		'spoiler' { term.dim(input) }
 		'link' { term.underline(term.cyan(input)) }
 		'image' { term.dim(term.hex(0xf4a261, input)) }
 		'rule' { term.bright_black(input) }
@@ -643,6 +708,43 @@ fn sanitize_terminal_control_sequences(input string) string {
 		} else {
 			out.write_rune(ch)
 		}
+	}
+	return out.str()
+}
+
+fn (r TerminalRenderer) render_quoted_blocks(children []BlockNode, depth int, style TerminalStyle, initial_lines []string) string {
+	mut lines := initial_lines.clone()
+	for child in children {
+		if child is BlankLinesNode {
+			lines << []string{len: child.line_count, init: r.style_line('▎', style)}
+			continue
+		}
+		rendered := r.render_block(child, '', depth + 1)
+		if rendered.len == 0 {
+			continue
+		}
+		for line in rendered.split_into_lines() {
+			lines << r.style_line('▎ ', style) + line
+		}
+	}
+	return lines.join('\n')
+}
+
+fn terminal_script(text string, kind InlineStyleKind) string {
+	characters := '0123456789+-=()'
+	glyphs := if kind == .superscript {
+		'⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾'.runes()
+	} else {
+		'₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎'.runes()
+	}
+	mut out := strings.new_builder(text.len)
+	for byte in text.bytes() {
+		index := characters.index_u8(byte)
+		if index < 0 {
+			marker := kind.markdown_delimiter()
+			return marker + text + marker
+		}
+		out.write_rune(glyphs[index])
 	}
 	return out.str()
 }

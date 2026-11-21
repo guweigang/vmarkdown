@@ -100,6 +100,15 @@ pub fn (node BlockNode) stable_id() string {
 			lang := normalize_text(node.lang)
 			return 'code:${lang}:' + hash_bytes(encoded)
 		}
+		FootnoteDefinitionNode {
+			return 'footnote_definition:' + hash_bytes(encoded)
+		}
+		BlankLinesNode {
+			return 'blank_lines:' + hash_bytes(encoded)
+		}
+		AdmonitionNode {
+			return 'admonition:' + hash_bytes(encoded)
+		}
 		BlockquoteNode {
 			return 'quote:' + hash_bytes(encoded)
 		}
@@ -172,6 +181,15 @@ pub fn (node BlockNode) semantic_stable_id() string {
 		CodeBlockNode {
 			lang := normalize_text(node.lang)
 			return 'code:${lang}:' + hash_bytes(normalized)
+		}
+		FootnoteDefinitionNode {
+			return 'footnote_definition:' + hash_bytes(normalized)
+		}
+		BlankLinesNode {
+			return 'blank_lines:' + hash_bytes(normalized)
+		}
+		AdmonitionNode {
+			return 'admonition:' + hash_bytes(normalized)
 		}
 		BlockquoteNode {
 			return 'quote:' + hash_bytes(normalized)
@@ -268,6 +286,24 @@ fn (node BlockNode) normalized_bytes() []u8 {
 			mut out := 'paragraph:'.bytes()
 			for child in node.children {
 				out << child.normalized_bytes()
+			}
+			return out
+		}
+		FootnoteDefinitionNode {
+			mut out := 'footnote_definition:${node.number}:${node.label}:'.bytes()
+			for child in node.children {
+				out << child.normalized_bytes()
+			}
+			return out
+		}
+		BlankLinesNode {
+			return 'blank_lines:${node.line_count}'.bytes()
+		}
+		AdmonitionNode {
+			mut out := 'admonition:${node.kind}:'.bytes()
+			for child in node.children {
+				out << child.stable_id().bytes()
+				out << [u8(`,`)]
 			}
 			return out
 		}
@@ -392,6 +428,13 @@ fn (node InlineNode) normalized_bytes() []u8 {
 			}
 			return out
 		}
+		InlineStyleNode {
+			mut out := '${node.kind}:'.bytes()
+			for child in node.children {
+				out << child.normalized_bytes()
+			}
+			return out
+		}
 		UnderlineNode {
 			mut out := 'underline:'.bytes()
 			for child in node.children {
@@ -419,6 +462,9 @@ fn (node InlineNode) normalized_bytes() []u8 {
 				out << child.normalized_bytes()
 			}
 			return out
+		}
+		FootnoteReferenceNode {
+			return 'footnote_reference:${node.number}:${node.label}'.bytes()
 		}
 		WikiLinkNode {
 			mut out := 'wiki_link:'.bytes()
@@ -459,6 +505,15 @@ fn (node BlockNode) kind_name() string {
 		}
 		ParagraphNode {
 			return 'paragraph'
+		}
+		FootnoteDefinitionNode {
+			return 'footnote_definition'
+		}
+		BlankLinesNode {
+			return 'blank_lines'
+		}
+		AdmonitionNode {
+			return 'admonition'
 		}
 		BlockquoteNode {
 			return 'blockquote'

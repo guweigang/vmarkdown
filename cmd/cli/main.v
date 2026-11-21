@@ -17,79 +17,15 @@ fn main() {
 		return
 	}
 	match args[1] {
-		'preview' {
+		'preview', 'terminal', 'markdown', 'html', 'ast' {
 			if args.len < 3 {
-				eprintln('preview requires a markdown file path')
+				eprintln('${args[1]} requires a markdown file path')
 				exit(1)
 			}
-			encoding := markdown_encoding_option(args[3..]) or {
+			run_markdown_command(args[1], args[2], args[3..]) or {
 				eprintln(err)
 				exit(1)
 			}
-			vmarkdown.preview_file_with_encoding(args[2], encoding) or {
-				eprintln(err)
-				exit(1)
-			}
-		}
-		'terminal' {
-			if args.len < 3 {
-				eprintln('terminal requires a markdown file path')
-				exit(1)
-			}
-			input := read_cli_markdown_file(args[2], args[3..]) or {
-				eprintln(err)
-				exit(1)
-			}
-			output := vmarkdown.render_terminal(input.text) or {
-				eprintln(err)
-				exit(1)
-			}
-			println(output)
-		}
-		'markdown' {
-			if args.len < 3 {
-				eprintln('markdown requires a markdown file path')
-				exit(1)
-			}
-			input := read_cli_markdown_file(args[2], args[3..]) or {
-				eprintln(err)
-				exit(1)
-			}
-			output := vmarkdown.render_markdown(input.text) or {
-				eprintln(err)
-				exit(1)
-			}
-			println(output)
-		}
-		'html' {
-			if args.len < 3 {
-				eprintln('html requires a markdown file path')
-				exit(1)
-			}
-			input := read_cli_markdown_file(args[2], args[3..]) or {
-				eprintln(err)
-				exit(1)
-			}
-			output := vmarkdown.render_html(input.text) or {
-				eprintln(err)
-				exit(1)
-			}
-			println(output)
-		}
-		'ast' {
-			if args.len < 3 {
-				eprintln('ast requires a markdown file path')
-				exit(1)
-			}
-			input := read_cli_markdown_file(args[2], args[3..]) or {
-				eprintln(err)
-				exit(1)
-			}
-			doc := vmarkdown.parse(input.text) or {
-				eprintln(err)
-				exit(1)
-			}
-			println(doc.pretty())
 		}
 		'lint' {
 			if args.len < 3 {
@@ -328,6 +264,13 @@ vmarkdown commands:
 options:
 	  --encoding <auto|utf-8|gbk|gb18030|utf-16le|utf-16be|utf-32le|utf-32be>
 	                  select Markdown file encoding (default: auto)
+  --admonitions           enable GitHub-style alerts for preview, terminal, markdown, html, and ast
+  --footnotes             enable footnotes for the same commands
+  --github                enable both GitHub-style alerts and footnotes
+  --highlight, --insertion, --superscript, --subscript
+                          enable optional inline styles for the same commands
+  --preserve-blank-lines, --spoilers
+                          enable blank-line preservation or spoilers
   -h, --help     show this help text
   -v, --version  show the vmarkdown version'
 }
@@ -372,22 +315,65 @@ fn lint_cli_options(options []string) !LintCliOptions {
 		return error('unknown option `${option}`')
 	}
 	return LintCliOptions{
-		json: json_output
-		fix: fix
+		json:          json_output
+		fix:           fix
 		encoding_args: encoding_args
 	}
 }
 
+fn run_markdown_command(command string, path string, args []string) ! {
+	encoding, parser := markdown_cli_options(args, true)!
+	if command == 'preview' {
+		vmarkdown.preview_file_with_options(path, .terminal, encoding, parser)!
+		return
+	}
+	input := vmarkdown.read_markdown_file_with_encoding(path, encoding)!
+	output := match command {
+		'terminal' {
+			vmarkdown.render_terminal_with_options(input.text, vmarkdown.TerminalRenderOptions{
+				parser: parser
+			})!
+		}
+		'markdown' {
+			vmarkdown.render_markdown_with_options(input.text, parser)!
+		}
+		'html' {
+			vmarkdown.render_html_with_options(input.text, vmarkdown.HtmlRenderOptions{
+				parser: parser
+			})!
+		}
+		'ast' {
+			vmarkdown.parse_with_options(input.text, parser)!.pretty()
+		}
+		else {
+			return error('unknown markdown command ${command}')
+		}
+	}
+	if parser.preserve_blank_lines && command in ['terminal', 'markdown']
+		&& (output.len == 0 || output.ends_with('\n')) {
+		print(output)
+	} else {
+		println(output)
+	}
+}
+
 fn read_cli_markdown_file(path string, options []string) !vmarkdown.MarkdownFile {
-	encoding := markdown_encoding_option(options)!
+	encoding, _ := markdown_cli_options(options, false)!
 	return vmarkdown.read_markdown_file_with_encoding(path, encoding)
 }
 
-fn markdown_encoding_option(options []string) !string {
+fn markdown_cli_options(options []string, allow_extensions bool) !(string, vmarkdown.ParseOptions) {
 	mut encoding := 'auto'
+	mut extensions := []string{}
 	mut i := 0
 	for i < options.len {
 		option := options[i]
+		if allow_extensions && option in ['--github', '--admonitions', '--footnotes', '--highlight',
+			'--insertion', '--superscript', '--subscript', '--preserve-blank-lines', '--spoilers'] {
+			extensions << option
+			i++
+			continue
+		}
 		if option == '--encoding' {
 			if i + 1 >= options.len {
 				return error('--encoding requires a value')
@@ -406,7 +392,17 @@ fn markdown_encoding_option(options []string) !string {
 		}
 		return error('unknown option `${option}`')
 	}
-	return encoding
+	github := '--github' in extensions
+	return encoding, vmarkdown.ParseOptions{
+		admonitions:          github || '--admonitions' in extensions
+		footnotes:            github || '--footnotes' in extensions
+		highlight:            '--highlight' in extensions
+		insertion:            '--insertion' in extensions
+		superscript:          '--superscript' in extensions
+		subscript:            '--subscript' in extensions
+		preserve_blank_lines: '--preserve-blank-lines' in extensions
+		spoilers:             '--spoilers' in extensions
+	}
 }
 
 fn version_text() string {
@@ -415,13 +411,13 @@ fn version_text() string {
 
 fn build_diagrams_demo() string {
 	tree := vmarkdown.render_ascii_tree(vmarkdown.AsciiTreeNode{
-		label: 'vmarkdown'
+		label:    'vmarkdown'
 		children: [
 			vmarkdown.AsciiTreeNode{
 				label: 'parser'
 			},
 			vmarkdown.AsciiTreeNode{
-				label: 'preview'
+				label:    'preview'
 				children: [
 					vmarkdown.AsciiTreeNode{
 						label: 'search'
@@ -438,21 +434,21 @@ fn build_diagrams_demo() string {
 		vmarkdown.AsciiGraphEdge{ from: 'parser', to: 'renderer' },
 	], 80)
 	org := vmarkdown.render_ascii_org_chart(vmarkdown.AsciiOrgNode{
-		name: 'Guwei'
-		title: 'Founder'
+		name:    'Guwei'
+		title:   'Founder'
 		reports: [
 			vmarkdown.AsciiOrgNode{
-				name: 'Parser Team'
-				title: 'Core'
+				name:    'Parser Team'
+				title:   'Core'
 				reports: [
 					vmarkdown.AsciiOrgNode{
-						name: 'Lexer Squad'
+						name:  'Lexer Squad'
 						title: 'Infra'
 					},
 				]
 			},
 			vmarkdown.AsciiOrgNode{
-				name: 'Preview Team'
+				name:  'Preview Team'
 				title: 'UI'
 			},
 		]
@@ -506,13 +502,13 @@ fn build_diagram_sample(kind string, width int) string {
 
 fn sample_tree(width int) string {
 	return vmarkdown.render_ascii_tree(vmarkdown.AsciiTreeNode{
-		label: 'vmarkdown'
+		label:    'vmarkdown'
 		children: [
 			vmarkdown.AsciiTreeNode{
 				label: 'parser'
 			},
 			vmarkdown.AsciiTreeNode{
-				label: 'preview'
+				label:    'preview'
 				children: [
 					vmarkdown.AsciiTreeNode{
 						label: 'search'
@@ -542,21 +538,21 @@ fn sample_call_graph(width int) string {
 
 fn sample_org_chart(width int) string {
 	return vmarkdown.render_ascii_org_chart(vmarkdown.AsciiOrgNode{
-		name: 'Guwei'
-		title: 'Founder'
+		name:    'Guwei'
+		title:   'Founder'
 		reports: [
 			vmarkdown.AsciiOrgNode{
-				name: 'Parser Team'
-				title: 'Core'
+				name:    'Parser Team'
+				title:   'Core'
 				reports: [
 					vmarkdown.AsciiOrgNode{
-						name: 'Lexer Squad'
+						name:  'Lexer Squad'
 						title: 'Infra'
 					},
 				]
 			},
 			vmarkdown.AsciiOrgNode{
-				name: 'Preview Team'
+				name:  'Preview Team'
 				title: 'UI'
 			},
 		]

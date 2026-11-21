@@ -31,8 +31,9 @@ pub fn (doc Document) rewrite_blocks_with_limits(limits AstValidationLimits, rew
 		children << rewrite_block(child, 'document.children[${index}]', 1, rewriter)!
 	}
 	rewritten := Document{
-		span: doc.span
-		children: children
+		span:                 doc.span
+		preserve_blank_lines: doc.preserve_blank_lines
+		children:             children
 	}
 	rewritten.validate_with_limits(limits)!
 	return rewritten
@@ -53,8 +54,9 @@ pub fn (doc Document) rewrite_inlines_with_limits(limits AstValidationLimits, re
 		children << rewrite_block_inlines(child, 'document.children[${index}]', 1, rewriter)!
 	}
 	rewritten := Document{
-		span: doc.span
-		children: children
+		span:                 doc.span
+		preserve_blank_lines: doc.preserve_blank_lines
+		children:             children
 	}
 	rewritten.validate_with_limits(limits)!
 	return rewritten
@@ -68,7 +70,18 @@ fn rewrite_block(node BlockNode, path string, depth int, rewriter fn (AstBlockRe
 				children << rewrite_block(child, '${path}.children[${index}]', depth + 1, rewriter)!
 			}
 			BlockNode(BlockquoteNode{
-				span: node.span
+				span:     node.span
+				children: children
+			})
+		}
+		AdmonitionNode {
+			mut children := []BlockNode{}
+			for index, child in node.children {
+				children << rewrite_block(child, '${path}.children[${index}]', depth + 1, rewriter)!
+			}
+			BlockNode(AdmonitionNode{
+				span:     node.span
+				kind:     node.kind
 				children: children
 			})
 		}
@@ -80,30 +93,31 @@ fn rewrite_block(node BlockNode, path string, depth int, rewriter fn (AstBlockRe
 					children << rewrite_block(child, '${path}.items[${item_index}].children[${child_index}]', depth + 2, rewriter)!
 				}
 				items << ListItemNode{
-					span: item.span
-					level: item.level
-					number: item.number
-					is_task: item.is_task
-					checked: item.checked
+					span:     item.span
+					level:    item.level
+					number:   item.number
+					is_task:  item.is_task
+					checked:  item.checked
 					children: children
 				}
 			}
 			BlockNode(ListNode{
-				span: node.span
+				span:       node.span
 				is_ordered: node.is_ordered
-				start: node.start
-				items: items
+				start:      node.start
+				items:      items
 			})
 		}
-		CodeBlockNode, HeadingNode, HorizontalRuleNode, MetaNode, ParagraphNode, RawHtmlBlockNode, TableNode {
+		BlankLinesNode, CodeBlockNode, FootnoteDefinitionNode, HeadingNode, HorizontalRuleNode, MetaNode,
+		ParagraphNode, RawHtmlBlockNode, TableNode {
 			node
 		}
 	}
 	return rewriter(AstBlockRewrite{
-		node: rewritten
-		path: path
+		node:  rewritten
+		path:  path
 		depth: depth
-		span: rewritten.source_span()
+		span:  rewritten.source_span()
 	})
 }
 
@@ -111,14 +125,22 @@ fn rewrite_block_inlines(node BlockNode, path string, depth int, rewriter fn (As
 	return match node {
 		HeadingNode {
 			BlockNode(HeadingNode{
-				span: node.span
-				level: node.level
+				span:     node.span
+				level:    node.level
 				children: rewrite_inline_nodes(node.children, '${path}.children', depth + 1, rewriter)!
 			})
 		}
 		ParagraphNode {
 			BlockNode(ParagraphNode{
-				span: node.span
+				span:     node.span
+				children: rewrite_inline_nodes(node.children, '${path}.children', depth + 1, rewriter)!
+			})
+		}
+		FootnoteDefinitionNode {
+			BlockNode(FootnoteDefinitionNode{
+				span:     node.span
+				label:    node.label
+				number:   node.number
 				children: rewrite_inline_nodes(node.children, '${path}.children', depth + 1, rewriter)!
 			})
 		}
@@ -128,7 +150,18 @@ fn rewrite_block_inlines(node BlockNode, path string, depth int, rewriter fn (As
 				children << rewrite_block_inlines(child, '${path}.children[${index}]', depth + 1, rewriter)!
 			}
 			BlockNode(BlockquoteNode{
-				span: node.span
+				span:     node.span
+				children: children
+			})
+		}
+		AdmonitionNode {
+			mut children := []BlockNode{cap: node.children.len}
+			for index, child in node.children {
+				children << rewrite_block_inlines(child, '${path}.children[${index}]', depth + 1, rewriter)!
+			}
+			BlockNode(AdmonitionNode{
+				span:     node.span
+				kind:     node.kind
 				children: children
 			})
 		}
@@ -140,30 +173,30 @@ fn rewrite_block_inlines(node BlockNode, path string, depth int, rewriter fn (As
 					children << rewrite_block_inlines(child, '${path}.items[${item_index}].children[${child_index}]', depth + 2, rewriter)!
 				}
 				items << ListItemNode{
-					span: item.span
-					level: item.level
-					number: item.number
-					is_task: item.is_task
-					checked: item.checked
+					span:     item.span
+					level:    item.level
+					number:   item.number
+					is_task:  item.is_task
+					checked:  item.checked
 					children: children
 				}
 			}
 			BlockNode(ListNode{
-				span: node.span
+				span:       node.span
 				is_ordered: node.is_ordered
-				start: node.start
-				items: items
+				start:      node.start
+				items:      items
 			})
 		}
 		TableNode {
 			BlockNode(TableNode{
-				span: node.span
+				span:    node.span
 				columns: node.columns
-				head: rewrite_table_rows_inlines(node.head, '${path}.head', depth + 1, rewriter)!
-				body: rewrite_table_rows_inlines(node.body, '${path}.body', depth + 1, rewriter)!
+				head:    rewrite_table_rows_inlines(node.head, '${path}.head', depth + 1, rewriter)!
+				body:    rewrite_table_rows_inlines(node.body, '${path}.body', depth + 1, rewriter)!
 			})
 		}
-		CodeBlockNode, HorizontalRuleNode, MetaNode, RawHtmlBlockNode {
+		BlankLinesNode, CodeBlockNode, HorizontalRuleNode, MetaNode, RawHtmlBlockNode {
 			node
 		}
 	}
@@ -176,13 +209,13 @@ fn rewrite_table_rows_inlines(rows []TableRowNode, path string, depth int, rewri
 		for cell_index, cell in row.cells {
 			cell_path := '${path}[${row_index}].cells[${cell_index}]'
 			cells << TableCellNode{
-				span: cell.span
+				span:      cell.span
 				alignment: cell.alignment
-				children: rewrite_inline_nodes(cell.children, '${cell_path}.children', depth + 2, rewriter)!
+				children:  rewrite_inline_nodes(cell.children, '${cell_path}.children', depth + 2, rewriter)!
 			}
 		}
 		rewritten << TableRowNode{
-			span: row.span
+			span:  row.span
 			cells: cells
 		}
 	}
@@ -219,7 +252,7 @@ fn merge_rewrite_spans(left SourceSpan, right SourceSpan) SourceSpan {
 	}
 	return SourceSpan{
 		start: left.start
-		end: right.end
+		end:   right.end
 	}
 }
 
@@ -227,25 +260,32 @@ fn rewrite_inline(node InlineNode, path string, depth int, rewriter fn (AstInlin
 	rewritten := match node {
 		EmphasisNode {
 			InlineNode(EmphasisNode{
-				span: node.span
+				span:     node.span
 				children: rewrite_inline_nodes(node.children, '${path}.children', depth + 1, rewriter)!
 			})
 		}
 		StrongNode {
 			InlineNode(StrongNode{
-				span: node.span
+				span:     node.span
 				children: rewrite_inline_nodes(node.children, '${path}.children', depth + 1, rewriter)!
 			})
 		}
 		StrikethroughNode {
 			InlineNode(StrikethroughNode{
-				span: node.span
+				span:     node.span
+				children: rewrite_inline_nodes(node.children, '${path}.children', depth + 1, rewriter)!
+			})
+		}
+		InlineStyleNode {
+			InlineNode(InlineStyleNode{
+				span:     node.span
+				kind:     node.kind
 				children: rewrite_inline_nodes(node.children, '${path}.children', depth + 1, rewriter)!
 			})
 		}
 		UnderlineNode {
 			InlineNode(UnderlineNode{
-				span: node.span
+				span:     node.span
 				children: rewrite_inline_nodes(node.children, '${path}.children', depth + 1, rewriter)!
 			})
 		}
@@ -253,31 +293,32 @@ fn rewrite_inline(node InlineNode, path string, depth int, rewriter fn (AstInlin
 			InlineNode(LinkNode{
 				span: node.span
 				text: rewrite_inline_nodes(node.text, '${path}.text', depth + 1, rewriter)!
-				url: node.url
+				url:  node.url
 			})
 		}
 		WikiLinkNode {
 			InlineNode(WikiLinkNode{
-				span: node.span
-				text: rewrite_inline_nodes(node.text, '${path}.text', depth + 1, rewriter)!
+				span:   node.span
+				text:   rewrite_inline_nodes(node.text, '${path}.text', depth + 1, rewriter)!
 				target: node.target
 			})
 		}
 		ImageNode {
 			InlineNode(ImageNode{
 				span: node.span
-				alt: rewrite_inline_nodes(node.alt, '${path}.alt', depth + 1, rewriter)!
-				url: node.url
+				alt:  rewrite_inline_nodes(node.alt, '${path}.alt', depth + 1, rewriter)!
+				url:  node.url
 			})
 		}
-		CodeSpanNode, HardBreakNode, LatexMathNode, RawHtmlInlineNode, SoftBreakNode, TextNode {
+		CodeSpanNode, FootnoteReferenceNode, HardBreakNode, LatexMathNode, RawHtmlInlineNode, SoftBreakNode,
+		TextNode {
 			node
 		}
 	}
 	return rewriter(AstInlineRewrite{
-		node: rewritten
-		path: path
+		node:  rewritten
+		path:  path
 		depth: depth
-		span: rewritten.source_span()
+		span:  rewritten.source_span()
 	})
 }

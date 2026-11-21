@@ -76,6 +76,7 @@ fn (mut app PreviewApp) handle_preview_content_click(x int, y int) {
 	app.view_cursor_x = min_int(max_int(x - app.line_number_gutter_width(), 0), line_width)
 	app.ensure_normal_cursor_visible()
 	app.sync_source_cursor_from_view()
+	app.activate_footnote_at_cursor()
 }
 
 fn editor_rune_index_at_display_column(text string, start int, display_column int) int {

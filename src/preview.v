@@ -21,36 +21,37 @@ pub fn preview_with_mode(markdown string, mode PreviewMode, source_label string)
 
 fn preview_with_source(markdown string, mode PreviewMode, source_label string, source_path string) ! {
 	source := MarkdownFile{
-		text: markdown
+		text:     markdown
 		encoding: .utf8
-		raw: markdown.bytes()
+		raw:      markdown.bytes()
 	}
-	preview_with_markdown_file(source, mode, source_label, source_path)!
+	preview_with_markdown_file(source, mode, source_label, source_path, ParseOptions{})!
 }
 
-fn preview_with_markdown_file(source MarkdownFile, mode PreviewMode, source_label string, source_path string) ! {
+fn preview_with_markdown_file(source MarkdownFile, mode PreviewMode, source_label string, source_path string, options ParseOptions) ! {
 	prepare_console_for_preview()
-	doc := parse(source.text)!
+	doc := parse_with_options(source.text, options)!
 	mut app := &PreviewApp{
-		markdown: source.text
-		doc: doc
-		mode: mode
-		source_label: if source_label.len > 0 { source_label } else { 'buffer' }
-		source_path: source_path
+		markdown:        source.text
+		doc:             doc
+		parse_options:   options
+		mode:            mode
+		source_label:    if source_label.len > 0 { source_label } else { 'buffer' }
+		source_path:     source_path
 		source_encoding: source.encoding
-		source_bom: source.bom
-		source_raw: source.raw.clone()
-		source_loaded: source_path.len > 0
-		editor: new_markdown_editor(source.text)
+		source_bom:      source.bom
+		source_raw:      source.raw.clone()
+		source_loaded:   source_path.len > 0
+		editor:          new_markdown_editor(source.text)
 	}
 	app.tui = tui.init(
-		user_data: app
-		event_fn: preview_event
-		frame_fn: preview_frame
-		hide_cursor: true
+		user_data:      app
+		event_fn:       preview_event
+		frame_fn:       preview_frame
+		hide_cursor:    true
 		capture_events: true
-		mouse_enabled: true
-		window_title: 'vmarkdown preview'
+		mouse_enabled:  true
+		window_title:   'vmarkdown preview'
 	)
 	app.tui.run()!
 }
@@ -59,20 +60,20 @@ pub fn preview_terminal_buffer(rendered string, source_label string) ! {
 	prepare_console_for_preview()
 	doc := parse('# Preview\n')!
 	mut app := &PreviewApp{
-		markdown: '# Preview\n'
-		doc: doc
-		mode: .terminal
+		markdown:     '# Preview\n'
+		doc:          doc
+		mode:         .terminal
 		source_label: if source_label.len > 0 { source_label } else { 'buffer' }
 		raw_terminal: rendered
 	}
 	app.tui = tui.init(
-		user_data: app
-		event_fn: preview_event
-		frame_fn: preview_frame
-		hide_cursor: true
+		user_data:      app
+		event_fn:       preview_event
+		frame_fn:       preview_frame
+		hide_cursor:    true
 		capture_events: true
-		mouse_enabled: true
-		window_title: 'vmarkdown preview'
+		mouse_enabled:  true
+		window_title:   'vmarkdown preview'
 	)
 	app.tui.run()!
 }
@@ -90,8 +91,12 @@ pub fn preview_file_with_encoding(path string, requested_encoding string) ! {
 }
 
 pub fn preview_file_with_mode_and_encoding(path string, mode PreviewMode, requested_encoding string) ! {
+	preview_file_with_options(path, mode, requested_encoding, ParseOptions{})!
+}
+
+pub fn preview_file_with_options(path string, mode PreviewMode, requested_encoding string, options ParseOptions) ! {
 	source := read_markdown_file_with_encoding(path, requested_encoding)!
-	preview_with_markdown_file(source, mode, path, path)!
+	preview_with_markdown_file(source, mode, path, path, options)!
 }
 
 pub fn preview_mermaid(input string) ! {
@@ -117,24 +122,37 @@ pub fn preview_diagram_payload(title string, payload DiagramPayload, width int) 
 }
 
 pub fn preview_lines(markdown string, mode PreviewMode, width int) ![]string {
-	doc := parse(markdown)!
-	return preview_lines_from_document(doc, markdown, mode, width)
+	return preview_lines_with_options(markdown, mode, width, ParseOptions{})
+}
+
+fn preview_lines_with_options(markdown string, mode PreviewMode, width int, options ParseOptions) ![]string {
+	return preview_lines_with_spoiler_visibility(markdown, mode, width, options, false)
+}
+
+fn preview_lines_with_spoiler_visibility(markdown string, mode PreviewMode, width int, options ParseOptions, reveal_spoilers bool) ![]string {
+	doc := parse_with_options(markdown, options)!
+	return preview_lines_from_document_with_options(doc, markdown, mode, width, options, reveal_spoilers)
 }
 
 pub fn preview_lines_from_document(doc Document, markdown string, mode PreviewMode, width int) ![]string {
+	return preview_lines_from_document_with_options(doc, markdown, mode, width, ParseOptions{}, false)
+}
+
+fn preview_lines_from_document_with_options(doc Document, markdown string, mode PreviewMode, width int, options ParseOptions, reveal_spoilers bool) ![]string {
 	safe_width := max_int(width, 20)
 	text := match mode {
 		.terminal {
 			doc.to_terminal_with_options(TerminalRenderOptions{
-				width: safe_width
-				color: true
+				width:           safe_width
+				color:           true
+				reveal_spoilers: reveal_spoilers
 			})
 		}
 		.markdown {
 			doc.to_markdown()
 		}
 		.html {
-			render_html(markdown)!
+			render_html_with_options(markdown, HtmlRenderOptions{ parser: options })!
 		}
 		.ast {
 			doc.pretty()
@@ -211,6 +229,8 @@ struct PreviewApp {
 mut:
 	markdown                   string
 	doc                        Document
+	parse_options              ParseOptions
+	reveal_spoilers            bool
 	tui                        &tui.Context = unsafe { nil }
 	mode                       PreviewMode
 	scroll                     int
@@ -237,6 +257,8 @@ mut:
 	view_cursor                int
 	view_cursor_x              int
 	line_sources               []PreviewLineSource
+	footnote_layout            PreviewFootnoteLayout
+	footnote_history           []PreviewFootnoteJump
 	source_cursor_line         int
 	source_cursor_x            int
 	pending_source_reposition  bool
@@ -275,6 +297,16 @@ fn preview_event(e &tui.Event, x voidptr) {
 			app.editor.pending_key = ''
 		}
 		match e.code {
+			.enter {
+				if e.modifiers.has(.shift) {
+					app.return_from_footnote()
+				} else {
+					app.activate_footnote_at_cursor()
+				}
+			}
+			.backspace {
+				app.return_from_footnote()
+			}
 			.q {
 				app.request_quit()
 			}
@@ -294,6 +326,12 @@ fn preview_event(e &tui.Event, x voidptr) {
 			.question_mark {
 				app.show_help = true
 			}
+			.z {
+				if app.parse_options.spoilers && app.mode == .terminal {
+					app.reveal_spoilers = !app.reveal_spoilers
+					app.last_width = 0
+				}
+			}
 			.slash {
 				app.start_search()
 			}
@@ -310,10 +348,10 @@ fn preview_event(e &tui.Event, x voidptr) {
 				app.move_normal_cursor_horizontal(1)
 			}
 			.w {
-				app.move_normal_source_word(true)
+				app.move_preview_word(true)
 			}
 			.b {
-				app.move_normal_source_word(false)
+				app.move_preview_word(false)
 			}
 			.x, .delete {
 				app.delete_normal_source_char()
@@ -428,11 +466,11 @@ fn (mut app PreviewApp) ensure_lines() {
 		for index in 0 .. app.editor.lines.len {
 			columns, exact := build_preview_source_columns(app.editor.lines[index], app.editor.lines[index], .markdown)
 			app.line_sources << PreviewLineSource{
-				start_line: index
-				end_line: index
-				source_line: index
+				start_line:     index
+				end_line:       index
+				source_line:    index
 				source_columns: columns
-				exact_columns: exact
+				exact_columns:  exact
 			}
 		}
 		app.last_width = app.tui.window_width
@@ -444,14 +482,18 @@ fn (mut app PreviewApp) ensure_lines() {
 		return
 	}
 	content_width := max_int(app.tui.window_width - app.line_number_gutter_width() - 2, 20)
+	app.footnote_layout = PreviewFootnoteLayout{}
 	if app.mode == .terminal && app.raw_terminal.len > 0 {
 		app.lines = wrap_preview_text(app.raw_terminal, content_width, true)
+	} else if app.mode == .terminal && app.parse_options.footnotes {
+		app.footnote_layout = render_preview_footnotes(app.doc, content_width, app.reveal_spoilers)
+		app.lines = app.footnote_layout.lines
 	} else {
-		app.lines = preview_lines_from_document(app.doc, app.markdown, app.mode, content_width) or {
+		app.lines = preview_lines_from_document_with_options(app.doc, app.markdown, app.mode, content_width, app.parse_options, app.reveal_spoilers) or {
 			['preview error: ${err}']
 		}
 	}
-	app.line_sources = build_preview_line_sources(app.markdown, app.mode, content_width, app.lines)
+	app.line_sources = build_preview_line_sources_with_spoiler_visibility(app.markdown, app.mode, content_width, app.lines, app.parse_options, app.reveal_spoilers)
 	if app.pending_source_reposition {
 		app.reposition_from_source()
 	}
@@ -501,19 +543,47 @@ fn (mut app PreviewApp) sync_editor_cursor_from_source() {
 	app.editor.cursor_x = min_int(max_int(app.source_cursor_x, 0), app.editor.current_line().runes().len)
 }
 
-fn (mut app PreviewApp) move_normal_source_word(forward bool) {
-	app.sync_source_cursor_from_view()
-	app.sync_editor_cursor_from_source()
-	if forward {
-		app.editor.move_word_forward()
-	} else {
-		app.editor.move_word_backward()
+fn (mut app PreviewApp) move_preview_word(forward bool) {
+	if app.lines.len == 0 {
+		return
 	}
-	app.source_cursor_line = app.editor.cursor_y
-	app.source_cursor_x = app.editor.cursor_x
-	app.desired_cursor_row = max_int(app.current_line_index() - app.scroll, 0)
-	app.pending_source_reposition = true
-	app.reposition_from_source()
+	start_line := max_int(app.current_line_index(), 0)
+	mut row := start_line
+	for row >= 0 && row < app.lines.len {
+		text := term.strip_ansi(app.lines[row])
+		runes := text.runes()
+		start := if row == start_line {
+			editor_rune_index_at_display_column(text, 0, app.view_cursor_x)
+		} else if forward {
+			0
+		} else {
+			runes.len
+		}
+		target := if forward {
+			next_word_column(runes, start, row == start_line)
+		} else {
+			previous_word_column(runes, start)
+		}
+		if column := target {
+			app.view_cursor = row
+			app.view_cursor_x = editor_display_width(runes[..column].string())
+			break
+		}
+		if forward && row == app.lines.len - 1 {
+			app.view_cursor = row
+			app.view_cursor_x = editor_display_width(text)
+			break
+		}
+		if !forward && row == 0 {
+			app.view_cursor = 0
+			app.view_cursor_x = 0
+			break
+		}
+		row += if forward { 1 } else { -1 }
+	}
+	app.current_match = -1
+	app.ensure_normal_cursor_visible()
+	app.sync_source_cursor_from_view()
 	app.editor.pending_key = ''
 }
 

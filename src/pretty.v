@@ -39,11 +39,20 @@ fn write_block_pretty(mut sb strings.Builder, node BlockNode, prefix string, is_
 				sb.write_string(next_prefix + item_branch + key + ': ' + node.data[key] + '\n')
 			}
 		}
+		FootnoteDefinitionNode {
+			snippet := inline_preview(node.children)
+			sb.write_string(prefix + branch + 'Footnote(number=${node.number}, label="${node.label}") "${snippet}"\n')
+		}
+		BlankLinesNode {
+			sb.write_string(prefix + branch + 'Blank lines (${node.line_count})\n')
+		}
+		AdmonitionNode {
+			sb.write_string(prefix + branch + 'Admonition (${node.kind})\n')
+			write_pretty_children(mut sb, node.children, next_prefix)
+		}
 		BlockquoteNode {
 			sb.write_string(prefix + branch + 'Blockquote\n')
-			for i, child in node.children {
-				write_block_pretty(mut sb, child, next_prefix, i == node.children.len - 1)
-			}
+			write_pretty_children(mut sb, node.children, next_prefix)
 		}
 		ListNode {
 			label := if node.is_ordered { 'OrderedList' } else { 'UnorderedList' }
@@ -104,6 +113,10 @@ fn inline_preview(nodes []InlineNode) string {
 			StrikethroughNode {
 				sb.write_string('~~' + inline_preview(node.children) + '~~')
 			}
+			InlineStyleNode {
+				marker := node.kind.markdown_delimiter()
+				sb.write_string(marker + inline_preview(node.children) + marker)
+			}
 			UnderlineNode {
 				sb.write_string('_' + inline_preview(node.children) + '_')
 			}
@@ -116,6 +129,9 @@ fn inline_preview(nodes []InlineNode) string {
 			}
 			LinkNode {
 				sb.write_string('[' + inline_preview(node.text) + '](' + node.url + ')')
+			}
+			FootnoteReferenceNode {
+				sb.write_string('[^${node.label}]')
 			}
 			WikiLinkNode {
 				sb.write_string('[[' + node.target + '|' + inline_preview(node.text) + ']]')
@@ -133,4 +149,10 @@ fn inline_preview(nodes []InlineNode) string {
 
 fn single_line(input string) string {
 	return input.replace('\n', '\\n').trim_space()
+}
+
+fn write_pretty_children(mut sb strings.Builder, children []BlockNode, prefix string) {
+	for i, child in children {
+		write_block_pretty(mut sb, child, prefix, i == children.len - 1)
+	}
 }

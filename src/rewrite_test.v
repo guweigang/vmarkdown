@@ -107,7 +107,7 @@ fn test_rewrite_validates_input_before_invoking_callback() {
 fn test_rewrite_with_limits_validates_before_and_after_transform() {
 	doc := parse('text') or { panic(err) }
 	unchanged := doc.rewrite_blocks_with_limits(AstValidationLimits{
-		max_nodes: 3
+		max_nodes:         3
 		max_nesting_depth: 2
 	}, fn (visit AstBlockRewrite) ![]BlockNode {
 		return [visit.node]

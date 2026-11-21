@@ -53,17 +53,17 @@ fn (node BlockNode) render_json_block() string {
 		ParagraphNode {
 			return '{"type":"paragraph","children":${render_inline_json(node.children)}}'
 		}
+		FootnoteDefinitionNode {
+			return '{"type":"footnote_definition","number":${node.number},"label":"${json_escape(node.label)}","children":${render_inline_json(node.children)}}'
+		}
+		BlankLinesNode {
+			return '{"type":"blank_lines","line_count":${node.line_count}}'
+		}
+		AdmonitionNode {
+			return '{"type":"admonition","kind":"${node.kind}","children":${render_json_blocks(node.children)}}'
+		}
 		BlockquoteNode {
-			mut sb := strings.new_builder(128)
-			sb.write_string('{"type":"blockquote","children":[')
-			for i, child in node.children {
-				if i > 0 {
-					sb.write_string(',')
-				}
-				sb.write_string(child.render_json_block())
-			}
-			sb.write_string(']}')
-			return sb.str()
+			return '{"type":"blockquote","children":${render_json_blocks(node.children)}}'
 		}
 		ListNode {
 			mut sb := strings.new_builder(192)
@@ -174,6 +174,9 @@ fn (node InlineNode) render_json_inline() string {
 		StrikethroughNode {
 			return '{"type":"strikethrough","children":${render_inline_json(node.children)}}'
 		}
+		InlineStyleNode {
+			return '{"type":"${node.kind}","children":${render_inline_json(node.children)}}'
+		}
 		UnderlineNode {
 			return '{"type":"underline","children":${render_inline_json(node.children)}}'
 		}
@@ -185,6 +188,9 @@ fn (node InlineNode) render_json_inline() string {
 		}
 		LinkNode {
 			return '{"type":"link","url":"${json_escape(node.url)}","text":${render_inline_json(node.text)}}'
+		}
+		FootnoteReferenceNode {
+			return '{"type":"footnote_reference","number":${node.number},"label":"${json_escape(node.label)}"}'
 		}
 		WikiLinkNode {
 			return '{"type":"wiki_link","target":"${json_escape(node.target)}","text":${render_inline_json(node.text)}}'
@@ -217,4 +223,17 @@ fn json_escape(input string) string {
 		}
 	}
 	return out.str()
+}
+
+fn render_json_blocks(children []BlockNode) string {
+	mut sb := strings.new_builder(128)
+	sb.write_u8(`[`)
+	for i, child in children {
+		if i > 0 {
+			sb.write_u8(`,`)
+		}
+		sb.write_string(child.render_json_block())
+	}
+	sb.write_u8(`]`)
+	return sb.str()
 }

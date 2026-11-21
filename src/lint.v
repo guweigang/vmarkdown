@@ -93,13 +93,13 @@ pub fn (doc Document) lint_with_limits(rules []LintRule, limits AstValidationLim
 					}
 				}
 				diagnostics_ref << LintDiagnostic{
-					rule_id: rule.id
+					rule_id:  rule.id
 					severity: rule.severity
-					message: finding.message
-					kind: visit.kind
-					path: visit.path
-					span: visit.span
-					edits: finding.edits.clone()
+					message:  finding.message
+					kind:     visit.kind
+					path:     visit.path
+					span:     visit.span
+					edits:    finding.edits.clone()
 				}
 			}
 		}
@@ -200,7 +200,7 @@ fn is_valid_lint_rule_id(id string) bool {
 
 fn lint_contract_error(kind LintContractErrorKind, rule_id string, message string) LintContractError {
 	return LintContractError{
-		kind: kind
+		kind:    kind
 		rule_id: rule_id
 		message: message
 	}

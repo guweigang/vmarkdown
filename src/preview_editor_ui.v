@@ -278,9 +278,12 @@ fn (mut app PreviewApp) show_editor_preview() {
 
 fn (mut app PreviewApp) open_editor_view(mode PreviewMode) {
 	text := app.editor.text()
-	doc := parse(text) or {
+	doc := parse_with_options(text, app.parse_options) or {
 		app.editor.status = 'preview parse failed: ${err}'
 		return
+	}
+	if text != app.markdown {
+		app.footnote_history.clear()
 	}
 	app.markdown = text
 	app.doc = doc
@@ -295,9 +298,12 @@ fn (mut app PreviewApp) open_editor_view(mode PreviewMode) {
 
 fn (mut app PreviewApp) refresh_normal_view() {
 	text := app.editor.text()
-	doc := parse(text) or {
+	doc := parse_with_options(text, app.parse_options) or {
 		app.search_status = 'preview parse failed: ${err}'
 		return
+	}
+	if text != app.markdown {
+		app.footnote_history.clear()
 	}
 	app.markdown = text
 	app.doc = doc
@@ -337,8 +343,11 @@ fn (mut app PreviewApp) save_editor_with_force(force bool) bool {
 	}
 	app.source_raw = encoded.clone()
 	app.source_loaded = true
+	if text != app.markdown {
+		app.footnote_history.clear()
+	}
 	app.markdown = text
-	app.doc = parse(text) or {
+	app.doc = parse_with_options(text, app.parse_options) or {
 		app.editor.status = 'written; preview parse failed: ${err}'
 		app.editor.mark_saved()
 		app.last_width = 0

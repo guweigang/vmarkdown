@@ -12,6 +12,9 @@ const code_block_type_tag = u8(0x06)
 const horizontal_rule_type_tag = u8(0x07)
 const table_type_tag = u8(0x08)
 const raw_html_block_type_tag = u8(0x09)
+const admonition_type_tag = u8(0x0a)
+const footnote_definition_type_tag = u8(0x0b)
+const blank_lines_type_tag = u8(0x0c)
 const list_item_type_tag = u8(0x10)
 const text_type_tag = u8(0x20)
 const emphasis_type_tag = u8(0x21)
@@ -26,30 +29,59 @@ const raw_html_inline_type_tag = u8(0x29)
 const wiki_link_type_tag = u8(0x2a)
 const latex_math_type_tag = u8(0x2b)
 const underline_type_tag = u8(0x2c)
+const footnote_reference_type_tag = u8(0x2d)
+const inline_style_type_tag = u8(0x2e)
 const binary_format_version = u8(1)
+const binary_admonition_version = u8(2)
+const binary_footnote_version = u8(3)
+const binary_inline_style_version = u8(4)
+const binary_layout_version = u8(5)
+
+struct BinaryEncoder {
+mut:
+	version u8 = binary_format_version
+}
+
+fn (mut encoder BinaryEncoder) require_version(version u8) {
+	if version > encoder.version {
+		encoder.version = version
+	}
+}
 
 pub fn (doc Document) binary_encode() []u8 {
+	mut encoder := BinaryEncoder{}
 	mut body := []u8{}
 	for child in doc.children {
-		body << child.binary_encode()
+		body << encoder.encode_block(child)
 	}
-	mut out := [u8(`V`), `M`, `D`, `A`, binary_format_version, document_type_tag]
+	if doc.preserve_blank_lines {
+		encoder.require_version(binary_layout_version)
+	}
+	mut out := [u8(`V`), `M`, `D`, `A`, encoder.version, document_type_tag]
+	if encoder.version >= binary_layout_version {
+		out << bool_u8(doc.preserve_blank_lines)
+	}
 	out << encode_varint(body.len)
 	out << body
 	return out
 }
 
 pub fn (node BlockNode) binary_encode() []u8 {
+	mut encoder := BinaryEncoder{}
+	return encoder.encode_block(node)
+}
+
+fn (mut encoder BinaryEncoder) encode_block(node BlockNode) []u8 {
 	match node {
 		HeadingNode {
-			content := encode_inline_sequence(node.children)
+			content := encoder.encode_inline_sequence(node.children)
 			mut out := [heading_type_tag, u8(node.level & 0xff)]
 			out << encode_varint(content.len)
 			out << content
 			return out
 		}
 		ParagraphNode {
-			content := encode_inline_sequence(node.children)
+			content := encoder.encode_inline_sequence(node.children)
 			mut out := [paragraph_type_tag]
 			out << encode_varint(content.len)
 			out << content
@@ -60,7 +92,7 @@ pub fn (node BlockNode) binary_encode() []u8 {
 			out << encode_varint(node.items.len)
 			out << encode_varint(node.start)
 			for item in node.items {
-				item_bytes := item.binary_encode()
+				item_bytes := encoder.encode_list_item(item)
 				out << encode_varint(item_bytes.len)
 				out << item_bytes
 			}
@@ -88,14 +120,29 @@ pub fn (node BlockNode) binary_encode() []u8 {
 			}
 			return out
 		}
+		FootnoteDefinitionNode {
+			encoder.require_version(binary_footnote_version)
+			content := encoder.encode_inline_sequence(node.children)
+			mut out := encode_footnote_header(footnote_definition_type_tag, node.number, node.label)
+			out << encode_varint(content.len)
+			out << content
+			return out
+		}
+		BlankLinesNode {
+			encoder.require_version(binary_layout_version)
+			mut out := [blank_lines_type_tag]
+			out << encode_varint(node.line_count)
+			return out
+		}
+		AdmonitionNode {
+			encoder.require_version(binary_admonition_version)
+			mut out := [admonition_type_tag, u8(node.kind)]
+			out << encoder.encode_block_sequence(node.children)
+			return out
+		}
 		BlockquoteNode {
-			mut body := []u8{}
-			for child in node.children {
-				body << child.binary_encode()
-			}
 			mut out := [blockquote_type_tag]
-			out << encode_varint(body.len)
-			out << body
+			out << encoder.encode_block_sequence(node.children)
 			return out
 		}
 		CodeBlockNode {
@@ -119,7 +166,7 @@ pub fn (node BlockNode) binary_encode() []u8 {
 			mut rows := node.head.clone()
 			rows << node.body
 			for row in rows {
-				row_bytes := row.binary_encode()
+				row_bytes := encoder.encode_table_row(row)
 				out << encode_varint(row_bytes.len)
 				out << row_bytes
 			}
@@ -128,10 +175,20 @@ pub fn (node BlockNode) binary_encode() []u8 {
 	}
 }
 
-fn (row TableRowNode) binary_encode() []u8 {
+fn (mut encoder BinaryEncoder) encode_block_sequence(children []BlockNode) []u8 {
+	mut body := []u8{}
+	for child in children {
+		body << encoder.encode_block(child)
+	}
+	mut out := encode_varint(body.len)
+	out << body
+	return out
+}
+
+fn (mut encoder BinaryEncoder) encode_table_row(row TableRowNode) []u8 {
 	mut out := encode_varint(row.cells.len)
 	for cell in row.cells {
-		content := encode_inline_sequence(cell.children)
+		content := encoder.encode_inline_sequence(cell.children)
 		out << u8(cell.alignment)
 		out << encode_varint(content.len)
 		out << content
@@ -140,9 +197,14 @@ fn (row TableRowNode) binary_encode() []u8 {
 }
 
 pub fn (item ListItemNode) binary_encode() []u8 {
+	mut encoder := BinaryEncoder{}
+	return encoder.encode_list_item(item)
+}
+
+fn (mut encoder BinaryEncoder) encode_list_item(item ListItemNode) []u8 {
 	mut body := []u8{}
 	for child in item.children {
-		child_bytes := child.binary_encode()
+		child_bytes := encoder.encode_block(child)
 		body << encode_varint(child_bytes.len)
 		body << child_bytes
 	}
@@ -157,6 +219,11 @@ pub fn (item ListItemNode) binary_encode() []u8 {
 }
 
 pub fn (node InlineNode) binary_encode() []u8 {
+	mut encoder := BinaryEncoder{}
+	return encoder.encode_inline(node)
+}
+
+fn (mut encoder BinaryEncoder) encode_inline(node InlineNode) []u8 {
 	match node {
 		TextNode {
 			data := normalize_text(node.text).bytes()
@@ -166,28 +233,40 @@ pub fn (node InlineNode) binary_encode() []u8 {
 			return out
 		}
 		EmphasisNode {
-			content := encode_inline_sequence(node.children)
+			content := encoder.encode_inline_sequence(node.children)
 			mut out := [emphasis_type_tag]
 			out << encode_varint(content.len)
 			out << content
 			return out
 		}
 		StrongNode {
-			content := encode_inline_sequence(node.children)
+			content := encoder.encode_inline_sequence(node.children)
 			mut out := [strong_type_tag]
 			out << encode_varint(content.len)
 			out << content
 			return out
 		}
 		StrikethroughNode {
-			content := encode_inline_sequence(node.children)
+			content := encoder.encode_inline_sequence(node.children)
 			mut out := [strikethrough_type_tag]
 			out << encode_varint(content.len)
 			out << content
 			return out
 		}
+		InlineStyleNode {
+			encoder.require_version(if node.kind == .spoiler {
+				binary_layout_version
+			} else {
+				binary_inline_style_version
+			})
+			content := encoder.encode_inline_sequence(node.children)
+			mut out := [inline_style_type_tag, u8(node.kind)]
+			out << encode_varint(content.len)
+			out << content
+			return out
+		}
 		UnderlineNode {
-			content := encode_inline_sequence(node.children)
+			content := encoder.encode_inline_sequence(node.children)
 			mut out := [underline_type_tag]
 			out << encode_varint(content.len)
 			out << content
@@ -209,7 +288,7 @@ pub fn (node InlineNode) binary_encode() []u8 {
 		}
 		LinkNode {
 			url_bytes := normalize_text(node.url).bytes()
-			text_bytes := encode_inline_sequence(node.text)
+			text_bytes := encoder.encode_inline_sequence(node.text)
 			mut out := [link_type_tag]
 			out << encode_varint(url_bytes.len)
 			out << url_bytes
@@ -217,9 +296,13 @@ pub fn (node InlineNode) binary_encode() []u8 {
 			out << text_bytes
 			return out
 		}
+		FootnoteReferenceNode {
+			encoder.require_version(binary_footnote_version)
+			return encode_footnote_header(footnote_reference_type_tag, node.number, node.label)
+		}
 		WikiLinkNode {
 			target_bytes := normalize_text(node.target).bytes()
-			text_bytes := encode_inline_sequence(node.text)
+			text_bytes := encoder.encode_inline_sequence(node.text)
 			mut out := [wiki_link_type_tag]
 			out << encode_varint(target_bytes.len)
 			out << target_bytes
@@ -229,7 +312,7 @@ pub fn (node InlineNode) binary_encode() []u8 {
 		}
 		ImageNode {
 			url_bytes := normalize_text(node.url).bytes()
-			alt_bytes := encode_inline_sequence(node.alt)
+			alt_bytes := encoder.encode_inline_sequence(node.alt)
 			mut out := [image_type_tag]
 			out << encode_varint(url_bytes.len)
 			out << url_bytes
@@ -253,13 +336,13 @@ pub fn (node InlineNode) binary_encode() []u8 {
 	}
 }
 
-fn encode_inline_sequence(nodes []InlineNode) []u8 {
+fn (mut encoder BinaryEncoder) encode_inline_sequence(nodes []InlineNode) []u8 {
 	mut out := []u8{}
 	for index, node in nodes {
 		child := if node is TextNode {
 			encode_text_node(node, index == 0, index == nodes.len - 1)
 		} else {
-			node.binary_encode()
+			encoder.encode_inline(node)
 		}
 		if child.len == 0 {
 			continue
@@ -277,6 +360,14 @@ fn encode_text_node(node TextNode, trim_left bool, trim_right bool) []u8 {
 	mut out := [text_type_tag]
 	out << encode_varint(data.len)
 	out << data
+	return out
+}
+
+fn encode_footnote_header(tag u8, number int, label string) []u8 {
+	mut out := [tag]
+	out << encode_varint(number)
+	out << encode_varint(label.len)
+	out << label.bytes()
 	return out
 }
 

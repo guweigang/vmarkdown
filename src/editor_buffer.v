@@ -177,62 +177,79 @@ fn (mut ed MarkdownEditor) move_down() {
 }
 
 fn (mut ed MarkdownEditor) move_word_forward() {
-	mut y := ed.cursor_y
-	mut x := ed.cursor_x
-	mut first_line := true
-	for y < ed.lines.len {
-		line := ed.lines[y].runes()
-		for first_line && x < line.len && is_editor_word_rune(line[x]) {
-			x++
-		}
-		for x < line.len && !is_editor_word_rune(line[x]) {
-			x++
-		}
-		if x < line.len {
+	for y := ed.cursor_y; y < ed.lines.len; y++ {
+		first_line := y == ed.cursor_y
+		start := if first_line { ed.cursor_x } else { 0 }
+		if x := next_word_column(ed.lines[y].runes(), start, first_line) {
 			ed.cursor_x = x
 			ed.cursor_y = y
 			return
 		}
-		y++
-		x = 0
-		first_line = false
 	}
 	ed.cursor_y = ed.lines.len - 1
 	ed.cursor_x = ed.current_line().runes().len
 }
 
 fn (mut ed MarkdownEditor) move_word_backward() {
-	mut y := ed.cursor_y
-	mut x := ed.cursor_x
-	if x == 0 && y > 0 {
-		y--
-		x = ed.lines[y].runes().len
-	}
-	for y >= 0 {
+	for y := ed.cursor_y; y >= 0; y-- {
 		line := ed.lines[y].runes()
-		x = min_int(x, line.len)
-		for x > 0 && !is_editor_word_rune(line[x - 1]) {
-			x--
-		}
-		for x > 0 && is_editor_word_rune(line[x - 1]) {
-			x--
-		}
-		if x < line.len || (x == 0 && line.len > 0) {
+		start := if y == ed.cursor_y { ed.cursor_x } else { line.len }
+		if x := previous_word_column(line, start) {
 			ed.cursor_x = x
 			ed.cursor_y = y
 			return
-		}
-		y--
-		if y >= 0 {
-			x = ed.lines[y].runes().len
 		}
 	}
 	ed.cursor_x = 0
 	ed.cursor_y = 0
 }
 
-fn is_editor_word_rune(r rune) bool {
-	return utf8.is_letter(r) || (r >= `0` && r <= `9`) || r == `_`
+enum WordClass {
+	space
+	word
+	punctuation
+}
+
+fn word_class(r rune) WordClass {
+	if utf8.is_space(r) {
+		return .space
+	}
+	if utf8.is_letter(r) || (r >= `0` && r <= `9`) || r == `_` {
+		return .word
+	}
+	return .punctuation
+}
+
+fn next_word_column(line []rune, start int, skip_current bool) ?int {
+	mut x := min_int(max_int(start, 0), line.len)
+	if skip_current && x < line.len {
+		kind := word_class(line[x])
+		for x < line.len && word_class(line[x]) == kind {
+			x++
+		}
+	}
+	for x < line.len && word_class(line[x]) == .space {
+		x++
+	}
+	if x < line.len {
+		return x
+	}
+	return none
+}
+
+fn previous_word_column(line []rune, start int) ?int {
+	mut x := min_int(max_int(start, 0), line.len)
+	for x > 0 && word_class(line[x - 1]) == .space {
+		x--
+	}
+	if x == 0 {
+		return none
+	}
+	kind := word_class(line[x - 1])
+	for x > 0 && word_class(line[x - 1]) == kind {
+		x--
+	}
+	return x
 }
 
 fn (mut ed MarkdownEditor) insert_text(text string) {

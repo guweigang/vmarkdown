@@ -165,18 +165,22 @@ fn render_ascii_grouped_flow_graph(graph DiagramGraph, width int) ?string {
 				}, width)
 				if left_body.split_into_lines().len == 1 && right_body.split_into_lines().len == 1 {
 					left_relation := if incoming.kind == .arrow { '──▶' } else { '───' }
-					right_relation := if outgoing.kind == .arrow { '──▶' } else { '───' }
+					right_relation := if outgoing.kind == .arrow {
+						'──▶'
+					} else {
+						'───'
+					}
 					return ascii_triple_relation(left_body, framed_group, right_body,
 						left_relation, right_relation, AsciiTripleRelationOptions{
-						left_gap:    max_int(display_width(left_relation) +
-							display_width(incoming.label) + 4, 8)
-						right_gap:   max_int(display_width(right_relation) +
-							display_width(outgoing.label) + 4, 8)
-						width:       width
-						left_label:  incoming.label
-						right_label: outgoing.label
-						align_y:     'middle'
-					})
+							left_gap:    max_int(display_width(left_relation) +
+								display_width(incoming.label) + 4, 8)
+							right_gap:   max_int(display_width(right_relation) +
+								display_width(outgoing.label) + 4, 8)
+							width:       width
+							left_label:  incoming.label
+							right_label: outgoing.label
+							align_y:     'middle'
+						})
 				}
 			}
 		}
@@ -320,13 +324,13 @@ fn render_ascii_grouped_flow_graph(graph DiagramGraph, width int) ?string {
 					}
 					return ascii_triple_relation(left_body, framed_group, right_body, '',
 						right_relation, AsciiTripleRelationOptions{
-						left_gap:    2
-						right_gap:   max_int(display_width(right_relation) +
-							display_width(outgoing_edges[0].label) + 4, 8)
-						width:       width
-						right_label: outgoing_edges[0].label
-						align_y:     'middle'
-					})
+							left_gap:    2
+							right_gap:   max_int(display_width(right_relation) +
+								display_width(outgoing_edges[0].label) + 4, 8)
+							width:       width
+							right_label: outgoing_edges[0].label
+							align_y:     'middle'
+						})
 				}
 			}
 		}
@@ -384,13 +388,13 @@ fn render_ascii_grouped_flow_graph(graph DiagramGraph, width int) ?string {
 					}
 					return ascii_triple_relation(left_body, framed_group, right_body,
 						left_relation, '', AsciiTripleRelationOptions{
-						left_gap:   max_int(display_width(left_relation) +
-							display_width(incoming_edges[0].label) + 4, 8)
-						right_gap:  2
-						width:      width
-						left_label: incoming_edges[0].label
-						align_y:    'middle'
-					})
+							left_gap:   max_int(display_width(left_relation) +
+								display_width(incoming_edges[0].label) + 4, 8)
+							right_gap:  2
+							width:      width
+							left_label: incoming_edges[0].label
+							align_y:    'middle'
+						})
 				}
 			}
 		}

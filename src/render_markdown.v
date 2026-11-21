@@ -33,9 +33,12 @@ pub fn render_markdown_with_limits(markdown string, options ParseOptions, limits
 }
 
 fn (doc Document) render_markdown() string {
+	if doc.preserve_blank_lines || has_explicit_blank_lines(doc.children) {
+		return join_preserved_lines(render_preserved_markdown_lines(doc.children, 0))
+	}
 	mut parts := []string{}
 	for child_index, child in doc.children {
-		rendered := child.render_markdown_block('', 0, list_run_variant(doc.children, child_index))
+		rendered := child.render_markdown_block('', 0, list_run_variant(doc.children, child_index), false)
 		if rendered.len > 0 {
 			parts << rendered
 		}
@@ -43,8 +46,9 @@ fn (doc Document) render_markdown() string {
 	return parts.join('\n\n')
 }
 
-fn (node BlockNode) render_markdown_block(prefix string, depth int, list_variant int) string {
+fn (node BlockNode) render_markdown_block(prefix string, depth int, list_variant int, preserve_blank_lines bool) string {
 	match node {
+		BlankLinesNode { return '' }
 		HeadingNode {
 			content := escape_heading_closing_hashes(render_inline_markdown(node.children))
 			if content.contains('\n') && node.level in [1, 2] {
@@ -57,24 +61,16 @@ fn (node BlockNode) render_markdown_block(prefix string, depth int, list_variant
 		ParagraphNode {
 			return prefix + render_inline_markdown(node.children)
 		}
+		FootnoteDefinitionNode {
+			body := render_inline_markdown(node.children)
+			marker := markdown_footnote_label(node.label) + ':'
+			return if body.len > 0 { marker + ' ' + body.replace('\n', '\n  ') } else { marker }
+		}
+		AdmonitionNode {
+			return render_quoted_markdown(node.children, depth, ['> [!${node.kind.str().to_upper()}]'], preserve_blank_lines)
+		}
 		BlockquoteNode {
-			mut parts := []string{}
-			for child_index, child in node.children {
-				rendered := child.render_markdown_block('', depth, list_run_variant(node.children, child_index))
-				if rendered.len == 0 {
-					continue
-				}
-				if child_index > 0 && parts.len > 0 {
-					parts << '>'
-				}
-				for line in rendered.split_into_lines() {
-					parts << '> ' + line
-				}
-			}
-			if parts.len == 0 {
-				return '>'
-			}
-			return parts.join('\n')
+			return render_quoted_markdown(node.children, depth, [], preserve_blank_lines)
 		}
 		ListNode {
 			mut lines := []string{}
@@ -94,7 +90,7 @@ fn (node BlockNode) render_markdown_block(prefix string, depth int, list_variant
 				item_prefix := '${prefix}${marker} ${task}'
 				body_prefix := prefix + ' '.repeat(marker.len + 1 + task.len)
 				block_prefix := prefix + ' '.repeat(marker.len + 1)
-				item_lines := item.render_markdown_item(depth + 1)
+				item_lines := item.render_markdown_item(depth + 1, preserve_blank_lines)
 				if item_lines.len == 0 {
 					lines << item_prefix.trim_right(' ')
 					continue
@@ -140,6 +136,9 @@ fn (node BlockNode) render_markdown_block(prefix string, depth int, list_variant
 			return header + content + separator + fence
 		}
 		RawHtmlBlockNode {
+			if preserve_blank_lines && node.html.ends_with('\n') {
+				return node.html[..node.html.len - 1]
+			}
 			return node.html
 		}
 		HorizontalRuleNode {
@@ -188,22 +187,17 @@ fn render_table_markdown_row(row TableRowNode) string {
 }
 
 fn render_table_cell_markdown(nodes []InlineNode) string {
-	mut sb := strings.new_builder(32)
-	for node in nodes {
-		rendered := node.render_markdown_inline(0)
-		if node is CodeSpanNode || node is WikiLinkNode {
-			sb.write_string(rendered)
-		} else {
-			sb.write_string(rendered.replace('|', '\\|'))
-		}
-	}
-	return sb.str().replace('\n', '<br>')
+	return render_inline_markdown_depth(nodes, 0, true).replace('\n', '<br>')
 }
 
-fn (item ListItemNode) render_markdown_item(depth int) []string {
+fn (item ListItemNode) render_markdown_item(depth int, preserve_blank_lines bool) []string {
+	if preserve_blank_lines || has_explicit_blank_lines(item.children) {
+		return render_preserved_markdown_lines(item.children, depth)
+	}
+
 	mut lines := []string{}
 	for child_index, child in item.children {
-		rendered := child.render_markdown_block('', depth, list_run_variant(item.children, child_index))
+		rendered := child.render_markdown_block('', depth, list_run_variant(item.children, child_index), false)
 		if rendered.len == 0 {
 			continue
 		}
@@ -242,59 +236,70 @@ fn (item ListItemNode) starts_with_nested_list() bool {
 }
 
 fn render_inline_markdown(nodes []InlineNode) string {
-	return render_inline_markdown_depth(nodes, 0)
+	return render_inline_markdown_depth(nodes, 0, false)
 }
 
-fn render_inline_markdown_depth(nodes []InlineNode, emphasis_depth int) string {
+fn render_inline_markdown_depth(nodes []InlineNode, emphasis_depth int, in_table_cell bool) string {
 	mut sb := strings.new_builder(64)
 	for node in nodes {
-		sb.write_string(node.render_markdown_inline(emphasis_depth))
+		sb.write_string(node.render_markdown_inline(emphasis_depth, in_table_cell))
 	}
 	return sb.str()
 }
 
-fn (node InlineNode) render_markdown_inline(emphasis_depth int) string {
+fn (node InlineNode) render_markdown_inline(emphasis_depth int, in_table_cell bool) string {
 	match node {
 		TextNode {
-			return escape_markdown_text(node.text)
+			return escape_table_pipes(escape_markdown_inline_text(node.text, in_table_cell), in_table_cell)
 		}
 		EmphasisNode {
 			marker := if emphasis_depth % 2 == 0 { '*' } else { '_' }
-			return marker + render_inline_markdown_depth(node.children, emphasis_depth + 1) + marker
+			return marker + render_inline_markdown_depth(node.children, emphasis_depth + 1, in_table_cell) + marker
 		}
 		StrongNode {
-			return '**' + render_inline_markdown_depth(node.children, emphasis_depth) + '**'
+			return '**' + render_inline_markdown_depth(node.children, emphasis_depth, in_table_cell) + '**'
 		}
 		StrikethroughNode {
-			return '~~' + render_inline_markdown_depth(node.children, emphasis_depth) + '~~'
+			return '~~' + render_inline_markdown_depth(node.children, emphasis_depth, in_table_cell) + '~~'
+		}
+		InlineStyleNode {
+			marker := node.kind.markdown_delimiter()
+			return marker + render_inline_markdown_depth(node.children, emphasis_depth, in_table_cell) + marker
 		}
 		UnderlineNode {
-			return '_' + render_inline_markdown_depth(node.children, emphasis_depth) + '_'
+			return '_' + render_inline_markdown_depth(node.children, emphasis_depth, in_table_cell) + '_'
 		}
 		CodeSpanNode {
 			return markdown_code_span(node.text)
 		}
 		LatexMathNode {
 			delimiter := if node.display { '\$\$' } else { '\$' }
-			return delimiter + node.content + delimiter
+			return delimiter + escape_table_pipes(node.content, in_table_cell) + delimiter
 		}
 		LinkNode {
 			plain_text := render_inline_text(node.text)
 			if node.url.len > 0 && plain_text == node.url && !node.url.contains_any(' <>\t\n') {
-				return '<${node.url}>'
+				return '<' + escape_table_pipes(node.url, in_table_cell) + '>'
 			}
-			return '[' + render_inline_markdown_depth(node.text, emphasis_depth) + '](' + markdown_link_destination(node.url) + ')'
+			label := render_inline_markdown_depth(node.text, emphasis_depth, in_table_cell)
+			destination := escape_table_pipes(markdown_link_destination(node.url), in_table_cell)
+			return '[' + label + '](' + destination + ')'
+		}
+		FootnoteReferenceNode {
+			return markdown_footnote_label(node.label)
 		}
 		WikiLinkNode {
 			target := markdown_wiki_target(node.target)
-			label := render_inline_markdown_depth(node.text, emphasis_depth)
+			label := render_inline_markdown_depth(node.text, emphasis_depth, in_table_cell)
 			if render_inline_text(node.text) == node.target {
 				return '[[' + target + ']]'
 			}
 			return '[[' + target + '|' + label + ']]'
 		}
 		ImageNode {
-			return '![' + render_inline_markdown_depth(node.alt, emphasis_depth) + '](' + markdown_link_destination(node.url) + ')'
+			label := render_inline_markdown_depth(node.alt, emphasis_depth, in_table_cell)
+			destination := escape_table_pipes(markdown_link_destination(node.url), in_table_cell)
+			return '![' + label + '](' + destination + ')'
 		}
 		SoftBreakNode {
 			return '\n'
@@ -303,9 +308,29 @@ fn (node InlineNode) render_markdown_inline(emphasis_depth int) string {
 			return '  \n'
 		}
 		RawHtmlInlineNode {
-			return node.html
+			return escape_table_pipes(node.html, in_table_cell)
 		}
 	}
+}
+
+fn (kind InlineStyleKind) markdown_delimiter() string {
+	return match kind {
+		.highlight { '==' }
+		.insertion { '++' }
+		.superscript { '^' }
+		.subscript { '~' }
+		.spoiler { '||' }
+	}
+}
+
+fn escape_table_pipes(text string, in_table_cell bool) string {
+	return if in_table_cell { text.replace('|', '\\|') } else { text }
+}
+
+fn markdown_footnote_label(label string) string {
+	// The definition must use the same spelling as a reference in a table.
+	escaped := label.replace('\\', '\\\\').replace('|', '\\|')
+	return '[^' + if escaped.len <= max_footnote_label_bytes { escaped } else { label } + ']'
 }
 
 fn markdown_wiki_target(target string) string {
@@ -313,8 +338,20 @@ fn markdown_wiki_target(target string) string {
 }
 
 fn escape_markdown_text(input string) string {
-	escaped := input.replace('\\', '\\\\').replace('[', '\\[').replace(']', '\\]').replace('!', '\\!').replace('*', '\\*').replace('_', '\\_').replace('`', '\\`').replace('<', '\\<')
-	return escape_markdown_block_start(escaped)
+	return escape_markdown_inline_text(input, false)
+}
+
+fn escape_markdown_inline_text(input string, in_table_cell bool) string {
+	mut escaped := strings.new_builder(input.len)
+	for index, byte in input {
+		if byte in [`\\`, `[`, `]`, `!`, `*`, `_`, `\``, `<`, `^`, `~`]
+			|| ((byte in [`=`, `+`] || (byte == `|` && !in_table_cell)) && (index == 0 || index == input.len - 1
+				|| input[index - 1] == byte || input[index + 1] == byte)) {
+			escaped.write_u8(`\\`)
+		}
+		escaped.write_u8(byte)
+	}
+	return escape_markdown_block_start(escaped.str())
 }
 
 fn escape_markdown_block_start(input string) string {
@@ -424,4 +461,42 @@ fn longest_backtick_run(input string) int {
 		}
 	}
 	return longest
+}
+
+fn render_quoted_markdown(children []BlockNode, depth int, initial_lines []string, preserve_blank_lines bool) string {
+	mut lines := initial_lines.clone()
+	if preserve_blank_lines || has_explicit_blank_lines(children) {
+		for line in render_preserved_markdown_lines(children, depth) {
+			lines << if line.len > 0 { '> ' + line } else { '>' }
+		}
+		return if lines.len == 0 { '>' } else { lines.join('\n') }
+	}
+	for child_index, child in children {
+		rendered := child.render_markdown_block('', depth, list_run_variant(children, child_index), false)
+		if rendered.len == 0 {
+			continue
+		}
+		if child_index > 0 && lines.len > 0 {
+			lines << '>'
+		}
+		for line in rendered.split_into_lines() {
+			lines << '> ' + line
+		}
+	}
+	return if lines.len == 0 { '>' } else { lines.join('\n') }
+}
+
+fn render_preserved_markdown_lines(children []BlockNode, depth int) []string {
+	mut lines := []string{}
+	for index, child in children {
+		if child is BlankLinesNode {
+			lines << []string{len: child.line_count}
+			continue
+		}
+		rendered := child.render_markdown_block('', depth, list_run_variant(children, index), true)
+		if rendered.len > 0 {
+			lines << rendered.split('\n')
+		}
+	}
+	return lines
 }

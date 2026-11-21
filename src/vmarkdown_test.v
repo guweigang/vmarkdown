@@ -352,7 +352,7 @@ fn test_checked_node_encode_methods_reject_invalid_ast() {
 
 fn test_binary_encoding_uses_protocol_type_tags() {
 	heading := HeadingNode{
-		level: 2
+		level:    2
 		children: [InlineNode(TextNode{
 			text: 'Hello'
 		})]

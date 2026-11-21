@@ -1,10 +1,11 @@
 # Third-party notices
 
-vmarkdown vendors and links the md4c 0.5.2 Markdown parser and HTML renderer.
+vmarkdown vendors and links the md4c 0.6.0 Markdown parser and HTML renderer from
+upstream tag `v0.6.0` (`7fc1815`).
 
 ## md4c
 
-Copyright © 2016-2024 Martin Mitáš
+Copyright © 2016-2026 Martin Mitáš
 
 md4c is distributed under the MIT License. Its complete license text is
 available in [`thirdparty/md4c/LICENSE.md`](thirdparty/md4c/LICENSE.md) in the

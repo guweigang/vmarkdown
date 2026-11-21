@@ -55,7 +55,8 @@ fn test_binary_v1_golden_inline_records() {
 		0x01,
 		0x61,
 	]
-	assert InlineNode(LatexMathNode{ content: 'x' }).binary_encode() == [u8(0x2b), 0x00, 0x01, 0x78]
+	assert InlineNode(LatexMathNode{ content: 'x' }).binary_encode() == [u8(0x2b), 0x00, 0x01,
+		0x78]
 	assert InlineNode(LatexMathNode{ content: 'x', display: true }).binary_encode() == [
 		u8(0x2b),
 		0x01,
@@ -79,7 +80,7 @@ fn test_binary_v1_golden_block_and_list_item_records() {
 	]
 	assert paragraph.binary_encode() == [u8(0x02), 0x03, 0x20, 0x01, 0x61]
 	item := ListItemNode{
-		level: 1
+		level:    1
 		children: [paragraph]
 	}
 	assert item.binary_encode() == [u8(0x10), 0x01, 0x00, 0x00, 0x00, 0x06, 0x05, 0x02, 0x03, 0x20,
@@ -127,7 +128,7 @@ fn test_binary_v1_golden_block_and_list_item_records() {
 	assert BlockNode(HorizontalRuleNode{}).binary_encode() == [u8(0x07)]
 	assert BlockNode(TableNode{
 		columns: 1
-		head: [TableRowNode{
+		head:    [TableRowNode{
 			cells: [TableCellNode{ children: [text] }]
 		}]
 	}).binary_encode() == [u8(0x08), 0x01, 0x01, 0x00, 0x06, 0x01, 0x00, 0x03, 0x20, 0x01, 0x61]
@@ -141,7 +142,7 @@ fn test_binary_v1_round_trip_covers_every_record_type() {
 		InlineNode(StrongNode{ children: [InlineNode(TextNode{ text: 'strong' })] }),
 		InlineNode(CodeSpanNode{ text: 'code' }),
 		InlineNode(LinkNode{
-			url: 'https://example.com'
+			url:  'https://example.com'
 			text: [InlineNode(TextNode{ text: 'link' })]
 		}),
 		InlineNode(ImageNode{
@@ -154,7 +155,7 @@ fn test_binary_v1_round_trip_covers_every_record_type() {
 		InlineNode(RawHtmlInlineNode{ html: '<kbd>' }),
 		InlineNode(WikiLinkNode{
 			target: 'docs'
-			text: [InlineNode(TextNode{ text: 'wiki' })]
+			text:   [InlineNode(TextNode{ text: 'wiki' })]
 		}),
 		InlineNode(LatexMathNode{ content: 'x^2', display: true }),
 		InlineNode(UnderlineNode{ children: [InlineNode(TextNode{ text: 'under' })] }),
@@ -162,18 +163,18 @@ fn test_binary_v1_round_trip_covers_every_record_type() {
 	doc := Document{
 		children: [
 			BlockNode(HeadingNode{
-				level: 2
+				level:    2
 				children: [InlineNode(TextNode{ text: 'heading' })]
 			}),
 			BlockNode(ParagraphNode{ children: inline_nodes }),
 			BlockNode(ListNode{
 				is_ordered: true
-				start: 3
-				items: [ListItemNode{
-					level: 1
-					number: 3
-					is_task: true
-					checked: true
+				start:      3
+				items:      [ListItemNode{
+					level:    1
+					number:   3
+					is_task:  true
+					checked:  true
 					children: [BlockNode(ParagraphNode{
 						children: [InlineNode(TextNode{ text: 'item' })]
 					})]
@@ -193,10 +194,10 @@ fn test_binary_v1_round_trip_covers_every_record_type() {
 			BlockNode(HorizontalRuleNode{}),
 			BlockNode(TableNode{
 				columns: 1
-				head: [TableRowNode{
+				head:    [TableRowNode{
 					cells: [TableCellNode{
 						alignment: .center
-						children: [InlineNode(TextNode{ text: 'cell' })]
+						children:  [InlineNode(TextNode{ text: 'cell' })]
 					}]
 				}]
 			}),
@@ -236,8 +237,8 @@ fn test_binary_v1_preserves_canonical_whitespace_between_inline_nodes() {
 
 	assert decoded.to_text() == 'a b'
 	assert decoded.binary_encode() == encoded
-	assert encoded == [u8(`V`), `M`, `D`, `A`, 0x01, 0x00, 0x0f, 0x02, 0x0d, 0x21, 0x03, 0x20, 0x01,
-		`a`, 0x20, 0x01, ` `, 0x22, 0x03, 0x20, 0x01, `b`]
+	assert encoded == [u8(`V`), `M`, `D`, `A`, 0x01, 0x00, 0x0f, 0x02, 0x0d, 0x21, 0x03, 0x20,
+		0x01, `a`, 0x20, 0x01, ` `, 0x22, 0x03, 0x20, 0x01, `b`]
 }
 
 fn test_binary_v1_stable_id_distinguishes_semantic_inline_spacing() {
@@ -253,7 +254,7 @@ fn test_binary_encode_checked_rejects_invalid_ast_without_panicking() {
 	doc := Document{
 		children: [BlockNode(ListNode{
 			is_ordered: true
-			start: -1
+			start:      -1
 		})]
 	}
 	if _ := doc.binary_encode_checked() {
@@ -307,8 +308,8 @@ fn test_binary_v1_varint_does_not_truncate_large_values() {
 	doc := Document{
 		children: [BlockNode(ListNode{
 			is_ordered: true
-			start: 70_000
-			items: []ListItemNode{}
+			start:      70_000
+			items:      []ListItemNode{}
 		})]
 	}
 	decoded := binary_decode(doc.binary_encode()) or { panic(err) }
@@ -349,8 +350,8 @@ fn test_binary_decode_supports_tighter_resource_limits() {
 		assert err.msg().contains('maximum depth 1')
 	}
 	decoded := binary_decode_with_limits(data, BinaryDecodeLimits{
-		max_input_bytes: 0
-		max_nodes: 0
+		max_input_bytes:   0
+		max_nodes:         0
 		max_nesting_depth: 0
 	}) or { panic(err) }
 	assert decoded.binary_encode() == data
@@ -382,6 +383,75 @@ fn test_unbounded_node_limit_does_not_allow_impossible_count_allocation() {
 	}
 }
 
+fn test_binary_v2_golden_admonition() {
+	doc := parse_with_options('> [!TIP]\n> A\n', ParseOptions{ admonitions: true }) or {
+		panic(err)
+	}
+	bytes := [u8(`V`), `M`, `D`, `A`, 2, 0, 8, 0x0a, 1, 5, 0x02, 3, 0x20, 1, `A`]
+	assert doc.binary_encode() == bytes
+	decoded := binary_decode(bytes) or { panic(err) }
+	assert decoded.stable_id() == doc.stable_id()
+	mut wrong_version := bytes.clone()
+	wrong_version[4] = 1
+	if _ := binary_decode(wrong_version) {
+		assert false, 'v1 cannot contain an admonition block'
+	}
+	mut wrong_kind := bytes.clone()
+	wrong_kind[8] = 5
+	if _ := binary_decode(wrong_kind) {
+		assert false, 'unknown admonition kind must fail'
+	}
+}
+
+fn test_binary_v3_golden_footnote() {
+	doc := parse_with_options('A[^n]\n\n[^n]: B\n', ParseOptions{ footnotes: true }) or {
+		panic(err)
+	}
+	bytes := [u8(`V`), `M`, `D`, `A`, 3, 0, 17, 0x02, 7, 0x20, 1, `A`, 0x2d, 1, 1, `n`, 0x0b, 1,
+		1, `n`, 3, 0x20, 1, `B`]
+	assert doc.binary_encode() == bytes
+	decoded := binary_decode(bytes) or { panic(err) }
+	assert decoded.stable_id() == doc.stable_id()
+	mut wrong_version := bytes.clone()
+	wrong_version[4] = 2
+	if _ := binary_decode(wrong_version) {
+		assert false, 'v2 cannot contain footnotes'
+	}
+}
+
+fn test_binary_v4_golden_highlight() {
+	doc := parse_with_options('==A==', ParseOptions{ highlight: true }) or { panic(err) }
+	bytes := [u8(`V`), `M`, `D`, `A`, 4, 0, 8, 0x02, 6, 0x2e, 0, 3, 0x20, 1, `A`]
+	assert doc.binary_encode() == bytes
+	decoded := binary_decode(bytes) or { panic(err) }
+	assert decoded.stable_id() == doc.stable_id()
+	mut wrong_version := bytes.clone()
+	wrong_version[4] = 3
+	if _ := binary_decode(wrong_version) {
+		assert false, 'v3 cannot contain inline styles'
+	}
+	mut wrong_kind := bytes.clone()
+	wrong_kind[10] = 5
+	if _ := binary_decode(wrong_kind) {
+		assert false, 'unknown inline style kind must fail'
+	}
+}
+
+fn test_binary_v5_golden_blank_line_layout() {
+	doc := parse_with_options('A\n\nB', ParseOptions{ preserve_blank_lines: true }) or { panic(err) }
+	bytes := [u8(`V`), `M`, `D`, `A`, 5, 0, 1, 12, 0x02, 3, 0x20, 1, `A`, 0x0c, 1, 0x02, 3, 0x20,
+		1, `B`]
+	assert doc.binary_encode() == bytes
+	decoded := binary_decode(bytes) or { panic(err) }
+	assert decoded.preserve_blank_lines
+	assert decoded.to_markdown() == 'A\n\nB'
+	mut zero_count := bytes.clone()
+	zero_count[14] = 0
+	if _ := binary_decode(zero_count) {
+		assert false, 'a blank line run must have a positive length'
+	}
+}
+
 fn test_binary_v1_rejects_invalid_envelopes_and_payloads() {
 	valid := Document{}.binary_encode()
 
@@ -392,7 +462,7 @@ fn test_binary_v1_rejects_invalid_envelopes_and_payloads() {
 	}
 
 	mut bad_version := valid.clone()
-	bad_version[4] = 2
+	bad_version[4] = 6
 	if _ := binary_decode(bad_version) {
 		assert false, 'unknown version must fail'
 	}
@@ -469,8 +539,8 @@ fn test_binary_decode_handles_deterministic_adversarial_payloads_without_panicki
 
 fn ignore_binary_decode_result(data []u8) {
 	_ := binary_decode_with_limits(data, BinaryDecodeLimits{
-		max_input_bytes: 4096
-		max_nodes: 256
+		max_input_bytes:   4096
+		max_nodes:         256
 		max_nesting_depth: 32
 	}) or { return }
 }
